@@ -32,7 +32,7 @@ var firewallListCmd = &cobra.Command{
 			return fmt.Errorf("listing firewalls: %w", err)
 		}
 		format := outputFormat(cmd)
-		output.Print(format, resp, func(w io.Writer) {
+		return output.Print(format, resp, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID", "NAME", "STATUS", "RULES")
 			for _, f := range resp {
@@ -40,7 +40,6 @@ var firewallListCmd = &cobra.Command{
 			}
 			tw.Flush()
 		})
-		return nil
 	},
 }
 
@@ -62,7 +61,7 @@ var firewallGetCmd = &cobra.Command{
 			return fmt.Errorf("getting firewall: %w", err)
 		}
 		format := outputFormat(cmd)
-		output.Print(format, fw, func(w io.Writer) {
+		return output.Print(format, fw, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID:", fw.Id)
 			output.PrintRow(tw, "Name:", fw.Name)
@@ -79,7 +78,6 @@ var firewallGetCmd = &cobra.Command{
 				rw.Flush()
 			}
 		})
-		return nil
 	},
 }
 
@@ -150,7 +148,7 @@ var ruleListCmd = &cobra.Command{
 			return fmt.Errorf("listing rules: %w", err)
 		}
 		format := outputFormat(cmd)
-		output.Print(format, resp, func(w io.Writer) {
+		return output.Print(format, resp, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID", "DIR", "ACTION", "PROTO", "SPORT", "DPORT", "SOURCE", "DEST", "ENABLED")
 			for _, r := range resp {
@@ -158,7 +156,6 @@ var ruleListCmd = &cobra.Command{
 			}
 			tw.Flush()
 		})
-		return nil
 	},
 }
 

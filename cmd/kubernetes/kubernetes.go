@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/pidginhost/phctl/internal/client"
+	"github.com/pidginhost/phctl/internal/cmdutil"
 	"github.com/pidginhost/phctl/internal/confirm"
 	"github.com/pidginhost/phctl/internal/output"
 )
@@ -34,20 +35,25 @@ var clusterListCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		resp, _, err := c.KubernetesAPI.KubernetesClustersList(context.Background()).Execute()
+		clusters, err := cmdutil.FetchAll(func(page int32) ([]pidginhost.ClusterDetail, bool, error) {
+			resp, _, err := c.KubernetesAPI.KubernetesClustersList(context.Background()).Page(page).Execute()
+			if err != nil {
+				return nil, false, err
+			}
+			return resp.Results, resp.Next.Get() != nil, nil
+		})
 		if err != nil {
 			return fmt.Errorf("listing clusters: %w", err)
 		}
 		format := outputFormat(cmd)
-		output.Print(format, resp.Results, func(w io.Writer) {
+		return output.Print(format, clusters, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID", "NAME", "STATUS", "TYPE", "KUBE VERSION", "IPV4")
-			for _, cl := range resp.Results {
+			for _, cl := range clusters {
 				output.PrintRow(tw, cl.Id, pstr(cl.Name), cl.Status, cl.ClusterType, cl.KubeVersion, cl.Ipv4Address)
 			}
 			tw.Flush()
 		})
-		return nil
 	},
 }
 
@@ -65,7 +71,7 @@ var clusterGetCmd = &cobra.Command{
 			return fmt.Errorf("getting cluster: %w", err)
 		}
 		format := outputFormat(cmd)
-		output.Print(format, cl, func(w io.Writer) {
+		return output.Print(format, cl, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID:", cl.Id)
 			output.PrintRow(tw, "Name:", pstr(cl.Name))
@@ -78,7 +84,6 @@ var clusterGetCmd = &cobra.Command{
 			output.PrintRow(tw, "Features Ready:", cl.FeaturesReady)
 			tw.Flush()
 		})
-		return nil
 	},
 }
 
@@ -262,7 +267,7 @@ var clusterConnectedVMsCmd = &cobra.Command{
 			return fmt.Errorf("listing connected VMs: %w", err)
 		}
 		format := outputFormat(cmd)
-		output.Print(format, resp.Vms, func(w io.Writer) {
+		return output.Print(format, resp.Vms, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID", "HOSTNAME", "IP")
 			for _, vm := range resp.Vms {
@@ -270,7 +275,6 @@ var clusterConnectedVMsCmd = &cobra.Command{
 			}
 			tw.Flush()
 		})
-		return nil
 	},
 }
 
@@ -284,20 +288,25 @@ var clusterTypesCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		resp, _, err := c.KubernetesAPI.KubernetesClusterTypesList(context.Background()).Execute()
+		types, err := cmdutil.FetchAll(func(page int32) ([]pidginhost.ClusterType, bool, error) {
+			resp, _, err := c.KubernetesAPI.KubernetesClusterTypesList(context.Background()).Page(page).Execute()
+			if err != nil {
+				return nil, false, err
+			}
+			return resp.Results, resp.Next.Get() != nil, nil
+		})
 		if err != nil {
 			return fmt.Errorf("listing cluster types: %w", err)
 		}
 		format := outputFormat(cmd)
-		output.Print(format, resp.Results, func(w io.Writer) {
+		return output.Print(format, types, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "TYPE", "MIN WORKERS", "MAX WORKERS", "PACKAGES")
-			for _, t := range resp.Results {
+			for _, t := range types {
 				output.PrintRow(tw, t.Type, pstr(t.WorkerNodesCountMin), pstr(t.WorkerNodesCountMax), len(t.WorkerNodePackages))
 			}
 			tw.Flush()
 		})
-		return nil
 	},
 }
 
@@ -321,20 +330,25 @@ var poolListCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		resp, _, err := c.KubernetesAPI.KubernetesClustersResourcePoolsList(context.Background(), id).Execute()
+		pools, err := cmdutil.FetchAll(func(page int32) ([]pidginhost.ResourcePool, bool, error) {
+			resp, _, err := c.KubernetesAPI.KubernetesClustersResourcePoolsList(context.Background(), id).Page(page).Execute()
+			if err != nil {
+				return nil, false, err
+			}
+			return resp.Results, resp.Next.Get() != nil, nil
+		})
 		if err != nil {
 			return fmt.Errorf("listing pools: %w", err)
 		}
 		format := outputFormat(cmd)
-		output.Print(format, resp.Results, func(w io.Writer) {
+		return output.Print(format, pools, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID", "PACKAGE", "SIZE", "NODES")
-			for _, p := range resp.Results {
+			for _, p := range pools {
 				output.PrintRow(tw, p.Id, p.Package, p.Size, len(p.Nodes))
 			}
 			tw.Flush()
 		})
-		return nil
 	},
 }
 
@@ -416,20 +430,25 @@ var nodeListCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		resp, _, err := c.KubernetesAPI.KubernetesClustersResourcePoolsNodesList(context.Background(), clusterId, poolId).Execute()
+		nodes, err := cmdutil.FetchAll(func(page int32) ([]pidginhost.ResourcePoolNode, bool, error) {
+			resp, _, err := c.KubernetesAPI.KubernetesClustersResourcePoolsNodesList(context.Background(), clusterId, poolId).Page(page).Execute()
+			if err != nil {
+				return nil, false, err
+			}
+			return resp.Results, resp.Next.Get() != nil, nil
+		})
 		if err != nil {
 			return fmt.Errorf("listing nodes: %w", err)
 		}
 		format := outputFormat(cmd)
-		output.Print(format, resp.Results, func(w io.Writer) {
+		return output.Print(format, nodes, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID", "NAME", "IP")
-			for _, n := range resp.Results {
+			for _, n := range nodes {
 				output.PrintRow(tw, n.Id, n.Name, n.Ip)
 			}
 			tw.Flush()
 		})
-		return nil
 	},
 }
 

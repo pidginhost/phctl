@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"io"
 
+	pidginhost "github.com/pidginhost/sdk-go"
 	"github.com/spf13/cobra"
 
 	"github.com/pidginhost/phctl/internal/client"
+	"github.com/pidginhost/phctl/internal/cmdutil"
 	"github.com/pidginhost/phctl/internal/confirm"
 	"github.com/pidginhost/phctl/internal/output"
 )
@@ -26,20 +28,25 @@ var ipv4ListCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		resp, _, err := c.CloudAPI.CloudIpv4List(context.Background()).Execute()
+		ips, err := cmdutil.FetchAll(func(page int32) ([]pidginhost.PublicIPv4, bool, error) {
+			resp, _, err := c.CloudAPI.CloudIpv4List(context.Background()).Page(page).Execute()
+			if err != nil {
+				return nil, false, err
+			}
+			return resp.Results, resp.Next.Get() != nil, nil
+		})
 		if err != nil {
 			return fmt.Errorf("listing IPv4 addresses: %w", err)
 		}
 		format := outputFormat(cmd)
-		output.Print(format, resp.Results, func(w io.Writer) {
+		return output.Print(format, ips, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID", "ADDRESS", "GATEWAY", "PREFIX", "ATTACHED", "SERVER")
-			for _, ip := range resp.Results {
+			for _, ip := range ips {
 				output.PrintRow(tw, ip.Id, ip.Address, ip.Gateway, ip.Prefix, ip.Attached, ip.Server)
 			}
 			tw.Flush()
 		})
-		return nil
 	},
 }
 

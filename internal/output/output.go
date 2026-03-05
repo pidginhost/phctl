@@ -30,19 +30,24 @@ func ParseFormat(s string) Format {
 	}
 }
 
-func Print(format Format, data any, tableFunc func(w io.Writer)) {
+func Print(format Format, data any, tableFunc func(w io.Writer)) error {
 	switch format {
 	case FormatJSON:
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		_ = enc.Encode(data)
+		if err := enc.Encode(data); err != nil {
+			return fmt.Errorf("encoding JSON: %w", err)
+		}
 	case FormatYAML:
 		enc := yaml.NewEncoder(os.Stdout)
 		enc.SetIndent(2)
-		_ = enc.Encode(data)
+		if err := enc.Encode(data); err != nil {
+			return fmt.Errorf("encoding YAML: %w", err)
+		}
 	default:
 		tableFunc(os.Stdout)
 	}
+	return nil
 }
 
 func NewTabWriter(out io.Writer) *tabwriter.Writer {
@@ -57,7 +62,7 @@ func PrintRow(w *tabwriter.Writer, fields ...any) {
 	fmt.Fprintln(w, strings.Join(strs, "\t"))
 }
 
-// Pstr safely dereferences a pointer for display. Returns "" for nil.
+// Pstr safely dereferences a pointer for display. Returns "<none>" for nil.
 func Pstr[T any](p *T) string {
 	if p == nil {
 		return "<none>"

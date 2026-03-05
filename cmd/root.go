@@ -10,6 +10,7 @@ import (
 	"github.com/pidginhost/phctl/cmd/compute"
 	"github.com/pidginhost/phctl/cmd/domain"
 	"github.com/pidginhost/phctl/cmd/kubernetes"
+	"github.com/pidginhost/phctl/internal/config"
 )
 
 var rootCmd = &cobra.Command{
@@ -32,7 +33,12 @@ func Execute() {
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringP("output", "o", "table", "Output format: table, json, yaml")
+	outputDefault := "table"
+	if cfg, err := config.Load(); err == nil && cfg.Output != "" {
+		outputDefault = cfg.Output
+	}
+
+	rootCmd.PersistentFlags().StringP("output", "o", outputDefault, "Output format: table, json, yaml")
 	rootCmd.PersistentFlags().BoolP("force", "f", false, "Skip confirmation prompts")
 
 	rootCmd.AddCommand(auth.Cmd)

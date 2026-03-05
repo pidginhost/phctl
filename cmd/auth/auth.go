@@ -1,12 +1,12 @@
 package auth
 
 import (
-	"bufio"
 	"fmt"
 	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 
 	"github.com/pidginhost/phctl/internal/config"
 )
@@ -20,23 +20,18 @@ var initCmd = &cobra.Command{
 	Use:   "init",
 	Short: "Initialize authentication with an API token",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		reader := bufio.NewReader(os.Stdin)
 		fmt.Print("Enter your PidginHost API token: ")
-		token, err := reader.ReadString('\n')
+		tokenBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
+		fmt.Println()
 		if err != nil {
-			return err
+			return fmt.Errorf("reading token: %w", err)
 		}
-		token = strings.TrimSpace(token)
+		token := strings.TrimSpace(string(tokenBytes))
 		if token == "" {
 			return fmt.Errorf("token cannot be empty")
 		}
 
-		cfg, err := config.Load()
-		if err != nil {
-			return err
-		}
-		cfg.AuthToken = token
-		if err := config.Save(cfg); err != nil {
+		if err := config.Save(&config.Config{AuthToken: token}); err != nil {
 			return err
 		}
 
@@ -50,15 +45,9 @@ var setCmd = &cobra.Command{
 	Short: "Set API token directly",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := config.Load()
-		if err != nil {
+		if err := config.Save(&config.Config{AuthToken: args[0]}); err != nil {
 			return err
 		}
-		cfg.AuthToken = args[0]
-		if err := config.Save(cfg); err != nil {
-			return err
-		}
-
 		fmt.Println("Token saved.")
 		return nil
 	},

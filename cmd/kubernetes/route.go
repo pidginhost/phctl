@@ -47,7 +47,7 @@ var httpRouteListCmd = &cobra.Command{
 		}
 
 		format := outputFormat(cmd)
-		output.Print(format, routes, func(w io.Writer) {
+		return output.Print(format, routes, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID", "NAME", "HOSTNAMES", "BACKEND", "PORT", "TLS", "READY")
 			for _, r := range routes {
@@ -55,7 +55,6 @@ var httpRouteListCmd = &cobra.Command{
 			}
 			tw.Flush()
 		})
-		return nil
 	},
 }
 
@@ -166,7 +165,7 @@ var tcpRouteListCmd = &cobra.Command{
 		}
 
 		format := outputFormat(cmd)
-		output.Print(format, routes, func(w io.Writer) {
+		return output.Print(format, routes, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID", "NAME", "PORT", "BACKEND", "BACKEND PORT", "READY")
 			for _, r := range routes {
@@ -174,7 +173,6 @@ var tcpRouteListCmd = &cobra.Command{
 			}
 			tw.Flush()
 		})
-		return nil
 	},
 }
 
@@ -277,7 +275,7 @@ var udpRouteListCmd = &cobra.Command{
 		}
 
 		format := outputFormat(cmd)
-		output.Print(format, routes, func(w io.Writer) {
+		return output.Print(format, routes, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID", "NAME", "PORT", "BACKEND", "BACKEND PORT", "READY")
 			for _, r := range routes {
@@ -285,7 +283,6 @@ var udpRouteListCmd = &cobra.Command{
 			}
 			tw.Flush()
 		})
-		return nil
 	},
 }
 

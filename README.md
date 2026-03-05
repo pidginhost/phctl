@@ -101,7 +101,8 @@ phctl compute server delete 123 -f
 Several commands have shorter aliases:
 
 - `kubernetes` → `k8s`
-- `compute` → (subcommands: `server` → `srv`, `ipv4` → `ip`, `network` → `net`, `package` → `pkg`)
+- `compute` → `c`
+- `server` → `s`, `ipv4` → `ip`, `network` → `net`, `package` → `pkg`
 - `domain` → `dns`
 - `ssh-key` → `ssh`
 - `delete` → `rm` or `destroy`

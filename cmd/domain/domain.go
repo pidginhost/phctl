@@ -35,20 +35,25 @@ var domainListCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		resp, _, err := c.DomainAPI.DomainDomainList(context.Background()).Execute()
+		domains, err := cmdutil.FetchAll(func(page int32) ([]pidginhost.Domain, bool, error) {
+			resp, _, err := c.DomainAPI.DomainDomainList(context.Background()).Page(page).Execute()
+			if err != nil {
+				return nil, false, err
+			}
+			return resp.Results, resp.Next.Get() != nil, nil
+		})
 		if err != nil {
 			return fmt.Errorf("listing domains: %w", err)
 		}
 		format := outputFormat(cmd)
-		output.Print(format, resp.Results, func(w io.Writer) {
+		return output.Print(format, domains, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID", "DOMAIN", "TLD", "EXPIRATION", "STATUS")
-			for _, d := range resp.Results {
+			for _, d := range domains {
 				output.PrintRow(tw, d.Id, d.Domain, d.Tld.Tld, d.ExpirationDate, d.ServiceStatus)
 			}
 			tw.Flush()
 		})
-		return nil
 	},
 }
 
@@ -66,7 +71,7 @@ var domainGetCmd = &cobra.Command{
 			return fmt.Errorf("getting domain: %w", err)
 		}
 		format := outputFormat(cmd)
-		output.Print(format, d, func(w io.Writer) {
+		return output.Print(format, d, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID:", d.Id)
 			output.PrintRow(tw, "Domain:", d.Domain)
@@ -78,7 +83,6 @@ var domainGetCmd = &cobra.Command{
 			output.PrintRow(tw, "Max Renew Years:", d.MaxRenewYears)
 			tw.Flush()
 		})
-		return nil
 	},
 }
 
@@ -131,10 +135,9 @@ var domainCheckCmd = &cobra.Command{
 			return fmt.Errorf("checking availability: %w", err)
 		}
 		format := outputFormat(cmd)
-		output.Print(format, resp, func(w io.Writer) {
+		return output.Print(format, resp, func(w io.Writer) {
 			fmt.Fprintf(w, "Domain: %s\n", resp.Domain)
 		})
-		return nil
 	},
 }
 
@@ -177,20 +180,25 @@ var tldListCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		resp, _, err := c.DomainAPI.DomainTldList(context.Background()).Execute()
+		tlds, err := cmdutil.FetchAll(func(page int32) ([]pidginhost.TLD, bool, error) {
+			resp, _, err := c.DomainAPI.DomainTldList(context.Background()).Page(page).Execute()
+			if err != nil {
+				return nil, false, err
+			}
+			return resp.Results, resp.Next.Get() != nil, nil
+		})
 		if err != nil {
 			return fmt.Errorf("listing TLDs: %w", err)
 		}
 		format := outputFormat(cmd)
-		output.Print(format, resp.Results, func(w io.Writer) {
+		return output.Print(format, tlds, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID", "TLD", "PRICE", "REGISTRAR")
-			for _, t := range resp.Results {
+			for _, t := range tlds {
 				output.PrintRow(tw, t.Id, t.Tld, t.Price, t.Registrar)
 			}
 			tw.Flush()
 		})
-		return nil
 	},
 }
 
@@ -209,20 +217,25 @@ var registrantListCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		resp, _, err := c.DomainAPI.DomainRegistrantsList(context.Background()).Execute()
+		registrants, err := cmdutil.FetchAll(func(page int32) ([]pidginhost.DomainRegistrant, bool, error) {
+			resp, _, err := c.DomainAPI.DomainRegistrantsList(context.Background()).Page(page).Execute()
+			if err != nil {
+				return nil, false, err
+			}
+			return resp.Results, resp.Next.Get() != nil, nil
+		})
 		if err != nil {
 			return fmt.Errorf("listing registrants: %w", err)
 		}
 		format := outputFormat(cmd)
-		output.Print(format, resp.Results, func(w io.Writer) {
+		return output.Print(format, registrants, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID", "FIRST NAME", "LAST NAME", "EMAIL", "COUNTRY", "CITY")
-			for _, r := range resp.Results {
+			for _, r := range registrants {
 				output.PrintRow(tw, r.Id, r.FirstName, r.LastName, r.Email, r.Country, r.City)
 			}
 			tw.Flush()
 		})
-		return nil
 	},
 }
 
@@ -240,7 +253,7 @@ var registrantGetCmd = &cobra.Command{
 			return fmt.Errorf("getting registrant: %w", err)
 		}
 		format := outputFormat(cmd)
-		output.Print(format, r, func(w io.Writer) {
+		return output.Print(format, r, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID:", r.Id)
 			output.PrintRow(tw, "Name:", r.FirstName+" "+r.LastName)
@@ -253,7 +266,6 @@ var registrantGetCmd = &cobra.Command{
 			output.PrintRow(tw, "Country:", r.Country)
 			tw.Flush()
 		})
-		return nil
 	},
 }
 

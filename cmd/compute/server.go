@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/pidginhost/phctl/internal/client"
+	"github.com/pidginhost/phctl/internal/cmdutil"
 	"github.com/pidginhost/phctl/internal/confirm"
 	"github.com/pidginhost/phctl/internal/output"
 )
@@ -28,19 +29,24 @@ var serverListCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		resp, _, err := c.CloudAPI.CloudServersList(context.Background()).Execute()
+		servers, err := cmdutil.FetchAll(func(page int32) ([]pidginhost.Server, bool, error) {
+			resp, _, err := c.CloudAPI.CloudServersList(context.Background()).Page(page).Execute()
+			if err != nil {
+				return nil, false, err
+			}
+			return resp.Results, resp.Next.Get() != nil, nil
+		})
 		if err != nil {
 			return fmt.Errorf("listing servers: %w", err)
 		}
-		output.Print(outputFormat(cmd), resp.Results, func(w io.Writer) {
+		return output.Print(outputFormat(cmd), servers, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID", "HOSTNAME", "IMAGE", "PACKAGE", "STATUS")
-			for _, s := range resp.Results {
+			for _, s := range servers {
 				output.PrintRow(tw, s.Id, pstr(s.Hostname), s.Image, s.Package, pstr(s.Status))
 			}
 			tw.Flush()
 		})
-		return nil
 	},
 }
 
@@ -68,7 +74,7 @@ var serverGetCmd = &cobra.Command{
 			return fmt.Errorf("decoding server: %w", err)
 		}
 
-		output.Print(outputFormat(cmd), server, func(w io.Writer) {
+		return output.Print(outputFormat(cmd), server, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID:", server.Id)
 			output.PrintRow(tw, "Hostname:", pstr(server.Hostname))
@@ -82,7 +88,6 @@ var serverGetCmd = &cobra.Command{
 			output.PrintRow(tw, "HA Enabled:", server.HaEnabled)
 			tw.Flush()
 		})
-		return nil
 	},
 }
 
@@ -200,13 +205,12 @@ var serverConsoleCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("getting console: %w", err)
 		}
-		output.Print(outputFormat(cmd), resp, func(w io.Writer) {
+		return output.Print(outputFormat(cmd), resp, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "Token:", resp.Token)
 			output.PrintRow(tw, "Ticket:", resp.Ticket)
 			tw.Flush()
 		})
-		return nil
 	},
 }
 
@@ -313,14 +317,20 @@ var serverSnapshotListCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		resp, _, err := c.CloudAPI.CloudServersSnapshotsList(context.Background(), id).Execute()
+		snapshots, err := cmdutil.FetchAll(func(page int32) ([]pidginhost.Snapshot, bool, error) {
+			resp, _, err := c.CloudAPI.CloudServersSnapshotsList(context.Background(), id).Page(page).Execute()
+			if err != nil {
+				return nil, false, err
+			}
+			return resp.Results, resp.Next.Get() != nil, nil
+		})
 		if err != nil {
 			return fmt.Errorf("listing snapshots: %w", err)
 		}
-		output.Print(outputFormat(cmd), resp.Results, func(w io.Writer) {
+		return output.Print(outputFormat(cmd), snapshots, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "NAME", "STATE", "CREATED")
-			for _, s := range resp.Results {
+			for _, s := range snapshots {
 				created := "<none>"
 				if t := s.CreatedAt.Get(); t != nil {
 					created = t.Format("2006-01-02 15:04:05")
@@ -329,7 +339,6 @@ var serverSnapshotListCmd = &cobra.Command{
 			}
 			tw.Flush()
 		})
-		return nil
 	},
 }
 

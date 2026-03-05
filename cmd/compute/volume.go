@@ -32,7 +32,7 @@ var volumeListCmd = &cobra.Command{
 			return fmt.Errorf("listing volumes: %w", err)
 		}
 		format := outputFormat(cmd)
-		output.Print(format, resp, func(w io.Writer) {
+		return output.Print(format, resp, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID", "ALIAS", "SIZE", "PRODUCT", "ATTACHED", "SERVER")
 			for _, v := range resp {
@@ -40,7 +40,6 @@ var volumeListCmd = &cobra.Command{
 			}
 			tw.Flush()
 		})
-		return nil
 	},
 }
 
@@ -62,7 +61,7 @@ var volumeGetCmd = &cobra.Command{
 			return fmt.Errorf("getting volume: %w", err)
 		}
 		format := outputFormat(cmd)
-		output.Print(format, vol, func(w io.Writer) {
+		return output.Print(format, vol, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID:", vol.Id)
 			output.PrintRow(tw, "Alias:", pstr(vol.Alias))
@@ -72,7 +71,6 @@ var volumeGetCmd = &cobra.Command{
 			output.PrintRow(tw, "Server:", vol.Server)
 			tw.Flush()
 		})
-		return nil
 	},
 }
 

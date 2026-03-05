@@ -1,16 +1,40 @@
 stages:
-  - test
+  - check
   - build
   - release
 
 variables:
   BINARY_NAME: phctl
+  GOLANGCI_LINT_VERSION: v2.9.0
 
-test:
-  stage: test
+fmt:
+  stage: check
+  image: golang:1.22
+  script:
+    - test -z "$(gofmt -l .)"
+
+vet:
+  stage: check
   image: golang:1.22
   script:
     - go vet ./...
+
+lint:
+  stage: check
+  image: golangci/golangci-lint:${GOLANGCI_LINT_VERSION}
+  script:
+    - golangci-lint run ./...
+
+test:
+  stage: check
+  image: golang:1.22
+  script:
+    - go test -race ./...
+
+build:check:
+  stage: check
+  image: golang:1.22
+  script:
     - go build ./...
 
 .build_template: &build_template

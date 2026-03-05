@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/pidginhost/phctl/internal/client"
+	"github.com/pidginhost/phctl/internal/cmdutil"
 	"github.com/pidginhost/phctl/internal/confirm"
 	"github.com/pidginhost/phctl/internal/output"
 )
@@ -27,20 +28,25 @@ var networkListCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		resp, _, err := c.CloudAPI.CloudPrivateNetworksList(context.Background()).Execute()
+		networks, err := cmdutil.FetchAll(func(page int32) ([]pidginhost.PrivateNetwork, bool, error) {
+			resp, _, err := c.CloudAPI.CloudPrivateNetworksList(context.Background()).Page(page).Execute()
+			if err != nil {
+				return nil, false, err
+			}
+			return resp.Results, resp.Next.Get() != nil, nil
+		})
 		if err != nil {
 			return fmt.Errorf("listing networks: %w", err)
 		}
 		format := outputFormat(cmd)
-		output.Print(format, resp.Results, func(w io.Writer) {
+		return output.Print(format, networks, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID", "SLUG", "ADDRESS", "PROVISIONED", "SERVERS")
-			for _, n := range resp.Results {
+			for _, n := range networks {
 				output.PrintRow(tw, n.Id, n.Slug, n.Address, n.Provisioned, len(n.Servers))
 			}
 			tw.Flush()
 		})
-		return nil
 	},
 }
 
@@ -62,7 +68,7 @@ var networkGetCmd = &cobra.Command{
 			return fmt.Errorf("getting network: %w", err)
 		}
 		format := outputFormat(cmd)
-		output.Print(format, net, func(w io.Writer) {
+		return output.Print(format, net, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID:", net.Id)
 			output.PrintRow(tw, "Slug:", net.Slug)
@@ -79,9 +85,13 @@ var networkGetCmd = &cobra.Command{
 				}
 			}
 		})
-		return nil
 	},
 }
+
+var (
+	networkCreateSlug    string
+	networkCreateAddress string
+)
 
 var networkCreateCmd = &cobra.Command{
 	Use:   "create",
@@ -91,7 +101,7 @@ var networkCreateCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		body := *pidginhost.NewPrivateNetwork(0, "", "", false, nil)
+		body := *pidginhost.NewPrivateNetwork(0, networkCreateSlug, networkCreateAddress, false, nil)
 		resp, _, err := c.CloudAPI.CloudPrivateNetworksCreate(context.Background()).PrivateNetwork(body).Execute()
 		if err != nil {
 			return fmt.Errorf("creating network: %w", err)
@@ -184,6 +194,11 @@ var networkRemoveServerCmd = &cobra.Command{
 }
 
 func init() {
+	networkCreateCmd.Flags().StringVar(&networkCreateSlug, "slug", "", "Network slug in CIDR format (required)")
+	networkCreateCmd.Flags().StringVar(&networkCreateAddress, "address", "", "Network address in CIDR format (required)")
+	networkCreateCmd.MarkFlagRequired("slug")
+	networkCreateCmd.MarkFlagRequired("address")
+
 	networkAddServerCmd.Flags().StringVar(&networkAddServerHost, "server", "", "Server hostname (required)")
 	networkAddServerCmd.Flags().StringVar(&networkAddServerAddress, "address", "", "Private IP address to assign")
 	networkAddServerCmd.MarkFlagRequired("server")

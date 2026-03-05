@@ -39,7 +39,7 @@ var profileCmd = &cobra.Command{
 			return fmt.Errorf("getting profile: %w", err)
 		}
 		format := outputFormat(cmd)
-		output.Print(format, profile, func(w io.Writer) {
+		return output.Print(format, profile, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "First Name:", profile.FirstName)
 			output.PrintRow(tw, "Last Name:", profile.LastName)
@@ -47,7 +47,6 @@ var profileCmd = &cobra.Command{
 			output.PrintRow(tw, "Phone:", profile.Phone)
 			tw.Flush()
 		})
-		return nil
 	},
 }
 
@@ -67,20 +66,25 @@ var sshKeyListCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		resp, _, err := c.AccountAPI.AccountSshKeysList(context.Background()).Execute()
+		keys, err := cmdutil.FetchAll(func(page int32) ([]pidginhost.SSHKey, bool, error) {
+			resp, _, err := c.AccountAPI.AccountSshKeysList(context.Background()).Page(page).Execute()
+			if err != nil {
+				return nil, false, err
+			}
+			return resp.Results, resp.Next.Get() != nil, nil
+		})
 		if err != nil {
 			return fmt.Errorf("listing SSH keys: %w", err)
 		}
 		format := outputFormat(cmd)
-		output.Print(format, resp.Results, func(w io.Writer) {
+		return output.Print(format, keys, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID", "ALIAS", "FINGERPRINT")
-			for _, k := range resp.Results {
+			for _, k := range keys {
 				output.PrintRow(tw, k.Id, pstr(k.Alias), k.Fingerprint)
 			}
 			tw.Flush()
 		})
-		return nil
 	},
 }
 
@@ -147,20 +151,25 @@ var companyListCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		resp, _, err := c.AccountAPI.AccountCompaniesList(context.Background()).Execute()
+		companies, err := cmdutil.FetchAll(func(page int32) ([]pidginhost.Company, bool, error) {
+			resp, _, err := c.AccountAPI.AccountCompaniesList(context.Background()).Page(page).Execute()
+			if err != nil {
+				return nil, false, err
+			}
+			return resp.Results, resp.Next.Get() != nil, nil
+		})
 		if err != nil {
 			return fmt.Errorf("listing companies: %w", err)
 		}
 		format := outputFormat(cmd)
-		output.Print(format, resp.Results, func(w io.Writer) {
+		return output.Print(format, companies, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID", "NAME")
-			for _, co := range resp.Results {
+			for _, co := range companies {
 				output.PrintRow(tw, co.Id, co.Name)
 			}
 			tw.Flush()
 		})
-		return nil
 	},
 }
 
