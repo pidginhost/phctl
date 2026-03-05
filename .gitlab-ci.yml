@@ -9,13 +9,13 @@ variables:
 
 fmt:
   stage: check
-  image: golang:1.22
+  image: golang:1.24
   script:
     - test -z "$(gofmt -l .)"
 
 vet:
   stage: check
-  image: golang:1.22
+  image: golang:1.24
   script:
     - go vet ./...
 
@@ -27,19 +27,19 @@ lint:
 
 test:
   stage: check
-  image: golang:1.22
+  image: golang:1.24
   script:
     - go test -race ./...
 
 build:check:
   stage: check
-  image: golang:1.22
+  image: golang:1.24
   script:
     - go build ./...
 
 .build_template: &build_template
   stage: build
-  image: golang:1.22
+  image: golang:1.24
   rules:
     - if: $CI_COMMIT_TAG
   script:
