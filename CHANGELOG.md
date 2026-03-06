@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.2.3
+
+### Fixed
+
+- CI: changelog extraction for release notes (awk range pattern fix)
+
 ## v0.2.2
 
 ### Changed

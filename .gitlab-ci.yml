@@ -144,7 +144,7 @@ release:gitlab:
   script:
     - |
       # Extract changelog for this version (between ## vX.Y.Z and the next ## heading)
-      NOTES=$(awk "/^## ${CI_COMMIT_TAG}\$/,/^## v/" CHANGELOG.md | sed '1d;/^## v/d')
+      NOTES=$(awk -v ver="${CI_COMMIT_TAG}" '/^## / { if (found) exit; if ($2 == ver) { found=1; next } } found { print }' CHANGELOG.md)
       if [ -z "$NOTES" ]; then
         NOTES="Release ${CI_COMMIT_TAG}"
       fi
@@ -191,7 +191,7 @@ release:github:
       VERSION="${CI_COMMIT_TAG}"
 
       # Extract changelog for this version
-      NOTES=$(awk "/^## ${VERSION}\$/,/^## v/" CHANGELOG.md | sed '1d;/^## v/d')
+      NOTES=$(awk -v ver="${VERSION}" '/^## / { if (found) exit; if ($2 == ver) { found=1; next } } found { print }' CHANGELOG.md)
       if [ -z "$NOTES" ]; then
         NOTES="Release ${VERSION}"
       fi
