@@ -16,7 +16,7 @@ func TestAccountSubcommands(t *testing.T) {
 		names[c.Name()] = true
 	}
 
-	for _, want := range []string{"profile", "ssh-key", "company"} {
+	for _, want := range []string{"profile", "ssh-key", "company", "api-token", "email"} {
 		if !names[want] {
 			t.Errorf("missing subcommand %q", want)
 		}

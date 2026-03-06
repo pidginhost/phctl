@@ -180,7 +180,7 @@ var ruleCreateCmd = &cobra.Command{
 		}
 		body := *pidginhost.NewFirewallRule(
 			0,
-			pidginhost.DirectionEnum(ruleDirection),
+			pidginhost.FirewallRuleDirectionEnum(ruleDirection),
 			pidginhost.FwPolicyOutEnum(ruleAction),
 			false, "",
 		)

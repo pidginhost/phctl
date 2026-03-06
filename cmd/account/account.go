@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"time"
 
 	pidginhost "github.com/pidginhost/sdk-go"
 	"github.com/spf13/cobra"
@@ -173,6 +174,124 @@ var companyListCmd = &cobra.Command{
 	},
 }
 
+// --- API Tokens ---
+
+var apiTokenCmd = &cobra.Command{
+	Use:   "api-token",
+	Short: "Manage API tokens",
+}
+
+var apiTokenListCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List API tokens",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		c, err := client.New()
+		if err != nil {
+			return err
+		}
+		tokens, err := cmdutil.FetchAll(func(page int32) ([]pidginhost.APITokenList, bool, error) {
+			resp, _, err := c.AccountAPI.AccountApiTokensList(context.Background()).Page(page).Execute()
+			if err != nil {
+				return nil, false, err
+			}
+			return resp.Results, resp.Next.Get() != nil, nil
+		})
+		if err != nil {
+			return fmt.Errorf("listing API tokens: %w", err)
+		}
+		format := outputFormat(cmd)
+		return output.Print(format, tokens, func(w io.Writer) {
+			tw := output.NewTabWriter(w)
+			output.PrintRow(tw, "ID", "NAME", "CREATED")
+			for _, t := range tokens {
+				output.PrintRow(tw, t.Id, t.Name, t.Created.Format("2006-01-02 15:04"))
+			}
+			tw.Flush()
+		})
+	},
+}
+
+var apiTokenCreateName string
+
+var apiTokenCreateCmd = &cobra.Command{
+	Use:   "create",
+	Short: "Create an API token",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		c, err := client.New()
+		if err != nil {
+			return err
+		}
+		body := *pidginhost.NewAPITokenCreate(0, apiTokenCreateName, "", time.Time{})
+		resp, _, err := c.AccountAPI.AccountApiTokensCreate(context.Background()).APITokenCreate(body).Execute()
+		if err != nil {
+			return fmt.Errorf("creating API token: %w", err)
+		}
+		fmt.Printf("API token created (Name: %s)\n", resp.Name)
+		fmt.Printf("Token: %s\n", resp.Key)
+		fmt.Println("Save this token — it will not be shown again.")
+		return nil
+	},
+}
+
+var apiTokenDeleteCmd = &cobra.Command{
+	Use:     "delete <id>",
+	Aliases: []string{"rm"},
+	Short:   "Delete an API token",
+	Args:    cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if !force(cmd) && !confirm.Action(fmt.Sprintf("Delete API token %s?", args[0])) {
+			return nil
+		}
+		c, err := client.New()
+		if err != nil {
+			return err
+		}
+		_, err = c.AccountAPI.AccountApiTokensDestroy(context.Background(), args[0]).Execute()
+		if err != nil {
+			return fmt.Errorf("deleting API token: %w", err)
+		}
+		fmt.Printf("API token %s deleted.\n", args[0])
+		return nil
+	},
+}
+
+// --- Email History ---
+
+var emailCmd = &cobra.Command{
+	Use:   "email",
+	Short: "View account email history",
+}
+
+var emailListCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List sent emails",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		c, err := client.New()
+		if err != nil {
+			return err
+		}
+		emails, err := cmdutil.FetchAll(func(page int32) ([]pidginhost.EmailHistory, bool, error) {
+			resp, _, err := c.AccountAPI.AccountEmailsList(context.Background()).Page(page).Execute()
+			if err != nil {
+				return nil, false, err
+			}
+			return resp.Results, resp.Next.Get() != nil, nil
+		})
+		if err != nil {
+			return fmt.Errorf("listing emails: %w", err)
+		}
+		format := outputFormat(cmd)
+		return output.Print(format, emails, func(w io.Writer) {
+			tw := output.NewTabWriter(w)
+			output.PrintRow(tw, "ID", "SUBJECT", "ADDRESS", "DATE", "READ")
+			for _, e := range emails {
+				output.PrintRow(tw, e.Id, e.Subject, e.Address, e.Date.Format("2006-01-02"), e.Read)
+			}
+			tw.Flush()
+		})
+	},
+}
+
 func pstr[T any](p *T) string {
 	if p == nil {
 		return "<none>"
@@ -189,9 +308,20 @@ func init() {
 	sshKeyCmd.AddCommand(sshKeyCreateCmd)
 	sshKeyCmd.AddCommand(sshKeyDeleteCmd)
 
+	apiTokenCreateCmd.Flags().StringVar(&apiTokenCreateName, "name", "", "Token name (required)")
+	apiTokenCreateCmd.MarkFlagRequired("name")
+
+	apiTokenCmd.AddCommand(apiTokenListCmd)
+	apiTokenCmd.AddCommand(apiTokenCreateCmd)
+	apiTokenCmd.AddCommand(apiTokenDeleteCmd)
+
+	emailCmd.AddCommand(emailListCmd)
+
 	companyCmd.AddCommand(companyListCmd)
 
 	Cmd.AddCommand(profileCmd)
 	Cmd.AddCommand(sshKeyCmd)
 	Cmd.AddCommand(companyCmd)
+	Cmd.AddCommand(apiTokenCmd)
+	Cmd.AddCommand(emailCmd)
 }

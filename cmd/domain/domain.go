@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 
 	pidginhost "github.com/pidginhost/sdk-go"
 	"github.com/spf13/cobra"
@@ -161,6 +162,72 @@ var domainRenewCmd = &cobra.Command{
 			return fmt.Errorf("renewing domain: %w", err)
 		}
 		fmt.Printf("Domain %s renewed for %d year(s).\n", args[0], domainRenewYears)
+		return nil
+	},
+}
+
+var domainCancelCmd = &cobra.Command{
+	Use:   "cancel <domain>",
+	Short: "Cancel a domain",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if !force(cmd) && !confirm.Action(fmt.Sprintf("Cancel domain %s?", args[0])) {
+			return nil
+		}
+		c, err := client.New()
+		if err != nil {
+			return err
+		}
+		_, _, err = c.DomainAPI.DomainDomainCancelCreate(context.Background(), args[0]).Execute()
+		if err != nil {
+			return fmt.Errorf("cancelling domain: %w", err)
+		}
+		fmt.Printf("Domain %s cancelled.\n", args[0])
+		return nil
+	},
+}
+
+var transferAuthCode string
+
+var domainTransferCmd = &cobra.Command{
+	Use:   "transfer <domain>",
+	Short: "Transfer a domain",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if !force(cmd) && !confirm.Action(fmt.Sprintf("Transfer domain %s?", args[0])) {
+			return nil
+		}
+		c, err := client.New()
+		if err != nil {
+			return err
+		}
+		body := *pidginhost.NewTransferRoDomain(args[0], transferAuthCode)
+		resp, _, err := c.DomainAPI.DomainDomainTransferRoDomainCreate(context.Background()).TransferRoDomain(body).Execute()
+		if err != nil {
+			return fmt.Errorf("transferring domain: %w", err)
+		}
+		fmt.Printf("Domain transfer initiated: %s\n", resp.Domain)
+		return nil
+	},
+}
+
+var nameserversValue string
+
+var domainNameserversCmd = &cobra.Command{
+	Use:   "nameservers <domain>",
+	Short: "Update nameservers for a domain",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		c, err := client.New()
+		if err != nil {
+			return err
+		}
+		body := *pidginhost.NewNameserversUpdate(strings.Split(nameserversValue, ","))
+		_, _, err = c.DomainAPI.DomainDomainNameserversCreate(context.Background(), args[0]).NameserversUpdate(body).Execute()
+		if err != nil {
+			return fmt.Errorf("updating nameservers: %w", err)
+		}
+		fmt.Printf("Nameservers updated for %s.\n", args[0])
 		return nil
 	},
 }
@@ -345,6 +412,12 @@ func init() {
 
 	domainRenewCmd.Flags().Int32Var(&domainRenewYears, "years", 1, "Renewal period in years")
 
+	domainTransferCmd.Flags().StringVar(&transferAuthCode, "auth-code", "", "Domain transfer auth code (required)")
+	domainTransferCmd.MarkFlagRequired("auth-code")
+
+	domainNameserversCmd.Flags().StringVar(&nameserversValue, "nameservers", "", "Comma-separated nameservers (required)")
+	domainNameserversCmd.MarkFlagRequired("nameservers")
+
 	registrantCreateCmd.Flags().StringVar(&regFirstName, "first-name", "", "First name (required)")
 	registrantCreateCmd.Flags().StringVar(&regLastName, "last-name", "", "Last name (required)")
 	registrantCreateCmd.Flags().StringVar(&regEmail, "email", "", "Email (required)")
@@ -376,6 +449,9 @@ func init() {
 	Cmd.AddCommand(domainCreateCmd)
 	Cmd.AddCommand(domainCheckCmd)
 	Cmd.AddCommand(domainRenewCmd)
+	Cmd.AddCommand(domainCancelCmd)
+	Cmd.AddCommand(domainTransferCmd)
+	Cmd.AddCommand(domainNameserversCmd)
 	Cmd.AddCommand(tldCmd)
 	Cmd.AddCommand(registrantCmd)
 }

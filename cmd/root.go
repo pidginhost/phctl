@@ -7,9 +7,14 @@ import (
 
 	"github.com/pidginhost/phctl/cmd/account"
 	"github.com/pidginhost/phctl/cmd/auth"
+	"github.com/pidginhost/phctl/cmd/billing"
 	"github.com/pidginhost/phctl/cmd/compute"
+	"github.com/pidginhost/phctl/cmd/dedicated"
 	"github.com/pidginhost/phctl/cmd/domain"
+	"github.com/pidginhost/phctl/cmd/freedns"
+	"github.com/pidginhost/phctl/cmd/hosting"
 	"github.com/pidginhost/phctl/cmd/kubernetes"
+	"github.com/pidginhost/phctl/cmd/support"
 	"github.com/pidginhost/phctl/internal/config"
 )
 
@@ -46,4 +51,9 @@ func init() {
 	rootCmd.AddCommand(account.Cmd)
 	rootCmd.AddCommand(domain.Cmd)
 	rootCmd.AddCommand(kubernetes.Cmd)
+	rootCmd.AddCommand(billing.Cmd)
+	rootCmd.AddCommand(dedicated.Cmd)
+	rootCmd.AddCommand(freedns.Cmd)
+	rootCmd.AddCommand(hosting.Cmd)
+	rootCmd.AddCommand(support.Cmd)
 }

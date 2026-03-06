@@ -1,5 +1,51 @@
 # Changelog
 
+## v0.2.0
+
+### Added
+
+**Browser-based login**
+- `auth login` — opens browser for approval, polls for token
+- `auth login --token <token>` — direct token for CI/CD pipelines
+
+**Billing** (`billing` / `bill`)
+- Funds: balance, activity log
+- Deposits: list, get, create
+- Invoices: list, get, pay with funds
+- Services: list, get, cancel, toggle auto-pay
+- Subscriptions: list, get
+
+**Dedicated servers** (`dedicated` / `ded`)
+- Server management: list, get, power control, OS reinstall, reverse DNS
+
+**FreeDNS** (`freedns` / `fdns`)
+- Domain management: list, activate, deactivate
+- DNS records: list, create, delete
+
+**Web hosting** (`hosting` / `host`)
+- Hosting services: list, get, change cPanel password
+
+**Support tickets** (`support` / `ticket`)
+- Departments: list
+- Tickets: list, get, create, reply, close, reopen
+
+**Account extras**
+- API token management: list, create, delete
+- Email history: list
+
+**Domain extras**
+- `domain cancel` — cancel a domain
+- `domain transfer` — transfer with auth code
+- `domain nameservers` — update nameservers
+
+### Changed
+
+- Upgraded SDK to `github.com/pidginhost/sdk-go` v0.2.0
+
+### Fixed
+
+- Firewall rule direction enum type
+
 ## v0.1.0
 
 Initial release of `phctl`, the PidginHost CLI.

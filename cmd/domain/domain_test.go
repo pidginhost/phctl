@@ -28,7 +28,7 @@ func TestDomainSubcommands(t *testing.T) {
 		names[c.Name()] = true
 	}
 
-	for _, want := range []string{"list", "get", "create", "check", "renew", "tld", "registrant"} {
+	for _, want := range []string{"list", "get", "create", "check", "renew", "cancel", "transfer", "nameservers", "tld", "registrant"} {
 		if !names[want] {
 			t.Errorf("missing subcommand %q", want)
 		}

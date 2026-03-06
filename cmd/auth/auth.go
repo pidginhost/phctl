@@ -83,4 +83,5 @@ func init() {
 	Cmd.AddCommand(initCmd)
 	Cmd.AddCommand(setCmd)
 	Cmd.AddCommand(statusCmd)
+	Cmd.AddCommand(loginCmd)
 }

@@ -40,7 +40,7 @@ func TestRootSubcommands(t *testing.T) {
 		names[c.Name()] = true
 	}
 
-	for _, want := range []string{"auth", "compute", "account", "domain", "kubernetes"} {
+	for _, want := range []string{"auth", "compute", "account", "domain", "kubernetes", "billing", "dedicated", "freedns", "hosting", "support"} {
 		if !names[want] {
 			t.Errorf("missing subcommand %q", want)
 		}

@@ -37,7 +37,7 @@ func TestAuthSubcommands(t *testing.T) {
 	for _, c := range Cmd.Commands() {
 		names[c.Name()] = true
 	}
-	for _, want := range []string{"init", "set", "status"} {
+	for _, want := range []string{"init", "set", "status", "login"} {
 		if !names[want] {
 			t.Errorf("auth missing subcommand %q", want)
 		}
