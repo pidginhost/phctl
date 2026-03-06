@@ -30,6 +30,7 @@ var (
 var Cmd = &cobra.Command{
 	Use:   "account",
 	Short: "Manage account, profile, SSH keys, and companies",
+	Args:  cobra.NoArgs,
 }
 
 // --- Profile ---
@@ -60,6 +61,7 @@ var sshKeyCmd = &cobra.Command{
 	Use:     "ssh-key",
 	Aliases: []string{"ssh"},
 	Short:   "Manage SSH keys",
+	Args:    cobra.NoArgs,
 }
 
 var sshKeyListCmd = &cobra.Command{
@@ -145,6 +147,7 @@ var sshKeyDeleteCmd = &cobra.Command{
 var companyCmd = &cobra.Command{
 	Use:   "company",
 	Short: "Manage companies",
+	Args:  cobra.NoArgs,
 }
 
 var companyListCmd = &cobra.Command{
@@ -182,6 +185,7 @@ var companyListCmd = &cobra.Command{
 var apiTokenCmd = &cobra.Command{
 	Use:   "api-token",
 	Short: "Manage API tokens",
+	Args:  cobra.NoArgs,
 }
 
 var apiTokenListCmd = &cobra.Command{
@@ -263,6 +267,7 @@ var apiTokenDeleteCmd = &cobra.Command{
 var emailCmd = &cobra.Command{
 	Use:   "email",
 	Short: "View account email history",
+	Args:  cobra.NoArgs,
 }
 
 var emailListCmd = &cobra.Command{

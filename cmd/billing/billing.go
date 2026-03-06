@@ -72,6 +72,7 @@ var Cmd = &cobra.Command{
 	Use:     "billing",
 	Aliases: []string{"bill"},
 	Short:   "Manage billing, invoices, funds, and services",
+	Args:    cobra.NoArgs,
 }
 
 // --- Funds / Balance ---
@@ -79,6 +80,7 @@ var Cmd = &cobra.Command{
 var fundsCmd = &cobra.Command{
 	Use:   "funds",
 	Short: "Manage account funds and balance",
+	Args:  cobra.NoArgs,
 }
 
 var fundsBalanceCmd = &cobra.Command{
@@ -134,6 +136,7 @@ var fundsLogCmd = &cobra.Command{
 var depositCmd = &cobra.Command{
 	Use:   "deposit",
 	Short: "Manage deposits",
+	Args:  cobra.NoArgs,
 }
 
 var depositListCmd = &cobra.Command{
@@ -204,6 +207,7 @@ var depositCreateCmd = &cobra.Command{
 var invoiceCmd = &cobra.Command{
 	Use:   "invoice",
 	Short: "Manage invoices",
+	Args:  cobra.NoArgs,
 }
 
 var invoiceListCmd = &cobra.Command{
@@ -278,6 +282,7 @@ var invoicePayCmd = &cobra.Command{
 var serviceCmd = &cobra.Command{
 	Use:   "service",
 	Short: "Manage billing services",
+	Args:  cobra.NoArgs,
 }
 
 var serviceListCmd = &cobra.Command{
@@ -373,6 +378,7 @@ var serviceAutoPayCmd = &cobra.Command{
 var subscriptionCmd = &cobra.Command{
 	Use:   "subscription",
 	Short: "Manage subscriptions",
+	Args:  cobra.NoArgs,
 }
 
 var subscriptionListCmd = &cobra.Command{

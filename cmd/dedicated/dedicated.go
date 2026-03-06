@@ -36,12 +36,14 @@ var Cmd = &cobra.Command{
 	Use:     "dedicated",
 	Aliases: []string{"ded"},
 	Short:   "Manage dedicated servers",
+	Args:    cobra.NoArgs,
 }
 
 var serverCmd = &cobra.Command{
 	Use:     "server",
 	Aliases: []string{"s"},
 	Short:   "Manage dedicated servers",
+	Args:    cobra.NoArgs,
 }
 
 var serverListCmd = &cobra.Command{

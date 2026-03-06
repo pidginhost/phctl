@@ -19,6 +19,7 @@ import (
 var httpRouteCmd = &cobra.Command{
 	Use:   "http-route",
 	Short: "Manage HTTP routes",
+	Args:  cobra.NoArgs,
 }
 
 var httpRouteListCmd = &cobra.Command{
@@ -137,6 +138,7 @@ var httpRouteDeleteCmd = &cobra.Command{
 var tcpRouteCmd = &cobra.Command{
 	Use:   "tcp-route",
 	Short: "Manage TCP routes",
+	Args:  cobra.NoArgs,
 }
 
 var tcpRouteListCmd = &cobra.Command{
@@ -247,6 +249,7 @@ var tcpRouteDeleteCmd = &cobra.Command{
 var udpRouteCmd = &cobra.Command{
 	Use:   "udp-route",
 	Short: "Manage UDP routes",
+	Args:  cobra.NoArgs,
 }
 
 var udpRouteListCmd = &cobra.Command{

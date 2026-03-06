@@ -16,6 +16,7 @@ import (
 var imageCmd = &cobra.Command{
 	Use:   "image",
 	Short: "List available OS images",
+	Args:  cobra.NoArgs,
 }
 
 var imageListCmd = &cobra.Command{

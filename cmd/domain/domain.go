@@ -44,6 +44,7 @@ var Cmd = &cobra.Command{
 	Use:     "domain",
 	Aliases: []string{"dns"},
 	Short:   "Manage domains, registrants, and TLDs",
+	Args:    cobra.NoArgs,
 }
 
 // --- Domain CRUD ---
@@ -243,6 +244,7 @@ var domainNameserversCmd = &cobra.Command{
 var tldCmd = &cobra.Command{
 	Use:   "tld",
 	Short: "List available TLDs",
+	Args:  cobra.NoArgs,
 }
 
 var tldListCmd = &cobra.Command{
@@ -270,6 +272,7 @@ var tldListCmd = &cobra.Command{
 var registrantCmd = &cobra.Command{
 	Use:   "registrant",
 	Short: "Manage domain registrants",
+	Args:  cobra.NoArgs,
 }
 
 var registrantListCmd = &cobra.Command{

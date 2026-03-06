@@ -31,6 +31,7 @@ var Cmd = &cobra.Command{
 	Use:     "kubernetes",
 	Aliases: []string{"k8s"},
 	Short:   "Manage Kubernetes clusters",
+	Args:    cobra.NoArgs,
 }
 
 // --- Clusters ---
@@ -38,6 +39,7 @@ var Cmd = &cobra.Command{
 var clusterCmd = &cobra.Command{
 	Use:   "cluster",
 	Short: "Manage Kubernetes clusters",
+	Args:  cobra.NoArgs,
 }
 
 var clusterListCmd = &cobra.Command{
@@ -314,6 +316,7 @@ var clusterTypesCmd = &cobra.Command{
 var poolCmd = &cobra.Command{
 	Use:   "pool",
 	Short: "Manage cluster resource pools",
+	Args:  cobra.NoArgs,
 }
 
 var poolListCmd = &cobra.Command{
@@ -410,6 +413,7 @@ var poolDeleteCmd = &cobra.Command{
 var nodeCmd = &cobra.Command{
 	Use:   "node",
 	Short: "Manage resource pool nodes",
+	Args:  cobra.NoArgs,
 }
 
 var nodeListCmd = &cobra.Command{

@@ -17,6 +17,7 @@ var volumeCmd = &cobra.Command{
 	Use:     "volume",
 	Aliases: []string{"vol"},
 	Short:   "Manage storage volumes",
+	Args:    cobra.NoArgs,
 }
 
 var volumeListCmd = &cobra.Command{

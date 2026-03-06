@@ -17,6 +17,7 @@ var packageCmd = &cobra.Command{
 	Use:     "package",
 	Aliases: []string{"pkg"},
 	Short:   "List available server packages",
+	Args:    cobra.NoArgs,
 }
 
 var packageListCmd = &cobra.Command{

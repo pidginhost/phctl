@@ -18,6 +18,7 @@ var networkCmd = &cobra.Command{
 	Use:     "network",
 	Aliases: []string{"net"},
 	Short:   "Manage private networks",
+	Args:    cobra.NoArgs,
 }
 
 var networkListCmd = &cobra.Command{

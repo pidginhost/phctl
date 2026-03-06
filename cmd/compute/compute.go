@@ -6,6 +6,7 @@ var Cmd = &cobra.Command{
 	Use:     "compute",
 	Aliases: []string{"c"},
 	Short:   "Manage cloud compute resources",
+	Args:    cobra.NoArgs,
 }
 
 func init() {

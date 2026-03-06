@@ -34,11 +34,13 @@ var Cmd = &cobra.Command{
 	Use:     "hosting",
 	Aliases: []string{"host"},
 	Short:   "Manage web hosting services",
+	Args:    cobra.NoArgs,
 }
 
 var serviceCmd = &cobra.Command{
 	Use:   "service",
 	Short: "Manage hosting services",
+	Args:  cobra.NoArgs,
 }
 
 var serviceListCmd = &cobra.Command{

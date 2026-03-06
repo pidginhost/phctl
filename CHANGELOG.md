@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.2.4
+
+### Fixed
+
+- **RawGet auth guard**: added missing empty-token check (matching SDK client behavior)
+- **Grouping commands accept stray args**: added `Args: cobra.NoArgs` to all 37 parent commands so typos like `phctl compute foo` return an error instead of silently showing help
+- **FreeDNS E2E test**: corrected command path from `freedns list` to `freedns domain list`
+
 ## v0.2.3
 
 ### Fixed

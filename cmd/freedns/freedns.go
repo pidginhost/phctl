@@ -23,6 +23,7 @@ var Cmd = &cobra.Command{
 	Use:     "freedns",
 	Aliases: []string{"fdns"},
 	Short:   "Manage FreeDNS domains and records",
+	Args:    cobra.NoArgs,
 }
 
 // --- Domains ---
@@ -30,6 +31,7 @@ var Cmd = &cobra.Command{
 var domainCmd = &cobra.Command{
 	Use:   "domain",
 	Short: "Manage FreeDNS domains",
+	Args:  cobra.NoArgs,
 }
 
 var domainListCmd = &cobra.Command{
@@ -109,6 +111,7 @@ var domainDeactivateCmd = &cobra.Command{
 var recordCmd = &cobra.Command{
 	Use:   "record",
 	Short: "Manage DNS records",
+	Args:  cobra.NoArgs,
 }
 
 var (

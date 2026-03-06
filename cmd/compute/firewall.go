@@ -17,6 +17,7 @@ var firewallCmd = &cobra.Command{
 	Use:     "firewall",
 	Aliases: []string{"fw"},
 	Short:   "Manage firewall rule sets",
+	Args:    cobra.NoArgs,
 }
 
 var firewallListCmd = &cobra.Command{
@@ -132,6 +133,7 @@ var firewallDeleteCmd = &cobra.Command{
 var ruleCmd = &cobra.Command{
 	Use:   "rule",
 	Short: "Manage individual firewall rules",
+	Args:  cobra.NoArgs,
 }
 
 var ruleListCmd = &cobra.Command{

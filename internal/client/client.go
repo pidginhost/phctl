@@ -5,11 +5,14 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	pidginhost "github.com/pidginhost/sdk-go"
 
 	"github.com/pidginhost/phctl/internal/config"
 )
+
+var httpClient = &http.Client{Timeout: 30 * time.Second}
 
 // PaginatedResponse is the generic DRF paginated response wrapper.
 type PaginatedResponse[T any] struct {
@@ -37,13 +40,16 @@ func RawGet(path string, dst interface{}) error {
 	if err != nil {
 		return err
 	}
+	if cfg.AuthToken == "" {
+		return fmt.Errorf("no API token configured. Run 'phctl auth init' or set PIDGINHOST_API_TOKEN")
+	}
 	url := strings.TrimRight(cfg.APIURL, "/") + path
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Authorization", "Bearer "+cfg.AuthToken)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return err
 	}

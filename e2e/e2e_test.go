@@ -186,7 +186,7 @@ func TestE2E_DedicatedServerList(t *testing.T) {
 
 func TestE2E_FreeDNSList(t *testing.T) {
 	skipWithoutToken(t)
-	run(t, "freedns", "list")
+	run(t, "freedns", "domain", "list")
 }
 
 // --- Hosting ---

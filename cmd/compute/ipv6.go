@@ -17,6 +17,7 @@ import (
 var ipv6Cmd = &cobra.Command{
 	Use:   "ipv6",
 	Short: "Manage IPv6 addresses",
+	Args:  cobra.NoArgs,
 }
 
 var ipv6ListCmd = &cobra.Command{

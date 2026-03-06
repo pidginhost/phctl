@@ -18,6 +18,7 @@ var serverCmd = &cobra.Command{
 	Use:     "server",
 	Aliases: []string{"s"},
 	Short:   "Manage cloud servers",
+	Args:    cobra.NoArgs,
 }
 
 var serverListCmd = &cobra.Command{
@@ -296,6 +297,7 @@ var serverProtectCmd = &cobra.Command{
 var snapshotCmd = &cobra.Command{
 	Use:   "snapshot",
 	Short: "Manage server snapshots",
+	Args:  cobra.NoArgs,
 }
 
 var serverSnapshotListCmd = &cobra.Command{

@@ -18,6 +18,7 @@ var ipv4Cmd = &cobra.Command{
 	Use:     "ipv4",
 	Aliases: []string{"ip"},
 	Short:   "Manage IPv4 addresses",
+	Args:    cobra.NoArgs,
 }
 
 var ipv4ListCmd = &cobra.Command{

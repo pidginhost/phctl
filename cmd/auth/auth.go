@@ -14,6 +14,7 @@ import (
 var Cmd = &cobra.Command{
 	Use:   "auth",
 	Short: "Manage authentication",
+	Args:  cobra.NoArgs,
 }
 
 var initCmd = &cobra.Command{

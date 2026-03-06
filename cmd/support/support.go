@@ -21,6 +21,7 @@ var Cmd = &cobra.Command{
 	Use:     "support",
 	Aliases: []string{"ticket"},
 	Short:   "Manage support tickets",
+	Args:    cobra.NoArgs,
 }
 
 // --- Departments ---
@@ -28,6 +29,7 @@ var Cmd = &cobra.Command{
 var departmentCmd = &cobra.Command{
 	Use:   "department",
 	Short: "List support departments",
+	Args:  cobra.NoArgs,
 }
 
 var departmentListCmd = &cobra.Command{
@@ -59,6 +61,7 @@ var departmentListCmd = &cobra.Command{
 var ticketCmd = &cobra.Command{
 	Use:   "ticket",
 	Short: "Manage support tickets",
+	Args:  cobra.NoArgs,
 }
 
 var ticketListCmd = &cobra.Command{
