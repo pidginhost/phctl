@@ -1,5 +1,42 @@
 # Changelog
 
+## v0.2.2
+
+### Changed
+
+- Upgraded SDK to `github.com/pidginhost/sdk-go` v0.3.0
+  - Datetime fields changed from `time.Time` to `string` (API uses naive datetimes)
+  - Server `cpus`/`memory`/`disk_size` changed from `string` to `int32`
+  - `CloudServersRetrieve` now returns `*ServerDetail` directly
+
+### Fixed
+
+- **Decimal field deserialization**: API returns decimal strings (`"123.45"`) but SDK types them as `float64`. Added raw HTTP bypass (`RawGet`/`RawFetchAll`) for all affected endpoints:
+  - Account: profile (funds)
+  - Billing: funds balance, deposits, invoices, services, subscriptions
+  - Domain: list, get, TLD list
+  - Dedicated: server list, get
+  - Hosting: service list, get
+  - Kubernetes: cluster list, get
+- **Billing funds balance**: API returns single object, not array — bypassed SDK array expectation
+- **Route/token constructors**: updated for SDK v0.3.0 signature changes
+
+### Added
+
+- E2E test suite (`e2e/e2e_test.go`) covering all read-only list endpoints (30 tests)
+- `RawGet` and `RawFetchAll` helpers in `internal/client` for bypassing SDK type mismatches
+- Changelog-driven release notes for both GitLab and GitHub releases
+
+## v0.2.1
+
+### Fixed
+
+- Auth login: poll response field name (`token_key` instead of `token`)
+
+### Added
+
+- GitHub sync CI stage and manual GitHub release workflow
+
 ## v0.2.0
 
 ### Added

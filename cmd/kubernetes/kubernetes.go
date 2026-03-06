@@ -14,6 +14,19 @@ import (
 	"github.com/pidginhost/phctl/internal/output"
 )
 
+type rawCluster struct {
+	Id            int32   `json:"id"`
+	Status        string  `json:"status"`
+	Name          *string `json:"name,omitempty"`
+	ClusterType   string  `json:"cluster_type"`
+	KubeVersion   string  `json:"kube_version"`
+	PricePerMonth string  `json:"price_per_month"`
+	PricePerHour  string  `json:"price_per_hour"`
+	FeaturesReady bool    `json:"features_ready"`
+	Ipv4Address   string  `json:"ipv4_address"`
+	TalosVersion  string  `json:"talos_version"`
+}
+
 var Cmd = &cobra.Command{
 	Use:     "kubernetes",
 	Aliases: []string{"k8s"},
@@ -31,17 +44,7 @@ var clusterListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all clusters",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		c, err := client.New()
-		if err != nil {
-			return err
-		}
-		clusters, err := cmdutil.FetchAll(func(page int32) ([]pidginhost.ClusterDetail, bool, error) {
-			resp, _, err := c.KubernetesAPI.KubernetesClustersList(context.Background()).Page(page).Execute()
-			if err != nil {
-				return nil, false, err
-			}
-			return resp.Results, resp.Next.Get() != nil, nil
-		})
+		clusters, err := client.RawFetchAll[rawCluster]("/api/kubernetes/clusters/")
 		if err != nil {
 			return fmt.Errorf("listing clusters: %w", err)
 		}
@@ -62,12 +65,8 @@ var clusterGetCmd = &cobra.Command{
 	Short: "Get cluster details",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		c, err := client.New()
-		if err != nil {
-			return err
-		}
-		cl, _, err := c.KubernetesAPI.KubernetesClustersRetrieve(context.Background(), args[0]).Execute()
-		if err != nil {
+		var cl rawCluster
+		if err := client.RawGet(fmt.Sprintf("/api/kubernetes/clusters/%s/", args[0]), &cl); err != nil {
 			return fmt.Errorf("getting cluster: %w", err)
 		}
 		format := outputFormat(cmd)

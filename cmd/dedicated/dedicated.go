@@ -14,6 +14,19 @@ import (
 	"github.com/pidginhost/phctl/internal/output"
 )
 
+type rawDedicatedServer struct {
+	Id           int32  `json:"id"`
+	Hostname     string `json:"hostname"`
+	Status       string `json:"status"`
+	Price        string `json:"price"`
+	NextInvoice  string `json:"next_invoice"`
+	Created      string `json:"created"`
+	BillingCycle string `json:"billing_cycle"`
+	ServerStatus string `json:"server_status"`
+	Ips          string `json:"ips"`
+	OsName       string `json:"os_name"`
+}
+
 var (
 	outputFormat = cmdutil.OutputFormat
 	force        = cmdutil.Force
@@ -35,17 +48,7 @@ var serverListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all dedicated servers",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		c, err := client.New()
-		if err != nil {
-			return err
-		}
-		servers, err := cmdutil.FetchAll(func(page int32) ([]pidginhost.DedicatedServer, bool, error) {
-			resp, _, err := c.DedicatedAPI.DedicatedServersList(context.Background()).Page(page).Execute()
-			if err != nil {
-				return nil, false, err
-			}
-			return resp.Results, resp.Next.Get() != nil, nil
-		})
+		servers, err := client.RawFetchAll[rawDedicatedServer]("/api/dedicated/servers/")
 		if err != nil {
 			return fmt.Errorf("listing dedicated servers: %w", err)
 		}
@@ -66,12 +69,8 @@ var serverGetCmd = &cobra.Command{
 	Short: "Get dedicated server details",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		c, err := client.New()
-		if err != nil {
-			return err
-		}
-		s, _, err := c.DedicatedAPI.DedicatedServersRetrieve(context.Background(), args[0]).Execute()
-		if err != nil {
+		var s rawDedicatedServer
+		if err := client.RawGet(fmt.Sprintf("/api/dedicated/servers/%s/", args[0]), &s); err != nil {
 			return fmt.Errorf("getting dedicated server: %w", err)
 		}
 		format := outputFormat(cmd)

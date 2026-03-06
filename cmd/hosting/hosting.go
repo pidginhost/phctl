@@ -13,6 +13,19 @@ import (
 	"github.com/pidginhost/phctl/internal/output"
 )
 
+type rawHostingService struct {
+	Id           int32  `json:"id"`
+	Hostname     string `json:"hostname"`
+	Status       string `json:"status"`
+	Price        string `json:"price"`
+	NextInvoice  string `json:"next_invoice"`
+	Created      string `json:"created"`
+	BillingCycle string `json:"billing_cycle"`
+	PackageName  string `json:"package_name"`
+	NodeUrl      string `json:"node_url"`
+	Username     string `json:"username"`
+}
+
 var (
 	outputFormat = cmdutil.OutputFormat
 )
@@ -32,17 +45,7 @@ var serviceListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List hosting services",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		c, err := client.New()
-		if err != nil {
-			return err
-		}
-		services, err := cmdutil.FetchAll(func(page int32) ([]pidginhost.HostingService, bool, error) {
-			resp, _, err := c.HostingAPI.HostingHostingList(context.Background()).Page(page).Execute()
-			if err != nil {
-				return nil, false, err
-			}
-			return resp.Results, resp.Next.Get() != nil, nil
-		})
+		services, err := client.RawFetchAll[rawHostingService]("/api/hosting/hosting/")
 		if err != nil {
 			return fmt.Errorf("listing hosting services: %w", err)
 		}
@@ -63,12 +66,8 @@ var serviceGetCmd = &cobra.Command{
 	Short: "Get hosting service details",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		c, err := client.New()
-		if err != nil {
-			return err
-		}
-		s, _, err := c.HostingAPI.HostingHostingRetrieve(context.Background(), args[0]).Execute()
-		if err != nil {
+		var s rawHostingService
+		if err := client.RawGet(fmt.Sprintf("/api/hosting/hosting/%s/", args[0]), &s); err != nil {
 			return fmt.Errorf("getting hosting service: %w", err)
 		}
 		format := outputFormat(cmd)

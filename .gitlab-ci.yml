@@ -142,11 +142,18 @@ release:gitlab:
     - build:windows-amd64
     - build:windows-arm64
   script:
-    - echo "Creating GitLab release for ${CI_COMMIT_TAG}"
+    - |
+      # Extract changelog for this version (between ## vX.Y.Z and the next ## heading)
+      NOTES=$(awk "/^## ${CI_COMMIT_TAG}\$/,/^## v/" CHANGELOG.md | sed '1d;/^## v/d')
+      if [ -z "$NOTES" ]; then
+        NOTES="Release ${CI_COMMIT_TAG}"
+      fi
+      echo "$NOTES" > release_notes.md
+      cat release_notes.md
   release:
     tag_name: $CI_COMMIT_TAG
     name: "phctl ${CI_COMMIT_TAG}"
-    description: "Release ${CI_COMMIT_TAG}"
+    description: ./release_notes.md
     assets:
       links:
         - name: phctl-linux-amd64
@@ -177,10 +184,21 @@ release:github:
     - build:windows-amd64
     - build:windows-arm64
     - deploy:github
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq jq > /dev/null
   script:
     - |
       VERSION="${CI_COMMIT_TAG}"
-      BODY="## phctl ${VERSION}\n\nPidginHost CLI.\n\nDownload the binary for your platform below.\n\nUsage: \`phctl auth login\` to get started."
+
+      # Extract changelog for this version
+      NOTES=$(awk "/^## ${VERSION}\$/,/^## v/" CHANGELOG.md | sed '1d;/^## v/d')
+      if [ -z "$NOTES" ]; then
+        NOTES="Release ${VERSION}"
+      fi
+
+      # Build JSON body with jq to handle escaping
+      BODY=$(jq -n --arg tag "$VERSION" --arg name "phctl ${VERSION}" --arg body "$NOTES" \
+        '{tag_name: $tag, name: $name, body: $body, draft: false, prerelease: false}')
 
       # Check if release already exists
       EXISTING=$(curl -s -o /dev/null -w "%{http_code}" \
@@ -191,19 +209,13 @@ release:github:
         echo "Release ${VERSION} already exists, skipping creation"
         RELEASE_ID=$(curl -s \
           -H "Authorization: token ${GITHUB_TOKEN}" \
-          "https://api.github.com/repos/pidginhost/phctl/releases/tags/${VERSION}" | grep '"id"' | head -1 | grep -o '[0-9]*')
+          "https://api.github.com/repos/pidginhost/phctl/releases/tags/${VERSION}" | jq -r '.id')
       else
         RELEASE_ID=$(curl -sf -X POST \
           -H "Authorization: token ${GITHUB_TOKEN}" \
           -H "Content-Type: application/json" \
           "https://api.github.com/repos/pidginhost/phctl/releases" \
-          -d "{
-            \"tag_name\": \"${VERSION}\",
-            \"name\": \"phctl ${VERSION}\",
-            \"body\": \"${BODY}\",
-            \"draft\": false,
-            \"prerelease\": false
-          }" | grep '"id"' | head -1 | grep -o '[0-9]*')
+          -d "$BODY" | jq -r '.id')
         echo "Created GitHub release ${VERSION} (ID: ${RELEASE_ID})"
       fi
 

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"time"
 
 	pidginhost "github.com/pidginhost/sdk-go"
 	"github.com/spf13/cobra"
@@ -14,6 +13,14 @@ import (
 	"github.com/pidginhost/phctl/internal/confirm"
 	"github.com/pidginhost/phctl/internal/output"
 )
+
+// rawProfile bypasses SDK float64 mismatch for the funds field.
+type rawProfile struct {
+	FirstName string `json:"first_name"`
+	LastName  string `json:"last_name"`
+	Funds     string `json:"funds"`
+	Phone     string `json:"phone"`
+}
 
 var (
 	outputFormat = cmdutil.OutputFormat
@@ -31,12 +38,8 @@ var profileCmd = &cobra.Command{
 	Use:   "profile",
 	Short: "View account profile",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		c, err := client.New()
-		if err != nil {
-			return err
-		}
-		profile, _, err := c.AccountAPI.AccountProfileRetrieve(context.Background()).Execute()
-		if err != nil {
+		var profile rawProfile
+		if err := client.RawGet("/api/account/profile", &profile); err != nil {
 			return fmt.Errorf("getting profile: %w", err)
 		}
 		format := outputFormat(cmd)
@@ -204,7 +207,7 @@ var apiTokenListCmd = &cobra.Command{
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID", "NAME", "CREATED")
 			for _, t := range tokens {
-				output.PrintRow(tw, t.Id, t.Name, t.Created.Format("2006-01-02 15:04"))
+				output.PrintRow(tw, t.Id, t.Name, t.Created)
 			}
 			tw.Flush()
 		})
@@ -221,7 +224,7 @@ var apiTokenCreateCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		body := *pidginhost.NewAPITokenCreate(0, apiTokenCreateName, "", time.Time{})
+		body := *pidginhost.NewAPITokenCreate(0, apiTokenCreateName, "", "")
 		resp, _, err := c.AccountAPI.AccountApiTokensCreate(context.Background()).APITokenCreate(body).Execute()
 		if err != nil {
 			return fmt.Errorf("creating API token: %w", err)
@@ -285,7 +288,7 @@ var emailListCmd = &cobra.Command{
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID", "SUBJECT", "ADDRESS", "DATE", "READ")
 			for _, e := range emails {
-				output.PrintRow(tw, e.Id, e.Subject, e.Address, e.Date.Format("2006-01-02"), e.Read)
+				output.PrintRow(tw, e.Id, e.Subject, e.Address, e.Date, e.Read)
 			}
 			tw.Flush()
 		})

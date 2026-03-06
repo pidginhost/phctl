@@ -3,15 +3,65 @@ package billing
 import (
 	"context"
 	"fmt"
+	"io"
+
 	pidginhost "github.com/pidginhost/sdk-go"
 	"github.com/spf13/cobra"
-	"io"
 
 	"github.com/pidginhost/phctl/internal/client"
 	"github.com/pidginhost/phctl/internal/cmdutil"
 	"github.com/pidginhost/phctl/internal/confirm"
 	"github.com/pidginhost/phctl/internal/output"
 )
+
+// Local types to bypass SDK float64 vs string mismatches for decimal fields.
+
+type rawFundsBalance struct {
+	Balance       string `json:"balance"`
+	ThresholdType string `json:"threshold_type"`
+}
+
+type rawDeposit struct {
+	Id       int32  `json:"id"`
+	Status   string `json:"status"`
+	Amount   string `json:"amount"`
+	VatValue string `json:"vat_value"`
+	Total    string `json:"total"`
+	Created  string `json:"created"`
+}
+
+type rawInvoiceList struct {
+	Id             int32  `json:"id"`
+	NumberProforma string `json:"number_proforma"`
+	NumberFiscal   string `json:"number_fiscal"`
+	Status         string `json:"status"`
+	Subtotal       string `json:"subtotal"`
+	VatValue       string `json:"vat_value"`
+	Total          string `json:"total"`
+	InvoiceDate    string `json:"invoice_date"`
+	PaymentMethod  string `json:"payment_method"`
+}
+
+type rawServiceList struct {
+	Id           int32  `json:"id"`
+	Hostname     string `json:"hostname"`
+	Status       string `json:"status"`
+	Price        string `json:"price"`
+	NextInvoice  string `json:"next_invoice"`
+	BillingCycle string `json:"billing_cycle"`
+	AutoPayment  string `json:"auto_payment"`
+	Company      string `json:"company"`
+}
+
+type rawSubscription struct {
+	Id              int32  `json:"id"`
+	Status          string `json:"status"`
+	ServiceHostname string `json:"service_hostname"`
+	Subtotal        string `json:"subtotal"`
+	VatValue        string `json:"vat_value"`
+	Total           string `json:"total"`
+	CreationDate    string `json:"creation_date"`
+}
 
 var (
 	outputFormat = cmdutil.OutputFormat
@@ -35,21 +85,15 @@ var fundsBalanceCmd = &cobra.Command{
 	Use:   "balance",
 	Short: "Show current account balance",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		c, err := client.New()
-		if err != nil {
-			return err
-		}
-		resp, _, err := c.BillingAPI.BillingFundsList(context.Background()).Execute()
-		if err != nil {
+		var balance rawFundsBalance
+		if err := client.RawGet("/api/billing/funds/", &balance); err != nil {
 			return fmt.Errorf("getting balance: %w", err)
 		}
 		format := outputFormat(cmd)
-		return output.Print(format, resp, func(w io.Writer) {
+		return output.Print(format, balance, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
-			for _, f := range resp {
-				output.PrintRow(tw, "Balance:", f.Balance)
-				output.PrintRow(tw, "Threshold Type:", f.ThresholdType)
-			}
+			output.PrintRow(tw, "Balance:", balance.Balance)
+			output.PrintRow(tw, "Threshold Type:", balance.ThresholdType)
 			tw.Flush()
 		})
 	},
@@ -78,7 +122,7 @@ var fundsLogCmd = &cobra.Command{
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID", "OPERATION", "AMOUNT", "BALANCE", "DATE")
 			for _, l := range logs {
-				output.PrintRow(tw, l.Id, l.Operation, l.Amount, l.Balance, l.Date.Format("2006-01-02 15:04"))
+				output.PrintRow(tw, l.Id, l.Operation, l.Amount, l.Balance, l.Date)
 			}
 			tw.Flush()
 		})
@@ -96,17 +140,7 @@ var depositListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all deposits",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		c, err := client.New()
-		if err != nil {
-			return err
-		}
-		deposits, err := cmdutil.FetchAll(func(page int32) ([]pidginhost.Deposit, bool, error) {
-			resp, _, err := c.BillingAPI.BillingDepositsList(context.Background()).Page(page).Execute()
-			if err != nil {
-				return nil, false, err
-			}
-			return resp.Results, resp.Next.Get() != nil, nil
-		})
+		deposits, err := client.RawFetchAll[rawDeposit]("/api/billing/deposits/")
 		if err != nil {
 			return fmt.Errorf("listing deposits: %w", err)
 		}
@@ -115,7 +149,7 @@ var depositListCmd = &cobra.Command{
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID", "AMOUNT", "TOTAL", "STATUS", "DATE")
 			for _, d := range deposits {
-				output.PrintRow(tw, d.Id, d.Amount, d.Total, d.Status, d.Created.Format("2006-01-02"))
+				output.PrintRow(tw, d.Id, d.Amount, d.Total, d.Status, d.Created)
 			}
 			tw.Flush()
 		})
@@ -127,12 +161,8 @@ var depositGetCmd = &cobra.Command{
 	Short: "Get deposit details",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		c, err := client.New()
-		if err != nil {
-			return err
-		}
-		d, _, err := c.BillingAPI.BillingDepositsRetrieve(context.Background(), args[0]).Execute()
-		if err != nil {
+		var d rawDeposit
+		if err := client.RawGet(fmt.Sprintf("/api/billing/deposits/%s/", args[0]), &d); err != nil {
 			return fmt.Errorf("getting deposit: %w", err)
 		}
 		format := outputFormat(cmd)
@@ -143,7 +173,7 @@ var depositGetCmd = &cobra.Command{
 			output.PrintRow(tw, "VAT:", d.VatValue)
 			output.PrintRow(tw, "Total:", d.Total)
 			output.PrintRow(tw, "Status:", d.Status)
-			output.PrintRow(tw, "Created:", d.Created.Format("2006-01-02"))
+			output.PrintRow(tw, "Created:", d.Created)
 			tw.Flush()
 		})
 	},
@@ -180,17 +210,7 @@ var invoiceListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all invoices",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		c, err := client.New()
-		if err != nil {
-			return err
-		}
-		invoices, err := cmdutil.FetchAll(func(page int32) ([]pidginhost.InvoiceList, bool, error) {
-			resp, _, err := c.BillingAPI.BillingInvoicesList(context.Background()).Page(page).Execute()
-			if err != nil {
-				return nil, false, err
-			}
-			return resp.Results, resp.Next.Get() != nil, nil
-		})
+		invoices, err := client.RawFetchAll[rawInvoiceList]("/api/billing/invoices/")
 		if err != nil {
 			return fmt.Errorf("listing invoices: %w", err)
 		}
@@ -211,12 +231,8 @@ var invoiceGetCmd = &cobra.Command{
 	Short: "Get invoice details",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		c, err := client.New()
-		if err != nil {
-			return err
-		}
-		inv, _, err := c.BillingAPI.BillingInvoicesRetrieve(context.Background(), args[0]).Execute()
-		if err != nil {
+		var inv rawInvoiceList
+		if err := client.RawGet(fmt.Sprintf("/api/billing/invoices/%s/", args[0]), &inv); err != nil {
 			return fmt.Errorf("getting invoice: %w", err)
 		}
 		format := outputFormat(cmd)
@@ -268,17 +284,7 @@ var serviceListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all services",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		c, err := client.New()
-		if err != nil {
-			return err
-		}
-		services, err := cmdutil.FetchAll(func(page int32) ([]pidginhost.ServiceList, bool, error) {
-			resp, _, err := c.BillingAPI.BillingServicesList(context.Background()).Page(page).Execute()
-			if err != nil {
-				return nil, false, err
-			}
-			return resp.Results, resp.Next.Get() != nil, nil
-		})
+		services, err := client.RawFetchAll[rawServiceList]("/api/billing/services/")
 		if err != nil {
 			return fmt.Errorf("listing services: %w", err)
 		}
@@ -299,12 +305,8 @@ var serviceGetCmd = &cobra.Command{
 	Short: "Get service details",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		c, err := client.New()
-		if err != nil {
-			return err
-		}
-		s, _, err := c.BillingAPI.BillingServicesRetrieve(context.Background(), args[0]).Execute()
-		if err != nil {
+		var s rawServiceList
+		if err := client.RawGet(fmt.Sprintf("/api/billing/services/%s/", args[0]), &s); err != nil {
 			return fmt.Errorf("getting service: %w", err)
 		}
 		format := outputFormat(cmd)
@@ -377,17 +379,7 @@ var subscriptionListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all subscriptions",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		c, err := client.New()
-		if err != nil {
-			return err
-		}
-		subs, err := cmdutil.FetchAll(func(page int32) ([]pidginhost.Subscription, bool, error) {
-			resp, _, err := c.BillingAPI.BillingSubscriptionsList(context.Background()).Page(page).Execute()
-			if err != nil {
-				return nil, false, err
-			}
-			return resp.Results, resp.Next.Get() != nil, nil
-		})
+		subs, err := client.RawFetchAll[rawSubscription]("/api/billing/subscriptions/")
 		if err != nil {
 			return fmt.Errorf("listing subscriptions: %w", err)
 		}
@@ -396,7 +388,7 @@ var subscriptionListCmd = &cobra.Command{
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID", "HOSTNAME", "STATUS", "TOTAL", "CREATED")
 			for _, s := range subs {
-				output.PrintRow(tw, s.Id, s.ServiceHostname, s.Status, s.Total, s.CreationDate.Format("2006-01-02"))
+				output.PrintRow(tw, s.Id, s.ServiceHostname, s.Status, s.Total, s.CreationDate)
 			}
 			tw.Flush()
 		})
@@ -408,12 +400,8 @@ var subscriptionGetCmd = &cobra.Command{
 	Short: "Get subscription details",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		c, err := client.New()
-		if err != nil {
-			return err
-		}
-		s, _, err := c.BillingAPI.BillingSubscriptionsRetrieve(context.Background(), args[0]).Execute()
-		if err != nil {
+		var s rawSubscription
+		if err := client.RawGet(fmt.Sprintf("/api/billing/subscriptions/%s/", args[0]), &s); err != nil {
 			return fmt.Errorf("getting subscription: %w", err)
 		}
 		format := outputFormat(cmd)
@@ -425,7 +413,7 @@ var subscriptionGetCmd = &cobra.Command{
 			output.PrintRow(tw, "Subtotal:", s.Subtotal)
 			output.PrintRow(tw, "VAT:", s.VatValue)
 			output.PrintRow(tw, "Total:", s.Total)
-			output.PrintRow(tw, "Created:", s.CreationDate.Format("2006-01-02"))
+			output.PrintRow(tw, "Created:", s.CreationDate)
 			tw.Flush()
 		})
 	},

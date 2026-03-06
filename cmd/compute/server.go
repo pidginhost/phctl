@@ -2,7 +2,6 @@ package compute
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 
@@ -63,29 +62,24 @@ var serverGetCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		httpResp, err := c.CloudAPI.CloudServersRetrieve(context.Background(), id).Execute()
+		s, _, err := c.CloudAPI.CloudServersRetrieve(context.Background(), id).Execute()
 		if err != nil {
 			return fmt.Errorf("getting server: %w", err)
 		}
-		defer httpResp.Body.Close()
 
-		var server pidginhost.Server
-		if err := json.NewDecoder(httpResp.Body).Decode(&server); err != nil {
-			return fmt.Errorf("decoding server: %w", err)
-		}
-
-		return output.Print(outputFormat(cmd), server, func(w io.Writer) {
+		return output.Print(outputFormat(cmd), s, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
-			output.PrintRow(tw, "ID:", server.Id)
-			output.PrintRow(tw, "Hostname:", pstr(server.Hostname))
-			output.PrintRow(tw, "Image:", server.Image)
-			output.PrintRow(tw, "Package:", server.Package)
-			output.PrintRow(tw, "CPUs:", server.Cpus)
-			output.PrintRow(tw, "Memory:", server.Memory)
-			output.PrintRow(tw, "Disk:", server.DiskSize)
-			output.PrintRow(tw, "Status:", pstr(server.Status))
-			output.PrintRow(tw, "Destroy Protection:", server.DestroyProtection)
-			output.PrintRow(tw, "HA Enabled:", server.HaEnabled)
+			output.PrintRow(tw, "ID:", s.Id)
+			output.PrintRow(tw, "Hostname:", s.Hostname)
+			output.PrintRow(tw, "Image:", s.Image)
+			output.PrintRow(tw, "Package:", s.Package)
+			output.PrintRow(tw, "CPUs:", s.Cpus)
+			output.PrintRow(tw, "Memory:", s.Memory)
+			output.PrintRow(tw, "Disk:", s.DiskSize)
+			output.PrintRow(tw, "Status:", s.Status)
+			output.PrintRow(tw, "Username:", s.Username)
+			output.PrintRow(tw, "Destroy Protection:", s.DestroyProtection)
+			output.PrintRow(tw, "HA Enabled:", s.HaEnabled)
 			tw.Flush()
 		})
 	},
@@ -333,7 +327,7 @@ var serverSnapshotListCmd = &cobra.Command{
 			for _, s := range snapshots {
 				created := "<none>"
 				if t := s.CreatedAt.Get(); t != nil {
-					created = t.Format("2006-01-02 15:04:05")
+					created = *t
 				}
 				output.PrintRow(tw, s.Name, s.State, created)
 			}

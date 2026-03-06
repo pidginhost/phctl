@@ -84,7 +84,7 @@ var ticketListCmd = &cobra.Command{
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID", "SUBJECT", "DEPARTMENT", "STATUS", "CREATED")
 			for _, t := range tickets {
-				output.PrintRow(tw, t.Id, t.Subject, t.Department, t.Status, t.Created.Format("2006-01-02 15:04"))
+				output.PrintRow(tw, t.Id, t.Subject, t.Department, t.Status, t.Created)
 			}
 			tw.Flush()
 		})
@@ -112,8 +112,8 @@ var ticketGetCmd = &cobra.Command{
 			output.PrintRow(tw, "Department:", t.Department.Title)
 			output.PrintRow(tw, "Priority:", t.Priority)
 			output.PrintRow(tw, "Status:", t.Status)
-			output.PrintRow(tw, "Created:", t.Created.Format("2006-01-02 15:04"))
-			output.PrintRow(tw, "Updated:", t.Updated.Format("2006-01-02 15:04"))
+			output.PrintRow(tw, "Created:", t.Created)
+			output.PrintRow(tw, "Updated:", t.Updated)
 			tw.Flush()
 			if t.Messages != "" {
 				fmt.Fprintln(w)

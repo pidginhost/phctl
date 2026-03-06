@@ -15,6 +15,26 @@ import (
 	"github.com/pidginhost/phctl/internal/output"
 )
 
+// Local types to bypass SDK float64 vs string mismatches for decimal fields.
+
+type rawTLD struct {
+	Id        int32  `json:"id"`
+	Tld       string `json:"tld"`
+	Price     string `json:"price"`
+	Registrar string `json:"registrar"`
+}
+
+type rawDomain struct {
+	Id             int32   `json:"id"`
+	Domain         string  `json:"domain"`
+	Idna           string  `json:"idna"`
+	Tld            rawTLD  `json:"tld"`
+	Nameservers    *string `json:"nameservers"`
+	ExpirationDate string  `json:"expiration_date"`
+	ServiceStatus  string  `json:"service_status"`
+	MaxRenewYears  int32   `json:"max_renew_years"`
+}
+
 var (
 	outputFormat = cmdutil.OutputFormat
 	force        = cmdutil.Force
@@ -32,17 +52,7 @@ var domainListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all domains",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		c, err := client.New()
-		if err != nil {
-			return err
-		}
-		domains, err := cmdutil.FetchAll(func(page int32) ([]pidginhost.Domain, bool, error) {
-			resp, _, err := c.DomainAPI.DomainDomainList(context.Background()).Page(page).Execute()
-			if err != nil {
-				return nil, false, err
-			}
-			return resp.Results, resp.Next.Get() != nil, nil
-		})
+		domains, err := client.RawFetchAll[rawDomain]("/api/domain/domain/")
 		if err != nil {
 			return fmt.Errorf("listing domains: %w", err)
 		}
@@ -63,12 +73,8 @@ var domainGetCmd = &cobra.Command{
 	Short: "Get domain details",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		c, err := client.New()
-		if err != nil {
-			return err
-		}
-		d, _, err := c.DomainAPI.DomainDomainRetrieve(context.Background(), args[0]).Execute()
-		if err != nil {
+		var d rawDomain
+		if err := client.RawGet(fmt.Sprintf("/api/domain/domain/%s/", args[0]), &d); err != nil {
 			return fmt.Errorf("getting domain: %w", err)
 		}
 		format := outputFormat(cmd)
@@ -243,17 +249,7 @@ var tldListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all available TLDs",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		c, err := client.New()
-		if err != nil {
-			return err
-		}
-		tlds, err := cmdutil.FetchAll(func(page int32) ([]pidginhost.TLD, bool, error) {
-			resp, _, err := c.DomainAPI.DomainTldList(context.Background()).Page(page).Execute()
-			if err != nil {
-				return nil, false, err
-			}
-			return resp.Results, resp.Next.Get() != nil, nil
-		})
+		tlds, err := client.RawFetchAll[rawTLD]("/api/domain/tld/")
 		if err != nil {
 			return fmt.Errorf("listing TLDs: %w", err)
 		}

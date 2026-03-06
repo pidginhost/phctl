@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"time"
 
 	pidginhost "github.com/pidginhost/sdk-go"
 	"github.com/spf13/cobra"
@@ -86,7 +85,7 @@ var httpRouteCreateCmd = &cobra.Command{
 			httpRouteBackend, httpRoutePort,
 			*pidginhost.NewNullableBool(nil),
 			"",
-			time.Time{}, time.Time{},
+			"", "",
 		)
 		if httpRouteNamespace != "" {
 			body.Namespace = pidginhost.PtrString(httpRouteNamespace)
@@ -202,7 +201,7 @@ var tcpRouteCreateCmd = &cobra.Command{
 			tcpRouteBackend, tcpRouteBackPort,
 			*pidginhost.NewNullableBool(nil),
 			"",
-			time.Time{}, time.Time{},
+			"", "",
 		)
 		if tcpRouteNamespace != "" {
 			body.Namespace = pidginhost.PtrString(tcpRouteNamespace)
@@ -312,7 +311,7 @@ var udpRouteCreateCmd = &cobra.Command{
 			udpRouteBackend, udpRouteBackPort,
 			*pidginhost.NewNullableBool(nil),
 			"",
-			time.Time{}, time.Time{},
+			"", "",
 		)
 		if udpRouteNamespace != "" {
 			body.Namespace = pidginhost.PtrString(udpRouteNamespace)
