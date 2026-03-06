@@ -1,0 +1,233 @@
+stages:
+  - check
+  - build
+  - deploy
+  - release
+
+variables:
+  BINARY_NAME: phctl
+  GOLANGCI_LINT_VERSION: v2.9.0
+
+fmt:
+  stage: check
+  image: golang:1.24
+  script:
+    - test -z "$(gofmt -l .)"
+
+vet:
+  stage: check
+  image: golang:1.24
+  script:
+    - go vet ./...
+
+lint:
+  stage: check
+  image: golangci/golangci-lint:${GOLANGCI_LINT_VERSION}
+  script:
+    - golangci-lint run ./...
+
+test:
+  stage: check
+  image: golang:1.24
+  script:
+    - go test -race ./...
+
+build:check:
+  stage: check
+  image: golang:1.24
+  script:
+    - go build ./...
+
+.build_template: &build_template
+  stage: build
+  image: golang:1.24
+  rules:
+    - if: $CI_COMMIT_TAG
+  script:
+    - export VERSION=${CI_COMMIT_TAG}
+    - >
+      go build
+      -ldflags "-s -w -X main.version=${VERSION}"
+      -o ${BINARY_NAME}-${GOOS}-${GOARCH}${EXT}
+      .
+  artifacts:
+    paths:
+      - ${BINARY_NAME}-${GOOS}-${GOARCH}${EXT}
+
+build:linux-amd64:
+  <<: *build_template
+  variables:
+    GOOS: linux
+    GOARCH: amd64
+    EXT: ""
+
+build:linux-arm64:
+  <<: *build_template
+  variables:
+    GOOS: linux
+    GOARCH: arm64
+    EXT: ""
+
+build:darwin-amd64:
+  <<: *build_template
+  variables:
+    GOOS: darwin
+    GOARCH: amd64
+    EXT: ""
+
+build:darwin-arm64:
+  <<: *build_template
+  variables:
+    GOOS: darwin
+    GOARCH: arm64
+    EXT: ""
+
+build:windows-amd64:
+  <<: *build_template
+  variables:
+    GOOS: windows
+    GOARCH: amd64
+    EXT: .exe
+
+build:windows-arm64:
+  <<: *build_template
+  variables:
+    GOOS: windows
+    GOARCH: arm64
+    EXT: .exe
+
+# --- Deploy stage: sync to GitHub as PidginHost CI ---
+
+deploy:github:
+  stage: deploy
+  image: alpine:latest
+  rules:
+    - if: $CI_COMMIT_TAG
+      when: on_success
+    - when: manual
+      allow_failure: true
+  before_script:
+    - apk add --no-cache git
+    - git config --global user.name "PidginHost CI"
+    - git config --global user.email "ci@pidginhost.com"
+  script:
+    - git clone "${CI_REPOSITORY_URL}" repo
+    - cd repo
+    - rm -rf .git
+    - git init -b main
+    - git add .
+    - |
+      if [ -n "$CI_COMMIT_TAG" ]; then
+        git commit -m "phctl ${CI_COMMIT_TAG}"
+        git tag "${CI_COMMIT_TAG}"
+      else
+        git commit -m "Update phctl from ${CI_COMMIT_SHORT_SHA}"
+      fi
+    - git remote add github "https://${GITHUB_TOKEN}@github.com/pidginhost/phctl.git"
+    - git push github main --force
+    - git push github --tags --force
+
+# --- Release stage: GitLab + GitHub releases ---
+
+release:gitlab:
+  stage: release
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  rules:
+    - if: $CI_COMMIT_TAG
+  needs:
+    - build:linux-amd64
+    - build:linux-arm64
+    - build:darwin-amd64
+    - build:darwin-arm64
+    - build:windows-amd64
+    - build:windows-arm64
+  script:
+    - |
+      # Extract changelog for this version (between ## vX.Y.Z and the next ## heading)
+      NOTES=$(awk "/^## ${CI_COMMIT_TAG}\$/,/^## v/" CHANGELOG.md | sed '1d;/^## v/d')
+      if [ -z "$NOTES" ]; then
+        NOTES="Release ${CI_COMMIT_TAG}"
+      fi
+      echo "$NOTES" > release_notes.md
+      cat release_notes.md
+  release:
+    tag_name: $CI_COMMIT_TAG
+    name: "phctl ${CI_COMMIT_TAG}"
+    description: ./release_notes.md
+    assets:
+      links:
+        - name: phctl-linux-amd64
+          url: "${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_TAG}/raw/phctl-linux-amd64?job=build:linux-amd64"
+        - name: phctl-linux-arm64
+          url: "${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_TAG}/raw/phctl-linux-arm64?job=build:linux-arm64"
+        - name: phctl-darwin-amd64
+          url: "${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_TAG}/raw/phctl-darwin-amd64?job=build:darwin-amd64"
+        - name: phctl-darwin-arm64
+          url: "${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_TAG}/raw/phctl-darwin-arm64?job=build:darwin-arm64"
+        - name: phctl-windows-amd64.exe
+          url: "${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_TAG}/raw/phctl-windows-amd64.exe?job=build:windows-amd64"
+        - name: phctl-windows-arm64.exe
+          url: "${CI_PROJECT_URL}/-/jobs/artifacts/${CI_COMMIT_TAG}/raw/phctl-windows-arm64.exe?job=build:windows-arm64"
+
+release:github:
+  stage: release
+  image: golang:1.24
+  rules:
+    - if: $CI_COMMIT_TAG
+      when: manual
+      allow_failure: true
+  needs:
+    - build:linux-amd64
+    - build:linux-arm64
+    - build:darwin-amd64
+    - build:darwin-arm64
+    - build:windows-amd64
+    - build:windows-arm64
+    - deploy:github
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq jq > /dev/null
+  script:
+    - |
+      VERSION="${CI_COMMIT_TAG}"
+
+      # Extract changelog for this version
+      NOTES=$(awk "/^## ${VERSION}\$/,/^## v/" CHANGELOG.md | sed '1d;/^## v/d')
+      if [ -z "$NOTES" ]; then
+        NOTES="Release ${VERSION}"
+      fi
+
+      # Build JSON body with jq to handle escaping
+      BODY=$(jq -n --arg tag "$VERSION" --arg name "phctl ${VERSION}" --arg body "$NOTES" \
+        '{tag_name: $tag, name: $name, body: $body, draft: false, prerelease: false}')
+
+      # Check if release already exists
+      EXISTING=$(curl -s -o /dev/null -w "%{http_code}" \
+        -H "Authorization: token ${GITHUB_TOKEN}" \
+        "https://api.github.com/repos/pidginhost/phctl/releases/tags/${VERSION}")
+
+      if [ "$EXISTING" = "200" ]; then
+        echo "Release ${VERSION} already exists, skipping creation"
+        RELEASE_ID=$(curl -s \
+          -H "Authorization: token ${GITHUB_TOKEN}" \
+          "https://api.github.com/repos/pidginhost/phctl/releases/tags/${VERSION}" | jq -r '.id')
+      else
+        RELEASE_ID=$(curl -sf -X POST \
+          -H "Authorization: token ${GITHUB_TOKEN}" \
+          -H "Content-Type: application/json" \
+          "https://api.github.com/repos/pidginhost/phctl/releases" \
+          -d "$BODY" | jq -r '.id')
+        echo "Created GitHub release ${VERSION} (ID: ${RELEASE_ID})"
+      fi
+
+      # Upload binaries
+      for file in phctl-linux-amd64 phctl-linux-arm64 phctl-darwin-amd64 phctl-darwin-arm64 phctl-windows-amd64.exe phctl-windows-arm64.exe; do
+        if [ -f "$file" ]; then
+          echo "Uploading $file..."
+          curl -sf -X POST \
+            -H "Authorization: token ${GITHUB_TOKEN}" \
+            -H "Content-Type: application/octet-stream" \
+            "https://uploads.github.com/repos/pidginhost/phctl/releases/${RELEASE_ID}/assets?name=${file}" \
+            --data-binary @"$file"
+          echo " uploaded."
+        fi
+      done
