@@ -50,8 +50,8 @@ type cliSessionCreateResponse struct {
 }
 
 type cliSessionPollResponse struct {
-	Status string `json:"status"`
-	Token  string `json:"token,omitempty"`
+	Status   string `json:"status"`
+	TokenKey string `json:"token_key,omitempty"`
 }
 
 func browserLogin() error {
@@ -96,7 +96,7 @@ func browserLogin() error {
 	deadline := time.Now().Add(10 * time.Minute)
 
 	for time.Now().Before(deadline) {
-		time.Sleep(2 * time.Second)
+		time.Sleep(5 * time.Second)
 
 		pollResp, err := client.Get(pollURL)
 		if err != nil {
@@ -112,10 +112,10 @@ func browserLogin() error {
 
 		switch poll.Status {
 		case "approved":
-			if poll.Token == "" {
+			if poll.TokenKey == "" {
 				return fmt.Errorf("session approved but no token received")
 			}
-			if err := saveToken(poll.Token); err != nil {
+			if err := saveToken(poll.TokenKey); err != nil {
 				return err
 			}
 			return nil
