@@ -2,10 +2,12 @@ package update
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -17,10 +19,22 @@ import (
 
 const (
 	repoAPIURL    = "https://git.pidginhost.net/api/v1/repos/pidginhost/phctl"
+	backgroundCmd = "__update-check"
 	checkInterval = 24 * time.Hour
 	CheckTimeout  = 2 * time.Second
 	UpdateTimeout = 60 * time.Second
 )
+
+var (
+	latestReleaseURL = repoAPIURL + "/releases/latest"
+	newHTTPClient    = func(timeout time.Duration) *http.Client {
+		return &http.Client{Timeout: timeout}
+	}
+	execPathFunc = execPath
+	execCommand  = exec.Command
+)
+
+var ErrSelfUpdateUnsupported = errors.New("self-update is not supported on Windows; download the latest phctl release manually")
 
 type Release struct {
 	TagName string  `json:"tag_name"`
@@ -33,11 +47,22 @@ type Asset struct {
 }
 
 func assetName() string {
-	name := fmt.Sprintf("phctl_%s_%s", runtime.GOOS, runtime.GOARCH)
+	name := fmt.Sprintf("phctl-%s-%s", runtime.GOOS, runtime.GOARCH)
 	if runtime.GOOS == "windows" {
 		name += ".exe"
 	}
 	return name
+}
+
+func supportsSelfUpdate(goos string) bool {
+	return goos != "windows"
+}
+
+func EnsureSelfUpdateSupported() error {
+	if !supportsSelfUpdate(runtime.GOOS) {
+		return ErrSelfUpdateUnsupported
+	}
+	return nil
 }
 
 func lastCheckPath() (string, error) {
@@ -78,8 +103,8 @@ func RecordCheck() {
 
 // LatestRelease fetches the most recent release from the Gitea API.
 func LatestRelease(timeout time.Duration) (*Release, error) {
-	client := &http.Client{Timeout: timeout}
-	resp, err := client.Get(repoAPIURL + "/releases/latest")
+	client := newHTTPClient(timeout)
+	resp, err := client.Get(latestReleaseURL)
 	if err != nil {
 		return nil, err
 	}
@@ -145,7 +170,7 @@ func DownloadAsset(rel *Release) (string, error) {
 		return "", fmt.Errorf("no asset found for %s (check release %s has a matching binary)", want, rel.TagName)
 	}
 
-	client := &http.Client{Timeout: UpdateTimeout}
+	client := newHTTPClient(UpdateTimeout)
 	resp, err := client.Get(downloadURL)
 	if err != nil {
 		return "", fmt.Errorf("downloading asset: %w", err)
@@ -155,7 +180,7 @@ func DownloadAsset(rel *Release) (string, error) {
 		return "", fmt.Errorf("download returned status %d", resp.StatusCode)
 	}
 
-	exe, err := execPath()
+	exe, err := execPathFunc()
 	if err != nil {
 		return "", err
 	}
@@ -184,7 +209,11 @@ func DownloadAsset(rel *Release) (string, error) {
 
 // Apply replaces the running binary with the file at tmpPath.
 func Apply(tmpPath string) error {
-	exe, err := execPath()
+	if err := EnsureSelfUpdateSupported(); err != nil {
+		return err
+	}
+
+	exe, err := execPathFunc()
 	if err != nil {
 		return err
 	}
@@ -210,14 +239,33 @@ func CheckNotice(currentVersion string) string {
 		return ""
 	}
 	rel, err := LatestRelease(CheckTimeout)
-	RecordCheck()
 	if err != nil {
 		return ""
 	}
+	RecordCheck()
 	if IsNewer(currentVersion, rel.TagName) {
 		return fmt.Sprintf("\nA new version of phctl is available: %s (current: %s)\nRun 'phctl update' to upgrade.\n", rel.TagName, currentVersion)
 	}
 	return ""
+}
+
+func StartBackgroundCheck(currentVersion string) error {
+	if !ShouldCheck() {
+		return nil
+	}
+
+	exe, err := execPathFunc()
+	if err != nil {
+		return err
+	}
+
+	cmd := execCommand(exe, backgroundCmd, currentVersion)
+	cmd.Env = append(os.Environ(), "PHCTL_NO_UPDATE_CHECK=1")
+	cmd.Stderr = os.Stderr
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	return cmd.Process.Release()
 }
 
 func execPath() (string, error) {

@@ -37,6 +37,27 @@ func TestParseFormat(t *testing.T) {
 	}
 }
 
+func TestIsValidFormat(t *testing.T) {
+	tests := []struct {
+		input string
+		want  bool
+	}{
+		{"table", true},
+		{"TABLE", true},
+		{"json", true},
+		{"yaml", true},
+		{"csv", false},
+		{"unknown", false},
+		{"", false},
+	}
+
+	for _, tt := range tests {
+		if got := IsValidFormat(tt.input); got != tt.want {
+			t.Errorf("IsValidFormat(%q) = %v, want %v", tt.input, got, tt.want)
+		}
+	}
+}
+
 func TestPstr(t *testing.T) {
 	s := "hello"
 	if got := Pstr(&s); got != "hello" {

@@ -8,14 +8,10 @@ func TestSupportCommandStructure(t *testing.T) {
 	if Cmd.Use != "support" {
 		t.Errorf("Use = %q, want %q", Cmd.Use, "support")
 	}
-	found := false
 	for _, a := range Cmd.Aliases {
 		if a == "ticket" {
-			found = true
+			t.Fatalf("support alias %q should not exist; it collides with the ticket subcommand", a)
 		}
-	}
-	if !found {
-		t.Errorf("Aliases = %v, want to contain 'ticket'", Cmd.Aliases)
 	}
 }
 
@@ -53,6 +49,22 @@ func TestTicketSubcommands(t *testing.T) {
 	}
 }
 
+func TestRootTicketSubcommands(t *testing.T) {
+	if TicketCmd.Use != "ticket" {
+		t.Fatalf("Use = %q, want %q", TicketCmd.Use, "ticket")
+	}
+
+	names := map[string]bool{}
+	for _, c := range TicketCmd.Commands() {
+		names[c.Name()] = true
+	}
+	for _, want := range []string{"list", "get", "create", "reply", "close", "reopen"} {
+		if !names[want] {
+			t.Errorf("root ticket missing subcommand %q", want)
+		}
+	}
+}
+
 func TestTicketCreateFlags(t *testing.T) {
 	for _, flag := range []string{"subject", "department", "message"} {
 		f := ticketCreateCmd.Flags().Lookup(flag)
@@ -62,9 +74,33 @@ func TestTicketCreateFlags(t *testing.T) {
 	}
 }
 
+func TestRootTicketCreateFlags(t *testing.T) {
+	createCmd, _, err := TicketCmd.Find([]string{"create"})
+	if err != nil {
+		t.Fatalf("finding root ticket create command: %v", err)
+	}
+	for _, flag := range []string{"subject", "department", "message"} {
+		f := createCmd.Flags().Lookup(flag)
+		if f == nil {
+			t.Fatalf("missing --%s flag on root ticket create command", flag)
+		}
+	}
+}
+
 func TestTicketReplyFlags(t *testing.T) {
 	f := ticketReplyCmd.Flags().Lookup("message")
 	if f == nil {
 		t.Fatal("missing --message flag on ticket reply command")
+	}
+}
+
+func TestRootTicketReplyFlags(t *testing.T) {
+	replyCmd, _, err := TicketCmd.Find([]string{"reply", "123"})
+	if err != nil {
+		t.Fatalf("finding root ticket reply command: %v", err)
+	}
+	f := replyCmd.Flags().Lookup("message")
+	if f == nil {
+		t.Fatal("missing --message flag on root ticket reply command")
 	}
 }

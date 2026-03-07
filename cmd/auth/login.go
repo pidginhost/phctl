@@ -16,6 +16,8 @@ import (
 
 var loginToken string
 
+const loginRequestTimeout = 10 * time.Second
+
 var loginCmd = &cobra.Command{
 	Use:   "login",
 	Short: "Authenticate with PidginHost",
@@ -24,6 +26,7 @@ var loginCmd = &cobra.Command{
   Interactive (browser):  phctl auth login
   Direct token:           phctl auth login --token <token>
   Environment variable:   PIDGINHOST_API_TOKEN=<token> phctl ...`,
+	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if loginToken != "" {
 			return saveToken(loginToken)
@@ -61,9 +64,10 @@ func browserLogin() error {
 	}
 
 	apiURL := strings.TrimRight(cfg.APIURL, "/")
+	client := &http.Client{Timeout: loginRequestTimeout}
 
 	// Create CLI session
-	resp, err := http.Post(apiURL+"/api/auth/cli-session/", "application/json", nil)
+	resp, err := client.Post(apiURL+"/api/auth/cli-session/", "application/json", nil)
 	if err != nil {
 		return fmt.Errorf("creating CLI session: %w", err)
 	}
@@ -92,7 +96,6 @@ func browserLogin() error {
 
 	// Poll for approval
 	pollURL := fmt.Sprintf("%s/api/auth/cli-session/%s/", apiURL, session.SessionID)
-	client := &http.Client{Timeout: 10 * time.Second}
 	deadline := time.Now().Add(10 * time.Minute)
 
 	for time.Now().Before(deadline) {

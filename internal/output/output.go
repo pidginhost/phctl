@@ -19,6 +19,15 @@ const (
 	FormatYAML  Format = "yaml"
 )
 
+func IsValidFormat(s string) bool {
+	switch strings.ToLower(s) {
+	case string(FormatTable), string(FormatJSON), string(FormatYAML):
+		return true
+	default:
+		return false
+	}
+}
+
 func ParseFormat(s string) Format {
 	switch strings.ToLower(s) {
 	case "json":

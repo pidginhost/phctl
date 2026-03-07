@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.3.1
+
+### Fixed
+
+- **Self-update asset matching**: updater now looks for the published hyphenated release binaries, so `phctl update` can download real artifacts again
+- **Automatic update checks**: notices now run in the background and only consume the 24-hour throttle window after a successful release lookup
+- **Windows self-update handling**: `phctl update` now returns a clear unsupported error instead of attempting an in-place executable replacement
+- **Flag-only command validation**: all CLI commands now reject unexpected positional arguments consistently instead of silently accepting extras
+- **Support ticket routing**: restored `phctl ticket ...` as a working root command without breaking `phctl support ticket ...`
+- **Output format validation**: invalid `--output` values now fail fast instead of silently falling back to table output
+- **Browser login timeout**: CLI session creation now uses a bounded HTTP client, preventing indefinite hangs before polling starts
+
+## v0.3.0
+
+### Added
+
+- `phctl update` command for self-updating the CLI
+- Automatic update availability checks after command execution
+- Release asset downloads from the latest published `phctl` release
+
 ## v0.2.4
 
 ### Fixed

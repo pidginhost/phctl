@@ -21,11 +21,16 @@ var Cmd = &cobra.Command{
 	Short: "Update phctl to the latest version",
 	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if err := iupdate.EnsureSelfUpdateSupported(); err != nil {
+			return err
+		}
+
 		cmd.Println("Checking for updates...")
 		rel, err := iupdate.LatestRelease(iupdate.UpdateTimeout)
 		if err != nil {
 			return fmt.Errorf("checking for updates: %w", err)
 		}
+		iupdate.RecordCheck()
 
 		if !iupdate.IsNewer(version, rel.TagName) {
 			cmd.Printf("Already up to date (%s).\n", version)
@@ -47,7 +52,6 @@ var Cmd = &cobra.Command{
 			return fmt.Errorf("applying update: %w", err)
 		}
 
-		iupdate.RecordCheck()
 		cmd.Printf("Updated to %s.\n", rel.TagName)
 		return nil
 	},
