@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -15,7 +16,9 @@ import (
 	"github.com/pidginhost/phctl/cmd/hosting"
 	"github.com/pidginhost/phctl/cmd/kubernetes"
 	"github.com/pidginhost/phctl/cmd/support"
+	"github.com/pidginhost/phctl/cmd/update"
 	"github.com/pidginhost/phctl/internal/config"
+	iupdate "github.com/pidginhost/phctl/internal/update"
 )
 
 var rootCmd = &cobra.Command{
@@ -24,10 +27,19 @@ var rootCmd = &cobra.Command{
 	Long:          "phctl is a CLI for managing PidginHost cloud resources.",
 	SilenceErrors: true,
 	SilenceUsage:  true,
+	PersistentPostRun: func(cmd *cobra.Command, args []string) {
+		if cfg, err := config.Load(); err == nil && !cfg.UpdateCheckEnabled() {
+			return
+		}
+		if notice := iupdate.CheckNotice(cmd.Root().Version); notice != "" {
+			fmt.Fprint(os.Stderr, notice)
+		}
+	},
 }
 
 func SetVersion(v string) {
 	rootCmd.Version = v
+	update.SetVersion(v)
 }
 
 func Execute() {
@@ -56,4 +68,5 @@ func init() {
 	rootCmd.AddCommand(freedns.Cmd)
 	rootCmd.AddCommand(hosting.Cmd)
 	rootCmd.AddCommand(support.Cmd)
+	rootCmd.AddCommand(update.Cmd)
 }

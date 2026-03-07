@@ -9,16 +9,32 @@ import (
 )
 
 type Config struct {
-	AuthToken string `yaml:"auth_token"`
-	APIURL    string `yaml:"api_url"`
-	Output    string `yaml:"output"`
+	AuthToken   string `yaml:"auth_token"`
+	APIURL      string `yaml:"api_url"`
+	Output      string `yaml:"output"`
+	UpdateCheck *bool  `yaml:"update_check,omitempty"`
 }
 
 func DefaultConfig() *Config {
+	t := true
 	return &Config{
-		APIURL: "https://www.pidginhost.com",
-		Output: "table",
+		APIURL:      "https://www.pidginhost.com",
+		Output:      "table",
+		UpdateCheck: &t,
 	}
+}
+
+// UpdateCheckEnabled returns whether automatic update checks are enabled.
+// Defaults to true. Disabled by setting update_check: false in config
+// or PHCTL_NO_UPDATE_CHECK=1 in the environment.
+func (c *Config) UpdateCheckEnabled() bool {
+	if os.Getenv("PHCTL_NO_UPDATE_CHECK") == "1" {
+		return false
+	}
+	if c.UpdateCheck != nil {
+		return *c.UpdateCheck
+	}
+	return true
 }
 
 func Dir() (string, error) {
@@ -64,6 +80,9 @@ func Load() (*Config, error) {
 		}
 		if fileCfg.Output != "" {
 			cfg.Output = fileCfg.Output
+		}
+		if fileCfg.UpdateCheck != nil {
+			cfg.UpdateCheck = fileCfg.UpdateCheck
 		}
 	}
 
@@ -111,6 +130,9 @@ func Save(cfg *Config) error {
 	}
 	if cfg.Output != "" && cfg.Output != "table" {
 		saveCfg.Output = cfg.Output
+	}
+	if cfg.UpdateCheck != nil {
+		saveCfg.UpdateCheck = cfg.UpdateCheck
 	}
 
 	out, err := yaml.Marshal(saveCfg)
