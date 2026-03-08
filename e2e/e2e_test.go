@@ -49,9 +49,12 @@ func run(t *testing.T, args ...string) string {
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		output := string(out)
-		// 403 means the token lacks permission for this endpoint — skip, not fail.
+		// 403: token lacks permission; 429: rate limited — skip, not fail.
 		if strings.Contains(output, "403") || strings.Contains(output, "Forbidden") {
 			t.Skipf("phctl %s: endpoint returned 403 (token may lack permission)", strings.Join(args, " "))
+		}
+		if strings.Contains(output, "429") || strings.Contains(output, "Too Many Requests") {
+			t.Skipf("phctl %s: rate limited (429)", strings.Join(args, " "))
 		}
 		t.Fatalf("phctl %s failed: %v\nOutput:\n%s", strings.Join(args, " "), err, output)
 	}
