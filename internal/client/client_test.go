@@ -1,7 +1,9 @@
 package client
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -93,7 +95,7 @@ func TestRawGetSuccess(t *testing.T) {
 	withHTTPClient(t, server.Client())
 
 	var bal RawFundsBalance
-	if err := RawGet("/api/billing/funds/", &bal); err != nil {
+	if err := RawGet(context.Background(), "/api/billing/funds/", &bal); err != nil {
 		t.Fatalf("RawGet error: %v", err)
 	}
 	if bal.Balance != "42.50" {
@@ -111,7 +113,7 @@ func TestRawGetNoToken(t *testing.T) {
 	t.Setenv("PIDGINHOST_API_URL", "")
 
 	var dst RawFundsBalance
-	err := RawGet("/api/billing/funds/", &dst)
+	err := RawGet(context.Background(), "/api/billing/funds/", &dst)
 	if err == nil {
 		t.Fatal("expected error when no token configured")
 	}
@@ -133,7 +135,7 @@ func TestRawGetHTTPError(t *testing.T) {
 	withHTTPClient(t, server.Client())
 
 	var dst RawFundsBalance
-	err := RawGet("/api/billing/funds/", &dst)
+	err := RawGet(context.Background(), "/api/billing/funds/", &dst)
 	if err == nil {
 		t.Fatal("expected error for HTTP 500")
 	}
@@ -162,7 +164,7 @@ func TestRawFetchAllSinglePage(t *testing.T) {
 	t.Setenv("PIDGINHOST_API_URL", server.URL)
 	withHTTPClient(t, server.Client())
 
-	deposits, err := RawFetchAll[RawDeposit]("/api/billing/deposits/")
+	deposits, err := RawFetchAll[RawDeposit](context.Background(), "/api/billing/deposits/")
 	if err != nil {
 		t.Fatalf("RawFetchAll error: %v", err)
 	}
@@ -204,7 +206,7 @@ func TestRawFetchAllMultiplePages(t *testing.T) {
 	t.Setenv("PIDGINHOST_API_URL", server.URL)
 	withHTTPClient(t, server.Client())
 
-	deposits, err := RawFetchAll[RawDeposit]("/api/billing/deposits/")
+	deposits, err := RawFetchAll[RawDeposit](context.Background(), "/api/billing/deposits/")
 	if err != nil {
 		t.Fatalf("RawFetchAll error: %v", err)
 	}
@@ -222,8 +224,30 @@ func TestRawFetchAllNoToken(t *testing.T) {
 	t.Setenv("PIDGINHOST_API_TOKEN", "")
 	t.Setenv("PIDGINHOST_API_URL", "")
 
-	_, err := RawFetchAll[RawDeposit]("/api/billing/deposits/")
+	_, err := RawFetchAll[RawDeposit](context.Background(), "/api/billing/deposits/")
 	if err == nil {
 		t.Fatal("expected error when no token configured")
+	}
+}
+
+func TestRawGetHonorsContextCancellation(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-r.Context().Done()
+	}))
+	defer server.Close()
+
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+	t.Setenv("PIDGINHOST_API_TOKEN", "test-token")
+	t.Setenv("PIDGINHOST_API_URL", server.URL)
+	withHTTPClient(t, server.Client())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	var dst RawFundsBalance
+	err := RawGet(ctx, "/api/billing/funds/", &dst)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("RawGet() error = %v, want context.Canceled", err)
 	}
 }

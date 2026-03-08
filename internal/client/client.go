@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -35,7 +36,11 @@ func New() (*pidginhost.APIClient, error) {
 
 // RawGet makes an authenticated GET request and decodes JSON into dst.
 // Use this to bypass SDK type mismatches (e.g. decimal strings vs float64).
-func RawGet(path string, dst interface{}) error {
+func RawGet(ctx context.Context, path string, dst interface{}) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	cfg, err := config.Load()
 	if err != nil {
 		return err
@@ -44,7 +49,7 @@ func RawGet(path string, dst interface{}) error {
 		return fmt.Errorf("no API token configured. Run 'phctl auth init' or set PIDGINHOST_API_TOKEN")
 	}
 	url := strings.TrimRight(cfg.APIURL, "/") + path
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return err
 	}
@@ -62,12 +67,12 @@ func RawGet(path string, dst interface{}) error {
 
 // RawFetchAll paginates through a DRF list endpoint using raw HTTP,
 // bypassing SDK type mismatches (e.g. decimal strings vs float64).
-func RawFetchAll[T any](path string) ([]T, error) {
+func RawFetchAll[T any](ctx context.Context, path string) ([]T, error) {
 	var all []T
 	for page := int32(1); ; page++ {
 		pagePath := fmt.Sprintf("%s?page=%d", path, page)
 		var resp PaginatedResponse[T]
-		if err := RawGet(pagePath, &resp); err != nil {
+		if err := RawGet(ctx, pagePath, &resp); err != nil {
 			return nil, err
 		}
 		all = append(all, resp.Results...)

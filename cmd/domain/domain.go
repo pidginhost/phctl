@@ -27,7 +27,7 @@ var domainListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all domains",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		domains, err := client.RawFetchAll[client.RawDomain]("/api/domain/domain/")
+		domains, err := client.RawFetchAll[client.RawDomain](cmd.Context(), "/api/domain/domain/")
 		if err != nil {
 			return fmt.Errorf("listing domains: %w", err)
 		}
@@ -49,7 +49,7 @@ var domainGetCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var d client.RawDomain
-		if err := client.RawGet(fmt.Sprintf("/api/domain/domain/%s/", args[0]), &d); err != nil {
+		if err := client.RawGet(cmd.Context(), fmt.Sprintf("/api/domain/domain/%s/", args[0]), &d); err != nil {
 			return fmt.Errorf("getting domain: %w", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
@@ -225,7 +225,7 @@ var tldListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all available TLDs",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		tlds, err := client.RawFetchAll[client.RawTLD]("/api/domain/tld/")
+		tlds, err := client.RawFetchAll[client.RawTLD](cmd.Context(), "/api/domain/tld/")
 		if err != nil {
 			return fmt.Errorf("listing TLDs: %w", err)
 		}

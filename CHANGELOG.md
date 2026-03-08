@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.4.0
+
+### Improved
+
+- **Graceful cancellation**: Ctrl+C (SIGINT/SIGTERM) now cleanly cancels in-flight API requests instead of leaving orphaned connections
+- **Browser login reliability**: polling now fails fast after 3 consecutive errors and reports HTTP error details instead of looping silently for 10 minutes
+- **Error reporting**: configuration file corruption and update-check write failures are now surfaced instead of silently ignored
+
+### Changed
+
+- **CI pipeline**: test runs now produce JUnit XML reports, enforce a minimum coverage threshold, and run E2E tests automatically when `PIDGINHOST_API_TOKEN` is configured
+
 ## v0.3.1
 
 ### Fixed

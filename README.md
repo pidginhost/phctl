@@ -6,7 +6,7 @@ Command-line interface for managing [PidginHost](https://pidginhost.com) cloud r
 
 ### From binary releases
 
-Download the latest release for your platform from the [Releases](https://git.pidginhost.net/pidginhost/phctl/-/releases) page.
+Download the latest release for your platform from the [Releases](https://github.com/pidginhost/phctl/releases) page.
 
 ### From source
 

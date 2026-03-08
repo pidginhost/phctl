@@ -2,7 +2,9 @@ package auth
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -64,5 +66,56 @@ func TestBrowserLoginReturnsPollStatusErrors(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "upstream failed") {
 		t.Fatalf("browserLogin() error = %q, want response body", err)
+	}
+}
+
+func TestBrowserLoginHonorsCommandContext(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/auth/cli-session/":
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(cliSessionCreateResponse{
+				SessionID:       "session-123",
+				VerificationURL: "https://example.test/verify",
+			})
+		case "/api/auth/cli-session/session-123/":
+			<-r.Context().Done()
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	oldClient := newLoginClient
+	oldOpen := openBrowserFunc
+	oldInterval := loginPollInterval
+	oldTimeout := loginWaitTimeout
+	t.Cleanup(func() {
+		newLoginClient = oldClient
+		openBrowserFunc = oldOpen
+		loginPollInterval = oldInterval
+		loginWaitTimeout = oldTimeout
+	})
+
+	newLoginClient = func() *http.Client { return server.Client() }
+	openBrowserFunc = func(string) error { return nil }
+	loginPollInterval = time.Second
+	loginWaitTimeout = time.Hour
+
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+	t.Setenv("PIDGINHOST_API_TOKEN", "")
+	t.Setenv("PIDGINHOST_API_URL", server.URL)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	cmd := &cobra.Command{Use: "login"}
+	cmd.SetContext(ctx)
+
+	err := browserLogin(cmd)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("browserLogin() error = %v, want context.Canceled", err)
 	}
 }

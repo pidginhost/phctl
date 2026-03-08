@@ -30,9 +30,7 @@ var Cmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("checking for updates: %w", err)
 		}
-		if err := iupdate.RecordCheck(); err != nil {
-			return err
-		}
+		_ = iupdate.RecordCheck()
 
 		if !iupdate.IsNewer(version, rel.TagName) {
 			cmd.Printf("Already up to date (%s).\n", version)

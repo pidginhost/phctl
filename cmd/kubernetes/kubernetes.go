@@ -32,7 +32,7 @@ var clusterListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all clusters",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		clusters, err := client.RawFetchAll[client.RawCluster]("/api/kubernetes/clusters/")
+		clusters, err := client.RawFetchAll[client.RawCluster](cmd.Context(), "/api/kubernetes/clusters/")
 		if err != nil {
 			return fmt.Errorf("listing clusters: %w", err)
 		}
@@ -54,7 +54,7 @@ var clusterGetCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var cl client.RawCluster
-		if err := client.RawGet(fmt.Sprintf("/api/kubernetes/clusters/%s/", args[0]), &cl); err != nil {
+		if err := client.RawGet(cmd.Context(), fmt.Sprintf("/api/kubernetes/clusters/%s/", args[0]), &cl); err != nil {
 			return fmt.Errorf("getting cluster: %w", err)
 		}
 		format := cmdutil.OutputFormat(cmd)

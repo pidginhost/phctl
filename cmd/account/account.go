@@ -26,7 +26,7 @@ var profileCmd = &cobra.Command{
 	Short: "View account profile",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var profile client.RawProfile
-		if err := client.RawGet("/api/account/profile", &profile); err != nil {
+		if err := client.RawGet(cmd.Context(), "/api/account/profile", &profile); err != nil {
 			return fmt.Errorf("getting profile: %w", err)
 		}
 		format := cmdutil.OutputFormat(cmd)

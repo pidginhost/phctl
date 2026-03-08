@@ -31,7 +31,7 @@ var serverListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all dedicated servers",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		servers, err := client.RawFetchAll[client.RawDedicatedServer]("/api/dedicated/servers/")
+		servers, err := client.RawFetchAll[client.RawDedicatedServer](cmd.Context(), "/api/dedicated/servers/")
 		if err != nil {
 			return fmt.Errorf("listing dedicated servers: %w", err)
 		}
@@ -53,7 +53,7 @@ var serverGetCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var s client.RawDedicatedServer
-		if err := client.RawGet(fmt.Sprintf("/api/dedicated/servers/%s/", args[0]), &s); err != nil {
+		if err := client.RawGet(cmd.Context(), fmt.Sprintf("/api/dedicated/servers/%s/", args[0]), &s); err != nil {
 			return fmt.Errorf("getting dedicated server: %w", err)
 		}
 		format := cmdutil.OutputFormat(cmd)

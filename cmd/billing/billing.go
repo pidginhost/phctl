@@ -33,7 +33,7 @@ var fundsBalanceCmd = &cobra.Command{
 	Short: "Show current account balance",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var balance client.RawFundsBalance
-		if err := client.RawGet("/api/billing/funds/", &balance); err != nil {
+		if err := client.RawGet(cmd.Context(), "/api/billing/funds/", &balance); err != nil {
 			return fmt.Errorf("getting balance: %w", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
@@ -88,7 +88,7 @@ var depositListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all deposits",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		deposits, err := client.RawFetchAll[client.RawDeposit]("/api/billing/deposits/")
+		deposits, err := client.RawFetchAll[client.RawDeposit](cmd.Context(), "/api/billing/deposits/")
 		if err != nil {
 			return fmt.Errorf("listing deposits: %w", err)
 		}
@@ -110,7 +110,7 @@ var depositGetCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var d client.RawDeposit
-		if err := client.RawGet(fmt.Sprintf("/api/billing/deposits/%s/", args[0]), &d); err != nil {
+		if err := client.RawGet(cmd.Context(), fmt.Sprintf("/api/billing/deposits/%s/", args[0]), &d); err != nil {
 			return fmt.Errorf("getting deposit: %w", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
@@ -159,7 +159,7 @@ var invoiceListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all invoices",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		invoices, err := client.RawFetchAll[client.RawInvoiceList]("/api/billing/invoices/")
+		invoices, err := client.RawFetchAll[client.RawInvoiceList](cmd.Context(), "/api/billing/invoices/")
 		if err != nil {
 			return fmt.Errorf("listing invoices: %w", err)
 		}
@@ -181,7 +181,7 @@ var invoiceGetCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var inv client.RawInvoiceList
-		if err := client.RawGet(fmt.Sprintf("/api/billing/invoices/%s/", args[0]), &inv); err != nil {
+		if err := client.RawGet(cmd.Context(), fmt.Sprintf("/api/billing/invoices/%s/", args[0]), &inv); err != nil {
 			return fmt.Errorf("getting invoice: %w", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
@@ -234,7 +234,7 @@ var serviceListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all services",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		services, err := client.RawFetchAll[client.RawServiceList]("/api/billing/services/")
+		services, err := client.RawFetchAll[client.RawServiceList](cmd.Context(), "/api/billing/services/")
 		if err != nil {
 			return fmt.Errorf("listing services: %w", err)
 		}
@@ -256,7 +256,7 @@ var serviceGetCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var s client.RawServiceList
-		if err := client.RawGet(fmt.Sprintf("/api/billing/services/%s/", args[0]), &s); err != nil {
+		if err := client.RawGet(cmd.Context(), fmt.Sprintf("/api/billing/services/%s/", args[0]), &s); err != nil {
 			return fmt.Errorf("getting service: %w", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
@@ -330,7 +330,7 @@ var subscriptionListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all subscriptions",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		subs, err := client.RawFetchAll[client.RawSubscription]("/api/billing/subscriptions/")
+		subs, err := client.RawFetchAll[client.RawSubscription](cmd.Context(), "/api/billing/subscriptions/")
 		if err != nil {
 			return fmt.Errorf("listing subscriptions: %w", err)
 		}
@@ -352,7 +352,7 @@ var subscriptionGetCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var s client.RawSubscription
-		if err := client.RawGet(fmt.Sprintf("/api/billing/subscriptions/%s/", args[0]), &s); err != nil {
+		if err := client.RawGet(cmd.Context(), fmt.Sprintf("/api/billing/subscriptions/%s/", args[0]), &s); err != nil {
 			return fmt.Errorf("getting subscription: %w", err)
 		}
 		format := cmdutil.OutputFormat(cmd)

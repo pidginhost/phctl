@@ -29,7 +29,7 @@ var serviceListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List hosting services",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		services, err := client.RawFetchAll[client.RawHostingService]("/api/hosting/hosting/")
+		services, err := client.RawFetchAll[client.RawHostingService](cmd.Context(), "/api/hosting/hosting/")
 		if err != nil {
 			return fmt.Errorf("listing hosting services: %w", err)
 		}
@@ -51,7 +51,7 @@ var serviceGetCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var s client.RawHostingService
-		if err := client.RawGet(fmt.Sprintf("/api/hosting/hosting/%s/", args[0]), &s); err != nil {
+		if err := client.RawGet(cmd.Context(), fmt.Sprintf("/api/hosting/hosting/%s/", args[0]), &s); err != nil {
 			return fmt.Errorf("getting hosting service: %w", err)
 		}
 		format := cmdutil.OutputFormat(cmd)

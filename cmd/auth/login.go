@@ -1,7 +1,9 @@
 package auth
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -68,6 +70,11 @@ type cliSessionPollResponse struct {
 }
 
 func browserLogin(cmd *cobra.Command) error {
+	ctx := cmd.Context()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	cfg, err := config.Load()
 	if err != nil {
 		return err
@@ -77,7 +84,11 @@ func browserLogin(cmd *cobra.Command) error {
 	client := newLoginClient()
 
 	// Create CLI session
-	resp, err := client.Post(apiURL+"/api/auth/cli-session/", "application/json", nil)
+	createReq, err := http.NewRequestWithContext(ctx, http.MethodPost, apiURL+"/api/auth/cli-session/", nil)
+	if err != nil {
+		return fmt.Errorf("creating CLI session request: %w", err)
+	}
+	resp, err := client.Do(createReq)
 	if err != nil {
 		return fmt.Errorf("creating CLI session: %w", err)
 	}
@@ -110,12 +121,28 @@ func browserLogin(cmd *cobra.Command) error {
 
 	const maxPollErrors = 3
 	var consecutiveErrors int
+	wait := loginPollInterval
+	if wait <= 0 {
+		wait = time.Millisecond
+	}
 
 	for time.Now().Before(deadline) {
-		time.Sleep(loginPollInterval)
+		if err := waitForLoginPoll(ctx, wait, deadline); err != nil {
+			if errors.Is(err, context.DeadlineExceeded) {
+				break
+			}
+			return err
+		}
 
-		pollResp, err := client.Get(pollURL)
+		pollReq, err := http.NewRequestWithContext(ctx, http.MethodGet, pollURL, nil)
 		if err != nil {
+			return fmt.Errorf("creating login poll request: %w", err)
+		}
+		pollResp, err := client.Do(pollReq)
+		if err != nil {
+			if errors.Is(err, context.Canceled) {
+				return ctx.Err()
+			}
 			consecutiveErrors++
 			if consecutiveErrors >= maxPollErrors {
 				return fmt.Errorf("polling login status after %d retries: %w", consecutiveErrors, err)
@@ -162,6 +189,26 @@ func browserLogin(cmd *cobra.Command) error {
 	}
 
 	return fmt.Errorf("login timed out after 10 minutes")
+}
+
+func waitForLoginPoll(ctx context.Context, interval time.Duration, deadline time.Time) error {
+	remaining := time.Until(deadline)
+	if remaining <= 0 {
+		return context.DeadlineExceeded
+	}
+	if interval > remaining {
+		interval = remaining
+	}
+
+	timer := time.NewTimer(interval)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 func openBrowser(url string) error {
