@@ -1,3 +1,10 @@
+# Run tag pipelines (full: check+build+deploy+release) or branch pipelines (check only).
+# GitLab deduplicates: if a tag and branch push share a SHA, only the tag pipeline runs.
+workflow:
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_COMMIT_BRANCH
+
 stages:
   - check
   - build
