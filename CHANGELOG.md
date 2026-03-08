@@ -5,6 +5,7 @@
 ### Fixed
 
 - **RawGet auth header**: raw HTTP endpoints (billing, domains, dedicated, hosting, kubernetes) were sending `Bearer` instead of `Token` authorization, causing 403 errors despite valid credentials
+- **Decimal field deserialization**: API fields like `balance`, `price`, and `amount` now accept both quoted strings and bare numbers, preventing unmarshalling errors
 
 ## v0.4.0
 
