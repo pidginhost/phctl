@@ -53,7 +53,7 @@ func RawGet(ctx context.Context, path string, dst interface{}) error {
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Authorization", "Bearer "+cfg.AuthToken)
+	req.Header.Set("Authorization", "Token "+cfg.AuthToken)
 	resp, err := httpClient.Do(req)
 	if err != nil {
 		return err

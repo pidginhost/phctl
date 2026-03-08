@@ -80,8 +80,8 @@ func TestRawGetSuccess(t *testing.T) {
 			http.NotFound(w, r)
 			return
 		}
-		if got := r.Header.Get("Authorization"); got != "Bearer test-token" {
-			t.Errorf("Authorization = %q, want %q", got, "Bearer test-token")
+		if got := r.Header.Get("Authorization"); got != "Token test-token" {
+			t.Errorf("Authorization = %q, want %q", got, "Token test-token")
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(RawFundsBalance{Balance: "42.50", ThresholdType: "auto"})
