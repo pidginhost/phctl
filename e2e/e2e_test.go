@@ -41,24 +41,39 @@ func skipWithoutToken(t *testing.T) {
 	}
 }
 
+func isRateLimited(output string) bool {
+	return strings.Contains(output, "429") || strings.Contains(output, "Too Many Requests")
+}
+
 func run(t *testing.T, args ...string) string {
 	t.Helper()
-	// Small delay between API calls to avoid 429 rate limits.
-	time.Sleep(500 * time.Millisecond)
-	cmd := exec.Command(binaryPath, args...)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
+	label := strings.Join(args, " ")
+	// Delay between API calls to stay under rate limits.
+	time.Sleep(2 * time.Second)
+	// Retry up to 3 times on 429 with increasing backoff.
+	for attempt := 0; ; attempt++ {
+		cmd := exec.Command(binaryPath, args...)
+		out, err := cmd.CombinedOutput()
+		if err == nil {
+			return string(out)
+		}
 		output := string(out)
-		// 403: token lacks permission; 429: rate limited — skip, not fail.
+		// 403: token lacks permission — skip, not fail.
 		if strings.Contains(output, "403") || strings.Contains(output, "Forbidden") {
-			t.Skipf("phctl %s: endpoint returned 403 (token may lack permission)", strings.Join(args, " "))
+			t.Skipf("phctl %s: endpoint returned 403 (token may lack permission)", label)
 		}
-		if strings.Contains(output, "429") || strings.Contains(output, "Too Many Requests") {
-			t.Skipf("phctl %s: rate limited (429)", strings.Join(args, " "))
+		// 429: back off and retry.
+		if isRateLimited(output) && attempt < 3 {
+			backoff := time.Duration(5*(attempt+1)) * time.Second
+			t.Logf("phctl %s: rate limited (429), retrying in %s (attempt %d/3)", label, backoff, attempt+1)
+			time.Sleep(backoff)
+			continue
 		}
-		t.Fatalf("phctl %s failed: %v\nOutput:\n%s", strings.Join(args, " "), err, output)
+		if isRateLimited(output) {
+			t.Skipf("phctl %s: still rate limited after 3 retries", label)
+		}
+		t.Fatalf("phctl %s failed: %v\nOutput:\n%s", label, err, output)
 	}
-	return string(out)
 }
 
 // --- Account ---
