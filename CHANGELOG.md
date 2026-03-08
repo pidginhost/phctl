@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.4.1
+
+### Fixed
+
+- **RawGet auth header**: raw HTTP endpoints (billing, domains, dedicated, hosting, kubernetes) were sending `Bearer` instead of `Token` authorization, causing 403 errors despite valid credentials
+
 ## v0.4.0
 
 ### Improved
