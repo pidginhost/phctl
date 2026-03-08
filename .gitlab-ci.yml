@@ -55,7 +55,7 @@ e2e:
   rules:
     - if: $PIDGINHOST_API_TOKEN
   script:
-    - go test -v -count=1 ./e2e/...
+    - go test -v -count=1 -p 1 -parallel 1 ./e2e/...
 
 build:check:
   stage: check

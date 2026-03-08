@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
 
 var binaryPath string
@@ -42,10 +43,17 @@ func skipWithoutToken(t *testing.T) {
 
 func run(t *testing.T, args ...string) string {
 	t.Helper()
+	// Small delay between API calls to avoid 429 rate limits.
+	time.Sleep(500 * time.Millisecond)
 	cmd := exec.Command(binaryPath, args...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		t.Fatalf("phctl %s failed: %v\nOutput:\n%s", strings.Join(args, " "), err, out)
+		output := string(out)
+		// 403 means the token lacks permission for this endpoint — skip, not fail.
+		if strings.Contains(output, "403") || strings.Contains(output, "Forbidden") {
+			t.Skipf("phctl %s: endpoint returned 403 (token may lack permission)", strings.Join(args, " "))
+		}
+		t.Fatalf("phctl %s failed: %v\nOutput:\n%s", strings.Join(args, " "), err, output)
 	}
 	return string(out)
 }
