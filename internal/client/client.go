@@ -5,14 +5,14 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
 
 	pidginhost "github.com/pidginhost/sdk-go"
 
+	"github.com/pidginhost/phctl/internal/cmdutil"
 	"github.com/pidginhost/phctl/internal/config"
 )
 
-var httpClient = &http.Client{Timeout: 30 * time.Second}
+var httpClient = &http.Client{Timeout: cmdutil.DefaultAPITimeout}
 
 // PaginatedResponse is the generic DRF paginated response wrapper.
 type PaginatedResponse[T any] struct {

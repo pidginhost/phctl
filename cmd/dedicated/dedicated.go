@@ -1,7 +1,6 @@
 package dedicated
 
 import (
-	"context"
 	"fmt"
 	"io"
 
@@ -12,24 +11,6 @@ import (
 	"github.com/pidginhost/phctl/internal/cmdutil"
 	"github.com/pidginhost/phctl/internal/confirm"
 	"github.com/pidginhost/phctl/internal/output"
-)
-
-type rawDedicatedServer struct {
-	Id           int32  `json:"id"`
-	Hostname     string `json:"hostname"`
-	Status       string `json:"status"`
-	Price        string `json:"price"`
-	NextInvoice  string `json:"next_invoice"`
-	Created      string `json:"created"`
-	BillingCycle string `json:"billing_cycle"`
-	ServerStatus string `json:"server_status"`
-	Ips          string `json:"ips"`
-	OsName       string `json:"os_name"`
-}
-
-var (
-	outputFormat = cmdutil.OutputFormat
-	force        = cmdutil.Force
 )
 
 var Cmd = &cobra.Command{
@@ -50,12 +31,12 @@ var serverListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all dedicated servers",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		servers, err := client.RawFetchAll[rawDedicatedServer]("/api/dedicated/servers/")
+		servers, err := client.RawFetchAll[client.RawDedicatedServer]("/api/dedicated/servers/")
 		if err != nil {
 			return fmt.Errorf("listing dedicated servers: %w", err)
 		}
-		format := outputFormat(cmd)
-		return output.Print(format, servers, func(w io.Writer) {
+		format := cmdutil.OutputFormat(cmd)
+		return output.Print(cmd.OutOrStdout(), format, servers, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID", "HOSTNAME", "STATUS", "SERVER STATUS", "IPS", "OS")
 			for _, s := range servers {
@@ -71,12 +52,12 @@ var serverGetCmd = &cobra.Command{
 	Short: "Get dedicated server details",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		var s rawDedicatedServer
+		var s client.RawDedicatedServer
 		if err := client.RawGet(fmt.Sprintf("/api/dedicated/servers/%s/", args[0]), &s); err != nil {
 			return fmt.Errorf("getting dedicated server: %w", err)
 		}
-		format := outputFormat(cmd)
-		return output.Print(format, s, func(w io.Writer) {
+		format := cmdutil.OutputFormat(cmd)
+		return output.Print(cmd.OutOrStdout(), format, s, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID:", s.Id)
 			output.PrintRow(tw, "Hostname:", s.Hostname)
@@ -104,11 +85,11 @@ var serverPowerCmd = &cobra.Command{
 			return err
 		}
 		body := *pidginhost.NewPowerAction(pidginhost.PowerActionActionEnum(serverPowerAction))
-		resp, _, err := c.DedicatedAPI.DedicatedServersPowerCreate(context.Background(), args[0]).PowerAction(body).Execute()
+		resp, _, err := c.DedicatedAPI.DedicatedServersPowerCreate(cmd.Context(), args[0]).PowerAction(body).Execute()
 		if err != nil {
 			return fmt.Errorf("power management: %w", err)
 		}
-		fmt.Printf("Power action '%s': %s\n", serverPowerAction, resp.Message)
+		cmd.Printf("Power action '%s': %s\n", serverPowerAction, resp.Message)
 		return nil
 	},
 }
@@ -120,7 +101,7 @@ var serverReinstallCmd = &cobra.Command{
 	Short: "Reinstall OS on a dedicated server",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if !force(cmd) && !confirm.Action(fmt.Sprintf("Reinstall OS on dedicated server %s?", args[0])) {
+		if !cmdutil.Force(cmd) && !confirm.Action(cmd.InOrStdin(), cmd.ErrOrStderr(), fmt.Sprintf("Reinstall OS on dedicated server %s?", args[0])) {
 			return nil
 		}
 		c, err := client.New()
@@ -128,11 +109,11 @@ var serverReinstallCmd = &cobra.Command{
 			return err
 		}
 		body := *pidginhost.NewReinstall(reinstallOSID)
-		_, _, err = c.DedicatedAPI.DedicatedServersReinstallCreate(context.Background(), args[0]).Reinstall(body).Execute()
+		_, _, err = c.DedicatedAPI.DedicatedServersReinstallCreate(cmd.Context(), args[0]).Reinstall(body).Execute()
 		if err != nil {
 			return fmt.Errorf("reinstalling: %w", err)
 		}
-		fmt.Printf("OS reinstall queued for dedicated server %s.\n", args[0])
+		cmd.Printf("OS reinstall queued for dedicated server %s.\n", args[0])
 		return nil
 	},
 }
@@ -152,11 +133,11 @@ var serverRDNSCmd = &cobra.Command{
 			return err
 		}
 		body := *pidginhost.NewDedicatedRDNS(rdnsIPID, rdnsHostname)
-		resp, _, err := c.DedicatedAPI.DedicatedServersRdnsCreate(context.Background(), args[0]).DedicatedRDNS(body).Execute()
+		resp, _, err := c.DedicatedAPI.DedicatedServersRdnsCreate(cmd.Context(), args[0]).DedicatedRDNS(body).Execute()
 		if err != nil {
 			return fmt.Errorf("setting rDNS: %w", err)
 		}
-		fmt.Printf("rDNS updated: %s\n", resp.Message)
+		cmd.Printf("rDNS updated: %s\n", resp.Message)
 		return nil
 	},
 }

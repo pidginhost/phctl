@@ -1,7 +1,6 @@
 package account
 
 import (
-	"context"
 	"fmt"
 	"io"
 
@@ -12,19 +11,6 @@ import (
 	"github.com/pidginhost/phctl/internal/cmdutil"
 	"github.com/pidginhost/phctl/internal/confirm"
 	"github.com/pidginhost/phctl/internal/output"
-)
-
-// rawProfile bypasses SDK float64 mismatch for the funds field.
-type rawProfile struct {
-	FirstName string `json:"first_name"`
-	LastName  string `json:"last_name"`
-	Funds     string `json:"funds"`
-	Phone     string `json:"phone"`
-}
-
-var (
-	outputFormat = cmdutil.OutputFormat
-	force        = cmdutil.Force
 )
 
 var Cmd = &cobra.Command{
@@ -39,12 +25,12 @@ var profileCmd = &cobra.Command{
 	Use:   "profile",
 	Short: "View account profile",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		var profile rawProfile
+		var profile client.RawProfile
 		if err := client.RawGet("/api/account/profile", &profile); err != nil {
 			return fmt.Errorf("getting profile: %w", err)
 		}
-		format := outputFormat(cmd)
-		return output.Print(format, profile, func(w io.Writer) {
+		format := cmdutil.OutputFormat(cmd)
+		return output.Print(cmd.OutOrStdout(), format, profile, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "First Name:", profile.FirstName)
 			output.PrintRow(tw, "Last Name:", profile.LastName)
@@ -73,7 +59,7 @@ var sshKeyListCmd = &cobra.Command{
 			return err
 		}
 		keys, err := cmdutil.FetchAll(func(page int32) ([]pidginhost.SSHKey, bool, error) {
-			resp, _, err := c.AccountAPI.AccountSshKeysList(context.Background()).Page(page).Execute()
+			resp, _, err := c.AccountAPI.AccountSshKeysList(cmd.Context()).Page(page).Execute()
 			if err != nil {
 				return nil, false, err
 			}
@@ -82,12 +68,12 @@ var sshKeyListCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("listing SSH keys: %w", err)
 		}
-		format := outputFormat(cmd)
-		return output.Print(format, keys, func(w io.Writer) {
+		format := cmdutil.OutputFormat(cmd)
+		return output.Print(cmd.OutOrStdout(), format, keys, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID", "ALIAS", "FINGERPRINT")
 			for _, k := range keys {
-				output.PrintRow(tw, k.Id, pstr(k.Alias), k.Fingerprint)
+				output.PrintRow(tw, k.Id, output.Pstr(k.Alias), k.Fingerprint)
 			}
 			tw.Flush()
 		})
@@ -111,11 +97,11 @@ var sshKeyCreateCmd = &cobra.Command{
 		if sshKeyCreateAlias != "" {
 			body.Alias = pidginhost.PtrString(sshKeyCreateAlias)
 		}
-		key, _, err := c.AccountAPI.AccountSshKeysCreate(context.Background()).SSHKey(body).Execute()
+		key, _, err := c.AccountAPI.AccountSshKeysCreate(cmd.Context()).SSHKey(body).Execute()
 		if err != nil {
 			return fmt.Errorf("creating SSH key: %w", err)
 		}
-		fmt.Printf("SSH key created (ID: %d, Fingerprint: %s)\n", key.Id, key.Fingerprint)
+		cmd.Printf("SSH key created (ID: %d, Fingerprint: %s)\n", key.Id, key.Fingerprint)
 		return nil
 	},
 }
@@ -126,18 +112,18 @@ var sshKeyDeleteCmd = &cobra.Command{
 	Short:   "Delete an SSH key",
 	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if !force(cmd) && !confirm.Action(fmt.Sprintf("Delete SSH key %s?", args[0])) {
+		if !cmdutil.Force(cmd) && !confirm.Action(cmd.InOrStdin(), cmd.ErrOrStderr(), fmt.Sprintf("Delete SSH key %s?", args[0])) {
 			return nil
 		}
 		c, err := client.New()
 		if err != nil {
 			return err
 		}
-		_, err = c.AccountAPI.AccountSshKeysDestroy(context.Background(), args[0]).Execute()
+		_, err = c.AccountAPI.AccountSshKeysDestroy(cmd.Context(), args[0]).Execute()
 		if err != nil {
 			return fmt.Errorf("deleting SSH key: %w", err)
 		}
-		fmt.Printf("SSH key %s deleted.\n", args[0])
+		cmd.Printf("SSH key %s deleted.\n", args[0])
 		return nil
 	},
 }
@@ -159,7 +145,7 @@ var companyListCmd = &cobra.Command{
 			return err
 		}
 		companies, err := cmdutil.FetchAll(func(page int32) ([]pidginhost.Company, bool, error) {
-			resp, _, err := c.AccountAPI.AccountCompaniesList(context.Background()).Page(page).Execute()
+			resp, _, err := c.AccountAPI.AccountCompaniesList(cmd.Context()).Page(page).Execute()
 			if err != nil {
 				return nil, false, err
 			}
@@ -168,8 +154,8 @@ var companyListCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("listing companies: %w", err)
 		}
-		format := outputFormat(cmd)
-		return output.Print(format, companies, func(w io.Writer) {
+		format := cmdutil.OutputFormat(cmd)
+		return output.Print(cmd.OutOrStdout(), format, companies, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID", "NAME")
 			for _, co := range companies {
@@ -197,7 +183,7 @@ var apiTokenListCmd = &cobra.Command{
 			return err
 		}
 		tokens, err := cmdutil.FetchAll(func(page int32) ([]pidginhost.APITokenList, bool, error) {
-			resp, _, err := c.AccountAPI.AccountApiTokensList(context.Background()).Page(page).Execute()
+			resp, _, err := c.AccountAPI.AccountApiTokensList(cmd.Context()).Page(page).Execute()
 			if err != nil {
 				return nil, false, err
 			}
@@ -206,8 +192,8 @@ var apiTokenListCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("listing API tokens: %w", err)
 		}
-		format := outputFormat(cmd)
-		return output.Print(format, tokens, func(w io.Writer) {
+		format := cmdutil.OutputFormat(cmd)
+		return output.Print(cmd.OutOrStdout(), format, tokens, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID", "NAME", "CREATED")
 			for _, t := range tokens {
@@ -229,13 +215,13 @@ var apiTokenCreateCmd = &cobra.Command{
 			return err
 		}
 		body := *pidginhost.NewAPITokenCreate(0, apiTokenCreateName, "", "")
-		resp, _, err := c.AccountAPI.AccountApiTokensCreate(context.Background()).APITokenCreate(body).Execute()
+		resp, _, err := c.AccountAPI.AccountApiTokensCreate(cmd.Context()).APITokenCreate(body).Execute()
 		if err != nil {
 			return fmt.Errorf("creating API token: %w", err)
 		}
-		fmt.Printf("API token created (Name: %s)\n", resp.Name)
-		fmt.Printf("Token: %s\n", resp.Key)
-		fmt.Println("Save this token — it will not be shown again.")
+		cmd.Printf("API token created (Name: %s)\n", resp.Name)
+		cmd.Printf("Token: %s\n", resp.Key)
+		cmd.Println("Save this token — it will not be shown again.")
 		return nil
 	},
 }
@@ -246,18 +232,18 @@ var apiTokenDeleteCmd = &cobra.Command{
 	Short:   "Delete an API token",
 	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if !force(cmd) && !confirm.Action(fmt.Sprintf("Delete API token %s?", args[0])) {
+		if !cmdutil.Force(cmd) && !confirm.Action(cmd.InOrStdin(), cmd.ErrOrStderr(), fmt.Sprintf("Delete API token %s?", args[0])) {
 			return nil
 		}
 		c, err := client.New()
 		if err != nil {
 			return err
 		}
-		_, err = c.AccountAPI.AccountApiTokensDestroy(context.Background(), args[0]).Execute()
+		_, err = c.AccountAPI.AccountApiTokensDestroy(cmd.Context(), args[0]).Execute()
 		if err != nil {
 			return fmt.Errorf("deleting API token: %w", err)
 		}
-		fmt.Printf("API token %s deleted.\n", args[0])
+		cmd.Printf("API token %s deleted.\n", args[0])
 		return nil
 	},
 }
@@ -279,7 +265,7 @@ var emailListCmd = &cobra.Command{
 			return err
 		}
 		emails, err := cmdutil.FetchAll(func(page int32) ([]pidginhost.EmailHistory, bool, error) {
-			resp, _, err := c.AccountAPI.AccountEmailsList(context.Background()).Page(page).Execute()
+			resp, _, err := c.AccountAPI.AccountEmailsList(cmd.Context()).Page(page).Execute()
 			if err != nil {
 				return nil, false, err
 			}
@@ -288,8 +274,8 @@ var emailListCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("listing emails: %w", err)
 		}
-		format := outputFormat(cmd)
-		return output.Print(format, emails, func(w io.Writer) {
+		format := cmdutil.OutputFormat(cmd)
+		return output.Print(cmd.OutOrStdout(), format, emails, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID", "SUBJECT", "ADDRESS", "DATE", "READ")
 			for _, e := range emails {
@@ -298,13 +284,6 @@ var emailListCmd = &cobra.Command{
 			tw.Flush()
 		})
 	},
-}
-
-func pstr[T any](p *T) string {
-	if p == nil {
-		return "<none>"
-	}
-	return fmt.Sprintf("%v", *p)
 }
 
 func init() {

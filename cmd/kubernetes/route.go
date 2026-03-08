@@ -1,7 +1,6 @@
 package kubernetes
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -9,7 +8,7 @@ import (
 	pidginhost "github.com/pidginhost/sdk-go"
 	"github.com/spf13/cobra"
 
-	"github.com/pidginhost/phctl/internal/client"
+	"github.com/pidginhost/phctl/internal/cmdutil"
 	"github.com/pidginhost/phctl/internal/confirm"
 	"github.com/pidginhost/phctl/internal/output"
 )
@@ -27,15 +26,15 @@ var httpRouteListCmd = &cobra.Command{
 	Short: "List HTTP routes for a cluster",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		id, err := parseInt32(args[0])
+		id, err := cmdutil.ParseInt32(args[0])
 		if err != nil {
 			return err
 		}
-		c, err := client.New()
+		c, err := newClient()
 		if err != nil {
 			return err
 		}
-		httpResp, err := c.KubernetesAPI.KubernetesClustersHttproutesRetrieve(context.Background(), id).Execute()
+		httpResp, err := c.KubernetesAPI.KubernetesClustersHttproutesRetrieve(cmd.Context(), id).Execute()
 		if err != nil {
 			return fmt.Errorf("listing HTTP routes: %w", err)
 		}
@@ -46,12 +45,12 @@ var httpRouteListCmd = &cobra.Command{
 			return fmt.Errorf("decoding routes: %w", err)
 		}
 
-		format := outputFormat(cmd)
-		return output.Print(format, routes, func(w io.Writer) {
+		format := cmdutil.OutputFormat(cmd)
+		return output.Print(cmd.OutOrStdout(), format, routes, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID", "NAME", "HOSTNAMES", "BACKEND", "PORT", "TLS", "READY")
 			for _, r := range routes {
-				output.PrintRow(tw, r.Id, r.Name, r.Hostnames, r.BackendServiceName, r.BackendServicePort, pstr(r.EnableTls), pstr(r.StatusReady.Get()))
+				output.PrintRow(tw, r.Id, r.Name, r.Hostnames, r.BackendServiceName, r.BackendServicePort, output.Pstr(r.EnableTls), output.Pstr(r.StatusReady.Get()))
 			}
 			tw.Flush()
 		})
@@ -73,11 +72,11 @@ var httpRouteCreateCmd = &cobra.Command{
 	Short: "Create an HTTP route",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		id, err := parseInt32(args[0])
+		id, err := cmdutil.ParseInt32(args[0])
 		if err != nil {
 			return err
 		}
-		c, err := client.New()
+		c, err := newClient()
 		if err != nil {
 			return err
 		}
@@ -94,15 +93,13 @@ var httpRouteCreateCmd = &cobra.Command{
 		if httpRoutePrefix != "" {
 			body.PathPrefix = pidginhost.PtrString(httpRoutePrefix)
 		}
-		if httpRouteTLS {
-			body.EnableTls = pidginhost.PtrBool(true)
-		}
+		body.EnableTls = pidginhost.PtrBool(httpRouteTLS)
 
-		resp, _, err := c.KubernetesAPI.KubernetesClustersHttproutesCreate(context.Background(), id).HTTPRoute(body).Execute()
+		resp, _, err := c.KubernetesAPI.KubernetesClustersHttproutesCreate(cmd.Context(), id).HTTPRoute(body).Execute()
 		if err != nil {
 			return fmt.Errorf("creating HTTP route: %w", err)
 		}
-		fmt.Printf("HTTP route created (ID: %d, Name: %s)\n", resp.Id, resp.Name)
+		cmd.Printf("HTTP route created (ID: %d, Name: %s)\n", resp.Id, resp.Name)
 		return nil
 	},
 }
@@ -113,22 +110,22 @@ var httpRouteDeleteCmd = &cobra.Command{
 	Short:   "Delete an HTTP route",
 	Args:    cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		id, err := parseInt32(args[0])
+		id, err := cmdutil.ParseInt32(args[0])
 		if err != nil {
 			return err
 		}
-		if !force(cmd) && !confirm.Action(fmt.Sprintf("Delete HTTP route %s?", args[1])) {
+		if !cmdutil.Force(cmd) && !confirm.Action(cmd.InOrStdin(), cmd.ErrOrStderr(), fmt.Sprintf("Delete HTTP route %s?", args[1])) {
 			return nil
 		}
-		c, err := client.New()
+		c, err := newClient()
 		if err != nil {
 			return err
 		}
-		_, err = c.KubernetesAPI.KubernetesClustersHttproutesDestroy(context.Background(), id, args[1]).Execute()
+		_, err = c.KubernetesAPI.KubernetesClustersHttproutesDestroy(cmd.Context(), id, args[1]).Execute()
 		if err != nil {
 			return fmt.Errorf("deleting HTTP route: %w", err)
 		}
-		fmt.Printf("HTTP route %s deleted.\n", args[1])
+		cmd.Printf("HTTP route %s deleted.\n", args[1])
 		return nil
 	},
 }
@@ -146,15 +143,15 @@ var tcpRouteListCmd = &cobra.Command{
 	Short: "List TCP routes for a cluster",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		id, err := parseInt32(args[0])
+		id, err := cmdutil.ParseInt32(args[0])
 		if err != nil {
 			return err
 		}
-		c, err := client.New()
+		c, err := newClient()
 		if err != nil {
 			return err
 		}
-		httpResp, err := c.KubernetesAPI.KubernetesClustersTcproutesRetrieve(context.Background(), id).Execute()
+		httpResp, err := c.KubernetesAPI.KubernetesClustersTcproutesRetrieve(cmd.Context(), id).Execute()
 		if err != nil {
 			return fmt.Errorf("listing TCP routes: %w", err)
 		}
@@ -165,12 +162,12 @@ var tcpRouteListCmd = &cobra.Command{
 			return fmt.Errorf("decoding routes: %w", err)
 		}
 
-		format := outputFormat(cmd)
-		return output.Print(format, routes, func(w io.Writer) {
+		format := cmdutil.OutputFormat(cmd)
+		return output.Print(cmd.OutOrStdout(), format, routes, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID", "NAME", "PORT", "BACKEND", "BACKEND PORT", "READY")
 			for _, r := range routes {
-				output.PrintRow(tw, r.Id, r.Name, r.Port, r.BackendServiceName, r.BackendServicePort, pstr(r.StatusReady.Get()))
+				output.PrintRow(tw, r.Id, r.Name, r.Port, r.BackendServiceName, r.BackendServicePort, output.Pstr(r.StatusReady.Get()))
 			}
 			tw.Flush()
 		})
@@ -190,11 +187,11 @@ var tcpRouteCreateCmd = &cobra.Command{
 	Short: "Create a TCP route",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		id, err := parseInt32(args[0])
+		id, err := cmdutil.ParseInt32(args[0])
 		if err != nil {
 			return err
 		}
-		c, err := client.New()
+		c, err := newClient()
 		if err != nil {
 			return err
 		}
@@ -209,11 +206,11 @@ var tcpRouteCreateCmd = &cobra.Command{
 			body.Namespace = pidginhost.PtrString(tcpRouteNamespace)
 		}
 
-		resp, _, err := c.KubernetesAPI.KubernetesClustersTcproutesCreate(context.Background(), id).TCPRoute(body).Execute()
+		resp, _, err := c.KubernetesAPI.KubernetesClustersTcproutesCreate(cmd.Context(), id).TCPRoute(body).Execute()
 		if err != nil {
 			return fmt.Errorf("creating TCP route: %w", err)
 		}
-		fmt.Printf("TCP route created (ID: %d, Name: %s)\n", resp.Id, resp.Name)
+		cmd.Printf("TCP route created (ID: %d, Name: %s)\n", resp.Id, resp.Name)
 		return nil
 	},
 }
@@ -224,22 +221,22 @@ var tcpRouteDeleteCmd = &cobra.Command{
 	Short:   "Delete a TCP route",
 	Args:    cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		id, err := parseInt32(args[0])
+		id, err := cmdutil.ParseInt32(args[0])
 		if err != nil {
 			return err
 		}
-		if !force(cmd) && !confirm.Action(fmt.Sprintf("Delete TCP route %s?", args[1])) {
+		if !cmdutil.Force(cmd) && !confirm.Action(cmd.InOrStdin(), cmd.ErrOrStderr(), fmt.Sprintf("Delete TCP route %s?", args[1])) {
 			return nil
 		}
-		c, err := client.New()
+		c, err := newClient()
 		if err != nil {
 			return err
 		}
-		_, err = c.KubernetesAPI.KubernetesClustersTcproutesDestroy(context.Background(), id, args[1]).Execute()
+		_, err = c.KubernetesAPI.KubernetesClustersTcproutesDestroy(cmd.Context(), id, args[1]).Execute()
 		if err != nil {
 			return fmt.Errorf("deleting TCP route: %w", err)
 		}
-		fmt.Printf("TCP route %s deleted.\n", args[1])
+		cmd.Printf("TCP route %s deleted.\n", args[1])
 		return nil
 	},
 }
@@ -257,15 +254,15 @@ var udpRouteListCmd = &cobra.Command{
 	Short: "List UDP routes for a cluster",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		id, err := parseInt32(args[0])
+		id, err := cmdutil.ParseInt32(args[0])
 		if err != nil {
 			return err
 		}
-		c, err := client.New()
+		c, err := newClient()
 		if err != nil {
 			return err
 		}
-		httpResp, err := c.KubernetesAPI.KubernetesClustersUdproutesRetrieve(context.Background(), id).Execute()
+		httpResp, err := c.KubernetesAPI.KubernetesClustersUdproutesRetrieve(cmd.Context(), id).Execute()
 		if err != nil {
 			return fmt.Errorf("listing UDP routes: %w", err)
 		}
@@ -276,12 +273,12 @@ var udpRouteListCmd = &cobra.Command{
 			return fmt.Errorf("decoding routes: %w", err)
 		}
 
-		format := outputFormat(cmd)
-		return output.Print(format, routes, func(w io.Writer) {
+		format := cmdutil.OutputFormat(cmd)
+		return output.Print(cmd.OutOrStdout(), format, routes, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID", "NAME", "PORT", "BACKEND", "BACKEND PORT", "READY")
 			for _, r := range routes {
-				output.PrintRow(tw, r.Id, r.Name, r.Port, r.BackendServiceName, r.BackendServicePort, pstr(r.StatusReady.Get()))
+				output.PrintRow(tw, r.Id, r.Name, r.Port, r.BackendServiceName, r.BackendServicePort, output.Pstr(r.StatusReady.Get()))
 			}
 			tw.Flush()
 		})
@@ -301,11 +298,11 @@ var udpRouteCreateCmd = &cobra.Command{
 	Short: "Create a UDP route",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		id, err := parseInt32(args[0])
+		id, err := cmdutil.ParseInt32(args[0])
 		if err != nil {
 			return err
 		}
-		c, err := client.New()
+		c, err := newClient()
 		if err != nil {
 			return err
 		}
@@ -320,11 +317,11 @@ var udpRouteCreateCmd = &cobra.Command{
 			body.Namespace = pidginhost.PtrString(udpRouteNamespace)
 		}
 
-		resp, _, err := c.KubernetesAPI.KubernetesClustersUdproutesCreate(context.Background(), id).UDPRoute(body).Execute()
+		resp, _, err := c.KubernetesAPI.KubernetesClustersUdproutesCreate(cmd.Context(), id).UDPRoute(body).Execute()
 		if err != nil {
 			return fmt.Errorf("creating UDP route: %w", err)
 		}
-		fmt.Printf("UDP route created (ID: %d, Name: %s)\n", resp.Id, resp.Name)
+		cmd.Printf("UDP route created (ID: %d, Name: %s)\n", resp.Id, resp.Name)
 		return nil
 	},
 }
@@ -335,22 +332,22 @@ var udpRouteDeleteCmd = &cobra.Command{
 	Short:   "Delete a UDP route",
 	Args:    cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		id, err := parseInt32(args[0])
+		id, err := cmdutil.ParseInt32(args[0])
 		if err != nil {
 			return err
 		}
-		if !force(cmd) && !confirm.Action(fmt.Sprintf("Delete UDP route %s?", args[1])) {
+		if !cmdutil.Force(cmd) && !confirm.Action(cmd.InOrStdin(), cmd.ErrOrStderr(), fmt.Sprintf("Delete UDP route %s?", args[1])) {
 			return nil
 		}
-		c, err := client.New()
+		c, err := newClient()
 		if err != nil {
 			return err
 		}
-		_, err = c.KubernetesAPI.KubernetesClustersUdproutesDestroy(context.Background(), id, args[1]).Execute()
+		_, err = c.KubernetesAPI.KubernetesClustersUdproutesDestroy(cmd.Context(), id, args[1]).Execute()
 		if err != nil {
 			return fmt.Errorf("deleting UDP route: %w", err)
 		}
-		fmt.Printf("UDP route %s deleted.\n", args[1])
+		cmd.Printf("UDP route %s deleted.\n", args[1])
 		return nil
 	},
 }

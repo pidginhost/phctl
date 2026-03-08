@@ -1,7 +1,6 @@
 package hosting
 
 import (
-	"context"
 	"fmt"
 	"io"
 
@@ -11,23 +10,6 @@ import (
 	"github.com/pidginhost/phctl/internal/client"
 	"github.com/pidginhost/phctl/internal/cmdutil"
 	"github.com/pidginhost/phctl/internal/output"
-)
-
-type rawHostingService struct {
-	Id           int32  `json:"id"`
-	Hostname     string `json:"hostname"`
-	Status       string `json:"status"`
-	Price        string `json:"price"`
-	NextInvoice  string `json:"next_invoice"`
-	Created      string `json:"created"`
-	BillingCycle string `json:"billing_cycle"`
-	PackageName  string `json:"package_name"`
-	NodeUrl      string `json:"node_url"`
-	Username     string `json:"username"`
-}
-
-var (
-	outputFormat = cmdutil.OutputFormat
 )
 
 var Cmd = &cobra.Command{
@@ -47,12 +29,12 @@ var serviceListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List hosting services",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		services, err := client.RawFetchAll[rawHostingService]("/api/hosting/hosting/")
+		services, err := client.RawFetchAll[client.RawHostingService]("/api/hosting/hosting/")
 		if err != nil {
 			return fmt.Errorf("listing hosting services: %w", err)
 		}
-		format := outputFormat(cmd)
-		return output.Print(format, services, func(w io.Writer) {
+		format := cmdutil.OutputFormat(cmd)
+		return output.Print(cmd.OutOrStdout(), format, services, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID", "HOSTNAME", "PACKAGE", "STATUS", "USERNAME")
 			for _, s := range services {
@@ -68,12 +50,12 @@ var serviceGetCmd = &cobra.Command{
 	Short: "Get hosting service details",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		var s rawHostingService
+		var s client.RawHostingService
 		if err := client.RawGet(fmt.Sprintf("/api/hosting/hosting/%s/", args[0]), &s); err != nil {
 			return fmt.Errorf("getting hosting service: %w", err)
 		}
-		format := outputFormat(cmd)
-		return output.Print(format, s, func(w io.Writer) {
+		format := cmdutil.OutputFormat(cmd)
+		return output.Print(cmd.OutOrStdout(), format, s, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID:", s.Id)
 			output.PrintRow(tw, "Hostname:", s.Hostname)
@@ -100,11 +82,11 @@ var changePasswordCmd = &cobra.Command{
 			return err
 		}
 		body := *pidginhost.NewChangePassword(changePasswordNew)
-		resp, _, err := c.HostingAPI.HostingHostingChangePasswordCreate(context.Background(), args[0]).ChangePassword(body).Execute()
+		resp, _, err := c.HostingAPI.HostingHostingChangePasswordCreate(cmd.Context(), args[0]).ChangePassword(body).Execute()
 		if err != nil {
 			return fmt.Errorf("changing password: %w", err)
 		}
-		fmt.Printf("Password changed: %s\n", resp.Message)
+		cmd.Printf("Password changed: %s\n", resp.Message)
 		return nil
 	},
 }

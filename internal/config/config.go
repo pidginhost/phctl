@@ -8,6 +8,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+const DefaultAPIURL = "https://www.pidginhost.com"
+
 type Config struct {
 	AuthToken   string `yaml:"auth_token"`
 	APIURL      string `yaml:"api_url"`
@@ -18,7 +20,7 @@ type Config struct {
 func DefaultConfig() *Config {
 	t := true
 	return &Config{
-		APIURL:      "https://www.pidginhost.com",
+		APIURL:      DefaultAPIURL,
 		Output:      "table",
 		UpdateCheck: &t,
 	}
@@ -118,14 +120,16 @@ func Save(cfg *Config) error {
 	// Load the existing file to preserve user-set values
 	data, err := os.ReadFile(path)
 	if err == nil {
-		_ = yaml.Unmarshal(data, saveCfg)
+		if err := yaml.Unmarshal(data, saveCfg); err != nil {
+			return fmt.Errorf("parsing existing config: %w", err)
+		}
 	}
 
 	// Override with the values the caller set
 	if cfg.AuthToken != "" {
 		saveCfg.AuthToken = cfg.AuthToken
 	}
-	if cfg.APIURL != "" && cfg.APIURL != "https://www.pidginhost.com" {
+	if cfg.APIURL != "" && cfg.APIURL != DefaultAPIURL {
 		saveCfg.APIURL = cfg.APIURL
 	}
 	if cfg.Output != "" && cfg.Output != "table" {

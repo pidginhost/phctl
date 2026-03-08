@@ -91,14 +91,19 @@ func ShouldCheck() bool {
 }
 
 // RecordCheck saves the current time so the next check is throttled.
-func RecordCheck() {
+func RecordCheck() error {
 	path, err := lastCheckPath()
 	if err != nil {
-		return
+		return err
 	}
 	dir := filepath.Dir(path)
-	_ = os.MkdirAll(dir, 0700)
-	_ = os.WriteFile(path, []byte(strconv.FormatInt(time.Now().Unix(), 10)), 0600)
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return fmt.Errorf("creating update check directory: %w", err)
+	}
+	if err := os.WriteFile(path, []byte(strconv.FormatInt(time.Now().Unix(), 10)), 0600); err != nil {
+		return fmt.Errorf("recording update check: %w", err)
+	}
+	return nil
 }
 
 // LatestRelease fetches the most recent release from the Gitea API.
@@ -242,7 +247,7 @@ func CheckNotice(currentVersion string) string {
 	if err != nil {
 		return ""
 	}
-	RecordCheck()
+	_ = RecordCheck() // best-effort; don't block notice on write failure
 	if IsNewer(currentVersion, rel.TagName) {
 		return fmt.Sprintf("\nA new version of phctl is available: %s (current: %s)\nRun 'phctl update' to upgrade.\n", rel.TagName, currentVersion)
 	}

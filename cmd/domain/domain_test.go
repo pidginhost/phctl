@@ -102,13 +102,3 @@ func TestRegistrantDeleteAliases(t *testing.T) {
 		t.Errorf("registrant delete Aliases = %v, want to contain 'rm'", aliases)
 	}
 }
-
-func TestPstr(t *testing.T) {
-	s := "test"
-	if got := pstr(&s); got != "test" {
-		t.Errorf("pstr(&%q) = %q, want %q", s, got, "test")
-	}
-	if got := pstr[string](nil); got != "<none>" {
-		t.Errorf("pstr(nil) = %q, want %q", got, "<none>")
-	}
-}

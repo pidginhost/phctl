@@ -1,7 +1,6 @@
 package compute
 
 import (
-	"context"
 	"fmt"
 	"io"
 
@@ -29,7 +28,7 @@ var packageListCmd = &cobra.Command{
 			return err
 		}
 		packages, err := cmdutil.FetchAll(func(page int32) ([]pidginhost.ServerProduct, bool, error) {
-			resp, _, err := c.CloudAPI.CloudServerPackagesList(context.Background()).Page(page).Execute()
+			resp, _, err := c.CloudAPI.CloudServerPackagesList(cmd.Context()).Page(page).Execute()
 			if err != nil {
 				return nil, false, err
 			}
@@ -38,8 +37,8 @@ var packageListCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("listing packages: %w", err)
 		}
-		format := outputFormat(cmd)
-		return output.Print(format, packages, func(w io.Writer) {
+		format := cmdutil.OutputFormat(cmd)
+		return output.Print(cmd.OutOrStdout(), format, packages, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID", "NAME", "SLUG")
 			for _, p := range packages {

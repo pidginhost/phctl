@@ -1,7 +1,6 @@
 package freedns
 
 import (
-	"context"
 	"fmt"
 	"io"
 
@@ -12,11 +11,6 @@ import (
 	"github.com/pidginhost/phctl/internal/cmdutil"
 	"github.com/pidginhost/phctl/internal/confirm"
 	"github.com/pidginhost/phctl/internal/output"
-)
-
-var (
-	outputFormat = cmdutil.OutputFormat
-	force        = cmdutil.Force
 )
 
 var Cmd = &cobra.Command{
@@ -42,12 +36,12 @@ var domainListCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		domains, _, err := c.FreednsAPI.FreednsDnsList(context.Background()).Execute()
+		domains, _, err := c.FreednsAPI.FreednsDnsList(cmd.Context()).Execute()
 		if err != nil {
 			return fmt.Errorf("listing FreeDNS domains: %w", err)
 		}
-		format := outputFormat(cmd)
-		return output.Print(format, domains, func(w io.Writer) {
+		format := cmdutil.OutputFormat(cmd)
+		return output.Print(cmd.OutOrStdout(), format, domains, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "DOMAIN", "ACTIVE", "SOURCE")
 			for _, d := range domains {
@@ -73,11 +67,11 @@ var domainActivateCmd = &cobra.Command{
 			return err
 		}
 		body := *pidginhost.NewActivateFreeDNS(args[0], pidginhost.SourceEnum(activateSource), activateIP)
-		resp, _, err := c.FreednsAPI.FreednsDnsActivateCreate(context.Background()).ActivateFreeDNS(body).Execute()
+		resp, _, err := c.FreednsAPI.FreednsDnsActivateCreate(cmd.Context()).ActivateFreeDNS(body).Execute()
 		if err != nil {
 			return fmt.Errorf("activating FreeDNS: %w", err)
 		}
-		fmt.Printf("FreeDNS activated: %s\n", resp.Message)
+		cmd.Printf("FreeDNS activated: %s\n", resp.Message)
 		return nil
 	},
 }
@@ -89,7 +83,7 @@ var domainDeactivateCmd = &cobra.Command{
 	Short: "Deactivate FreeDNS for a domain",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if !force(cmd) && !confirm.Action(fmt.Sprintf("Deactivate FreeDNS for %s?", args[0])) {
+		if !cmdutil.Force(cmd) && !confirm.Action(cmd.InOrStdin(), cmd.ErrOrStderr(), fmt.Sprintf("Deactivate FreeDNS for %s?", args[0])) {
 			return nil
 		}
 		c, err := client.New()
@@ -97,11 +91,11 @@ var domainDeactivateCmd = &cobra.Command{
 			return err
 		}
 		body := *pidginhost.NewDeactivateFreeDNS(args[0], pidginhost.SourceEnum(deactivateSource))
-		resp, _, err := c.FreednsAPI.FreednsDnsDeactivateCreate(context.Background()).DeactivateFreeDNS(body).Execute()
+		resp, _, err := c.FreednsAPI.FreednsDnsDeactivateCreate(cmd.Context()).DeactivateFreeDNS(body).Execute()
 		if err != nil {
 			return fmt.Errorf("deactivating FreeDNS: %w", err)
 		}
-		fmt.Printf("FreeDNS deactivated: %s\n", resp.Message)
+		cmd.Printf("FreeDNS deactivated: %s\n", resp.Message)
 		return nil
 	},
 }
@@ -127,7 +121,7 @@ var recordListCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		req := c.FreednsAPI.FreednsDnsRecordsList(context.Background()).Domain(recordListDomain)
+		req := c.FreednsAPI.FreednsDnsRecordsList(cmd.Context()).Domain(recordListDomain)
 		if recordListSource != "" {
 			req = req.Source(recordListSource)
 		}
@@ -135,8 +129,8 @@ var recordListCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("listing records: %w", err)
 		}
-		format := outputFormat(cmd)
-		return output.Print(format, records, func(w io.Writer) {
+		format := cmdutil.OutputFormat(cmd)
+		return output.Print(cmd.OutOrStdout(), format, records, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "LINE", "TYPE", "NAME", "TTL", "ADDRESS")
 			for _, r := range records {
@@ -168,7 +162,7 @@ var recordCreateCmd = &cobra.Command{
 		if recordAddress != "" {
 			body.Address = &recordAddress
 		}
-		req := c.FreednsAPI.FreednsDnsAddRecordCreate(context.Background()).Domain(recordCreateDomain).DNSRecordCreate(body)
+		req := c.FreednsAPI.FreednsDnsAddRecordCreate(cmd.Context()).Domain(recordCreateDomain).DNSRecordCreate(body)
 		if recordCreateSource != "" {
 			req = req.Source(recordCreateSource)
 		}
@@ -176,7 +170,7 @@ var recordCreateCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("creating record: %w", err)
 		}
-		fmt.Printf("Record created: %s\n", resp.Message)
+		cmd.Printf("Record created: %s\n", resp.Message)
 		return nil
 	},
 }
@@ -191,7 +185,7 @@ var recordDeleteCmd = &cobra.Command{
 	Use:   "delete",
 	Short: "Delete a DNS record",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if !force(cmd) && !confirm.Action(fmt.Sprintf("Delete record line %d from %s?", recordDeleteLine, recordDeleteDomain)) {
+		if !cmdutil.Force(cmd) && !confirm.Action(cmd.InOrStdin(), cmd.ErrOrStderr(), fmt.Sprintf("Delete record line %d from %s?", recordDeleteLine, recordDeleteDomain)) {
 			return nil
 		}
 		c, err := client.New()
@@ -199,7 +193,7 @@ var recordDeleteCmd = &cobra.Command{
 			return err
 		}
 		body := *pidginhost.NewDeleteRecord(recordDeleteLine)
-		req := c.FreednsAPI.FreednsDnsDeleteRecordCreate(context.Background()).Domain(recordDeleteDomain).DeleteRecord(body)
+		req := c.FreednsAPI.FreednsDnsDeleteRecordCreate(cmd.Context()).Domain(recordDeleteDomain).DeleteRecord(body)
 		if recordDeleteSource != "" {
 			req = req.Source(recordDeleteSource)
 		}
@@ -207,7 +201,7 @@ var recordDeleteCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("deleting record: %w", err)
 		}
-		fmt.Printf("Record deleted: %s\n", resp.Message)
+		cmd.Printf("Record deleted: %s\n", resp.Message)
 		return nil
 	},
 }

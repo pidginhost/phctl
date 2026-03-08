@@ -162,7 +162,9 @@ func TestShouldCheck(t *testing.T) {
 		t.Fatal("ShouldCheck() = false with no file, want true")
 	}
 
-	RecordCheck()
+	if err := RecordCheck(); err != nil {
+		t.Fatalf("RecordCheck() error: %v", err)
+	}
 	if ShouldCheck() {
 		t.Fatal("ShouldCheck() = true right after RecordCheck, want false")
 	}

@@ -2,6 +2,7 @@ package auth
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -21,9 +22,13 @@ var initCmd = &cobra.Command{
 	Use:   "init",
 	Short: "Initialize authentication with an API token",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		fmt.Print("Enter your PidginHost API token: ")
+		if _, err := fmt.Fprint(cmd.ErrOrStderr(), "Enter your PidginHost API token: "); err != nil {
+			return err
+		}
 		tokenBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
-		fmt.Println()
+		if _, printErr := io.WriteString(cmd.ErrOrStderr(), "\n"); printErr != nil {
+			return printErr
+		}
 		if err != nil {
 			return fmt.Errorf("reading token: %w", err)
 		}
@@ -36,7 +41,7 @@ var initCmd = &cobra.Command{
 			return err
 		}
 
-		fmt.Println("Authentication configured successfully.")
+		cmd.Println("Authentication configured successfully.")
 		return nil
 	},
 }
@@ -49,7 +54,7 @@ var setCmd = &cobra.Command{
 		if err := config.Save(&config.Config{AuthToken: args[0]}); err != nil {
 			return err
 		}
-		fmt.Println("Token saved.")
+		cmd.Println("Token saved.")
 		return nil
 	},
 }
@@ -63,11 +68,11 @@ var statusCmd = &cobra.Command{
 			return err
 		}
 		if cfg.AuthToken == "" {
-			fmt.Println("Not authenticated. Run 'phctl auth init' to configure.")
+			cmd.Println("Not authenticated. Run 'phctl auth init' to configure.")
 		} else {
 			masked := maskToken(cfg.AuthToken)
-			fmt.Printf("Authenticated (token: %s)\n", masked)
-			fmt.Printf("API URL: %s\n", cfg.APIURL)
+			cmd.Printf("Authenticated (token: %s)\n", masked)
+			cmd.Printf("API URL: %s\n", cfg.APIURL)
 		}
 		return nil
 	},

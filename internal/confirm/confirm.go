@@ -3,13 +3,13 @@ package confirm
 import (
 	"bufio"
 	"fmt"
-	"os"
+	"io"
 	"strings"
 )
 
-func Action(msg string) bool {
-	fmt.Printf("%s [y/N]: ", msg)
-	reader := bufio.NewReader(os.Stdin)
+func Action(in io.Reader, out io.Writer, msg string) bool {
+	fmt.Fprintf(out, "%s [y/N]: ", msg)
+	reader := bufio.NewReader(in)
 	answer, _ := reader.ReadString('\n')
 	answer = strings.TrimSpace(strings.ToLower(answer))
 	return answer == "y" || answer == "yes"

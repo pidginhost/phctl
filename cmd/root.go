@@ -17,6 +17,7 @@ import (
 	"github.com/pidginhost/phctl/cmd/kubernetes"
 	"github.com/pidginhost/phctl/cmd/support"
 	"github.com/pidginhost/phctl/cmd/update"
+	"github.com/pidginhost/phctl/internal/cmdutil"
 	"github.com/pidginhost/phctl/internal/config"
 	"github.com/pidginhost/phctl/internal/output"
 	iupdate "github.com/pidginhost/phctl/internal/update"
@@ -48,7 +49,11 @@ func SetVersion(v string) {
 }
 
 func Execute() {
-	if err := rootCmd.Execute(); err != nil {
+	ctx, cancel := cmdutil.SignalContext()
+	rootCmd.SetContext(ctx)
+	err := rootCmd.Execute()
+	cancel()
+	if err != nil {
 		rootCmd.PrintErrln("Error:", err)
 		os.Exit(1)
 	}

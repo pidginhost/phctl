@@ -1,7 +1,6 @@
 package support
 
 import (
-	"context"
 	"fmt"
 	"io"
 
@@ -11,10 +10,6 @@ import (
 	"github.com/pidginhost/phctl/internal/client"
 	"github.com/pidginhost/phctl/internal/cmdutil"
 	"github.com/pidginhost/phctl/internal/output"
-)
-
-var (
-	outputFormat = cmdutil.OutputFormat
 )
 
 var Cmd = &cobra.Command{
@@ -103,12 +98,12 @@ func runDepartmentList(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	depts, _, err := c.SupportAPI.SupportDepartmentsList(context.Background()).Execute()
+	depts, _, err := c.SupportAPI.SupportDepartmentsList(cmd.Context()).Execute()
 	if err != nil {
 		return fmt.Errorf("listing departments: %w", err)
 	}
-	format := outputFormat(cmd)
-	return output.Print(format, depts, func(w io.Writer) {
+	format := cmdutil.OutputFormat(cmd)
+	return output.Print(cmd.OutOrStdout(), format, depts, func(w io.Writer) {
 		tw := output.NewTabWriter(w)
 		output.PrintRow(tw, "ID", "TITLE")
 		for _, d := range depts {
@@ -124,7 +119,7 @@ func runTicketList(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	tickets, err := cmdutil.FetchAll(func(page int32) ([]pidginhost.TicketList, bool, error) {
-		resp, _, err := c.SupportAPI.SupportTicketsList(context.Background()).Page(page).Execute()
+		resp, _, err := c.SupportAPI.SupportTicketsList(cmd.Context()).Page(page).Execute()
 		if err != nil {
 			return nil, false, err
 		}
@@ -133,8 +128,8 @@ func runTicketList(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("listing tickets: %w", err)
 	}
-	format := outputFormat(cmd)
-	return output.Print(format, tickets, func(w io.Writer) {
+	format := cmdutil.OutputFormat(cmd)
+	return output.Print(cmd.OutOrStdout(), format, tickets, func(w io.Writer) {
 		tw := output.NewTabWriter(w)
 		output.PrintRow(tw, "ID", "SUBJECT", "DEPARTMENT", "STATUS", "CREATED")
 		for _, t := range tickets {
@@ -149,12 +144,12 @@ func runTicketGet(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	t, _, err := c.SupportAPI.SupportTicketsRetrieve(context.Background(), args[0]).Execute()
+	t, _, err := c.SupportAPI.SupportTicketsRetrieve(cmd.Context(), args[0]).Execute()
 	if err != nil {
 		return fmt.Errorf("getting ticket: %w", err)
 	}
-	format := outputFormat(cmd)
-	return output.Print(format, t, func(w io.Writer) {
+	format := cmdutil.OutputFormat(cmd)
+	return output.Print(cmd.OutOrStdout(), format, t, func(w io.Writer) {
 		tw := output.NewTabWriter(w)
 		output.PrintRow(tw, "ID:", t.Id)
 		output.PrintRow(tw, "Subject:", t.Subject)
@@ -178,11 +173,11 @@ func runTicketCreate(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	body := *pidginhost.NewTicketCreate(ticketCreateSubject, ticketCreateDept, ticketCreateMessage)
-	resp, _, err := c.SupportAPI.SupportTicketsCreate(context.Background()).TicketCreate(body).Execute()
+	resp, _, err := c.SupportAPI.SupportTicketsCreate(cmd.Context()).TicketCreate(body).Execute()
 	if err != nil {
 		return fmt.Errorf("creating ticket: %w", err)
 	}
-	fmt.Printf("Ticket created (ID: %d, Subject: %s)\n", resp.Id, resp.Subject)
+	cmd.Printf("Ticket created (ID: %d, Subject: %s)\n", resp.Id, resp.Subject)
 	return nil
 }
 
@@ -192,11 +187,11 @@ func runTicketReply(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	body := *pidginhost.NewTicketReply(ticketReplyMessage)
-	_, _, err = c.SupportAPI.SupportTicketsReplyCreate(context.Background(), args[0]).TicketReply(body).Execute()
+	_, _, err = c.SupportAPI.SupportTicketsReplyCreate(cmd.Context(), args[0]).TicketReply(body).Execute()
 	if err != nil {
 		return fmt.Errorf("replying to ticket: %w", err)
 	}
-	fmt.Printf("Reply sent to ticket %s.\n", args[0])
+	cmd.Printf("Reply sent to ticket %s.\n", args[0])
 	return nil
 }
 
@@ -205,11 +200,11 @@ func runTicketClose(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	_, _, err = c.SupportAPI.SupportTicketsCloseCreate(context.Background(), args[0]).Execute()
+	_, _, err = c.SupportAPI.SupportTicketsCloseCreate(cmd.Context(), args[0]).Execute()
 	if err != nil {
 		return fmt.Errorf("closing ticket: %w", err)
 	}
-	fmt.Printf("Ticket %s closed.\n", args[0])
+	cmd.Printf("Ticket %s closed.\n", args[0])
 	return nil
 }
 
@@ -218,11 +213,11 @@ func runTicketReopen(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	_, _, err = c.SupportAPI.SupportTicketsReopenCreate(context.Background(), args[0]).Execute()
+	_, _, err = c.SupportAPI.SupportTicketsReopenCreate(cmd.Context(), args[0]).Execute()
 	if err != nil {
 		return fmt.Errorf("reopening ticket: %w", err)
 	}
-	fmt.Printf("Ticket %s reopened.\n", args[0])
+	cmd.Printf("Ticket %s reopened.\n", args[0])
 	return nil
 }
 

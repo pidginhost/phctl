@@ -3,6 +3,7 @@ package auth
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os/exec"
 	"runtime"
@@ -18,6 +19,15 @@ var loginToken string
 
 const loginRequestTimeout = 10 * time.Second
 
+var (
+	loginPollInterval = 5 * time.Second
+	loginWaitTimeout  = 10 * time.Minute
+	newLoginClient    = func() *http.Client {
+		return &http.Client{Timeout: loginRequestTimeout}
+	}
+	openBrowserFunc = openBrowser
+)
+
 var loginCmd = &cobra.Command{
 	Use:   "login",
 	Short: "Authenticate with PidginHost",
@@ -29,13 +39,13 @@ var loginCmd = &cobra.Command{
 	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if loginToken != "" {
-			return saveToken(loginToken)
+			return saveToken(cmd, loginToken)
 		}
-		return browserLogin()
+		return browserLogin(cmd)
 	},
 }
 
-func saveToken(token string) error {
+func saveToken(cmd *cobra.Command, token string) error {
 	token = strings.TrimSpace(token)
 	if token == "" {
 		return fmt.Errorf("token cannot be empty")
@@ -43,7 +53,7 @@ func saveToken(token string) error {
 	if err := config.Save(&config.Config{AuthToken: token}); err != nil {
 		return err
 	}
-	fmt.Println("Authentication configured successfully.")
+	cmd.Println("Authentication configured successfully.")
 	return nil
 }
 
@@ -57,14 +67,14 @@ type cliSessionPollResponse struct {
 	TokenKey string `json:"token_key,omitempty"`
 }
 
-func browserLogin() error {
+func browserLogin(cmd *cobra.Command) error {
 	cfg, err := config.Load()
 	if err != nil {
 		return err
 	}
 
 	apiURL := strings.TrimRight(cfg.APIURL, "/")
-	client := &http.Client{Timeout: loginRequestTimeout}
+	client := newLoginClient()
 
 	// Create CLI session
 	resp, err := client.Post(apiURL+"/api/auth/cli-session/", "application/json", nil)
@@ -87,38 +97,59 @@ func browserLogin() error {
 		verificationURL = fmt.Sprintf("%s/panel/account/cli-auth/%s/", apiURL, session.SessionID)
 	}
 
-	fmt.Printf("Opening browser to: %s\n", verificationURL)
-	fmt.Println("If the browser doesn't open, please visit the URL manually.")
-	fmt.Println()
-	fmt.Println("Waiting for approval...")
+	cmd.Printf("Opening browser to: %s\n", verificationURL)
+	cmd.Println("If the browser doesn't open, please visit the URL manually.")
+	cmd.Println()
+	cmd.Println("Waiting for approval...")
 
-	_ = openBrowser(verificationURL)
+	_ = openBrowserFunc(verificationURL)
 
 	// Poll for approval
 	pollURL := fmt.Sprintf("%s/api/auth/cli-session/%s/", apiURL, session.SessionID)
-	deadline := time.Now().Add(10 * time.Minute)
+	deadline := time.Now().Add(loginWaitTimeout)
+
+	const maxPollErrors = 3
+	var consecutiveErrors int
 
 	for time.Now().Before(deadline) {
-		time.Sleep(5 * time.Second)
+		time.Sleep(loginPollInterval)
 
 		pollResp, err := client.Get(pollURL)
 		if err != nil {
+			consecutiveErrors++
+			if consecutiveErrors >= maxPollErrors {
+				return fmt.Errorf("polling login status after %d retries: %w", consecutiveErrors, err)
+			}
 			continue
+		}
+		if pollResp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(io.LimitReader(pollResp.Body, 1024))
+			pollResp.Body.Close()
+			msg := strings.TrimSpace(string(body))
+			if msg == "" {
+				return fmt.Errorf("polling login status: unexpected status %d", pollResp.StatusCode)
+			}
+			return fmt.Errorf("polling login status: unexpected status %d: %s", pollResp.StatusCode, msg)
 		}
 
 		var poll cliSessionPollResponse
 		if err := json.NewDecoder(pollResp.Body).Decode(&poll); err != nil {
 			pollResp.Body.Close()
+			consecutiveErrors++
+			if consecutiveErrors >= maxPollErrors {
+				return fmt.Errorf("decoding login response after %d retries: %w", consecutiveErrors, err)
+			}
 			continue
 		}
 		pollResp.Body.Close()
+		consecutiveErrors = 0 // reset on success
 
 		switch poll.Status {
 		case "approved":
 			if poll.TokenKey == "" {
 				return fmt.Errorf("session approved but no token received")
 			}
-			if err := saveToken(poll.TokenKey); err != nil {
+			if err := saveToken(cmd, poll.TokenKey); err != nil {
 				return err
 			}
 			return nil

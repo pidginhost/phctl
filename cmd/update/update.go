@@ -30,14 +30,16 @@ var Cmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("checking for updates: %w", err)
 		}
-		iupdate.RecordCheck()
+		if err := iupdate.RecordCheck(); err != nil {
+			return err
+		}
 
 		if !iupdate.IsNewer(version, rel.TagName) {
 			cmd.Printf("Already up to date (%s).\n", version)
 			return nil
 		}
 
-		if !cmdutil.Force(cmd) && !confirm.Action(fmt.Sprintf("Update phctl from %s to %s?", version, rel.TagName)) {
+		if !cmdutil.Force(cmd) && !confirm.Action(cmd.InOrStdin(), cmd.ErrOrStderr(), fmt.Sprintf("Update phctl from %s to %s?", version, rel.TagName)) {
 			cmd.Println("Update cancelled.")
 			return nil
 		}

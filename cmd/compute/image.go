@@ -1,7 +1,6 @@
 package compute
 
 import (
-	"context"
 	"fmt"
 	"io"
 
@@ -28,7 +27,7 @@ var imageListCmd = &cobra.Command{
 			return err
 		}
 		images, err := cmdutil.FetchAll(func(page int32) ([]pidginhost.OSImage, bool, error) {
-			resp, _, err := c.CloudAPI.CloudImagesList(context.Background()).Page(page).Execute()
+			resp, _, err := c.CloudAPI.CloudImagesList(cmd.Context()).Page(page).Execute()
 			if err != nil {
 				return nil, false, err
 			}
@@ -37,8 +36,8 @@ var imageListCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("listing images: %w", err)
 		}
-		format := outputFormat(cmd)
-		return output.Print(format, images, func(w io.Writer) {
+		format := cmdutil.OutputFormat(cmd)
+		return output.Print(cmd.OutOrStdout(), format, images, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID", "NAME", "SLUG")
 			for _, img := range images {

@@ -1,7 +1,6 @@
 package compute
 
 import (
-	"context"
 	"fmt"
 	"io"
 
@@ -30,7 +29,7 @@ var ipv4ListCmd = &cobra.Command{
 			return err
 		}
 		ips, err := cmdutil.FetchAll(func(page int32) ([]pidginhost.PublicIPv4, bool, error) {
-			resp, _, err := c.CloudAPI.CloudIpv4List(context.Background()).Page(page).Execute()
+			resp, _, err := c.CloudAPI.CloudIpv4List(cmd.Context()).Page(page).Execute()
 			if err != nil {
 				return nil, false, err
 			}
@@ -39,8 +38,8 @@ var ipv4ListCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("listing IPv4 addresses: %w", err)
 		}
-		format := outputFormat(cmd)
-		return output.Print(format, ips, func(w io.Writer) {
+		format := cmdutil.OutputFormat(cmd)
+		return output.Print(cmd.OutOrStdout(), format, ips, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID", "ADDRESS", "GATEWAY", "PREFIX", "ATTACHED", "SERVER")
 			for _, ip := range ips {
@@ -59,11 +58,11 @@ var ipv4CreateCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		resp, _, err := c.CloudAPI.CloudIpv4Create(context.Background()).Execute()
+		resp, _, err := c.CloudAPI.CloudIpv4Create(cmd.Context()).Execute()
 		if err != nil {
 			return fmt.Errorf("creating IPv4: %w", err)
 		}
-		fmt.Printf("IPv4 address created (ID: %d, Address: %s)\n", resp.Id, resp.Address)
+		cmd.Printf("IPv4 address created (ID: %d, Address: %s)\n", resp.Id, resp.Address)
 		return nil
 	},
 }
@@ -74,22 +73,22 @@ var ipv4DeleteCmd = &cobra.Command{
 	Short:   "Delete an IPv4 address",
 	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		id, err := parseInt32(args[0])
+		id, err := cmdutil.ParseInt32(args[0])
 		if err != nil {
 			return err
 		}
-		if !force(cmd) && !confirm.Action(fmt.Sprintf("Delete IPv4 address %d?", id)) {
+		if !cmdutil.Force(cmd) && !confirm.Action(cmd.InOrStdin(), cmd.ErrOrStderr(), fmt.Sprintf("Delete IPv4 address %d?", id)) {
 			return nil
 		}
 		c, err := client.New()
 		if err != nil {
 			return err
 		}
-		_, err = c.CloudAPI.CloudIpv4Destroy(context.Background(), id).Execute()
+		_, err = c.CloudAPI.CloudIpv4Destroy(cmd.Context(), id).Execute()
 		if err != nil {
 			return fmt.Errorf("deleting IPv4: %w", err)
 		}
-		fmt.Printf("IPv4 address %d deleted.\n", id)
+		cmd.Printf("IPv4 address %d deleted.\n", id)
 		return nil
 	},
 }
@@ -99,7 +98,7 @@ var ipv4DetachCmd = &cobra.Command{
 	Short: "Detach an IPv4 address from its server",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		id, err := parseInt32(args[0])
+		id, err := cmdutil.ParseInt32(args[0])
 		if err != nil {
 			return err
 		}
@@ -107,11 +106,11 @@ var ipv4DetachCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		resp, _, err := c.CloudAPI.CloudIpv4DetachCreate(context.Background(), id).Execute()
+		resp, _, err := c.CloudAPI.CloudIpv4DetachCreate(cmd.Context(), id).Execute()
 		if err != nil {
 			return fmt.Errorf("detaching IPv4: %w", err)
 		}
-		fmt.Printf("IPv4 detached: %v\n", resp.Detached)
+		cmd.Printf("IPv4 detached: %v\n", resp.Detached)
 		return nil
 	},
 }

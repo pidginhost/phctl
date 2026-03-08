@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
-	"os"
 	"strings"
 	"testing"
 
@@ -125,40 +124,13 @@ func TestPrintRowTabSeparated(t *testing.T) {
 	}
 }
 
-// captureStdout runs fn while capturing os.Stdout output.
-func captureStdout(t *testing.T, fn func()) string {
-	t.Helper()
-	old := os.Stdout
-	r, w, err := os.Pipe()
-	if err != nil {
-		t.Fatalf("pipe: %v", err)
-	}
-	os.Stdout = w
-
-	fn()
-
-	if err := w.Close(); err != nil {
-		t.Fatalf("w.Close: %v", err)
-	}
-	os.Stdout = old
-
-	var buf bytes.Buffer
-	if _, err := io.Copy(&buf, r); err != nil {
-		t.Fatalf("io.Copy: %v", err)
-	}
-	if err := r.Close(); err != nil {
-		t.Fatalf("r.Close: %v", err)
-	}
-	return buf.String()
-}
-
 func TestPrintJSON(t *testing.T) {
 	data := map[string]string{"key": "value"}
-	out := captureStdout(t, func() {
-		if err := Print(FormatJSON, data, nil); err != nil {
-			t.Fatalf("Print JSON error: %v", err)
-		}
-	})
+	var buf bytes.Buffer
+	if err := Print(&buf, FormatJSON, data, nil); err != nil {
+		t.Fatalf("Print JSON error: %v", err)
+	}
+	out := buf.String()
 
 	var got map[string]string
 	if err := json.Unmarshal([]byte(out), &got); err != nil {
@@ -171,11 +143,11 @@ func TestPrintJSON(t *testing.T) {
 
 func TestPrintYAML(t *testing.T) {
 	data := map[string]string{"name": "test"}
-	out := captureStdout(t, func() {
-		if err := Print(FormatYAML, data, nil); err != nil {
-			t.Fatalf("Print YAML error: %v", err)
-		}
-	})
+	var buf bytes.Buffer
+	if err := Print(&buf, FormatYAML, data, nil); err != nil {
+		t.Fatalf("Print YAML error: %v", err)
+	}
+	out := buf.String()
 
 	var got map[string]string
 	if err := yaml.Unmarshal([]byte(out), &got); err != nil {
@@ -188,14 +160,14 @@ func TestPrintYAML(t *testing.T) {
 
 func TestPrintTable(t *testing.T) {
 	called := false
-	out := captureStdout(t, func() {
-		if err := Print(FormatTable, nil, func(w io.Writer) {
-			called = true
-			_, _ = w.Write([]byte("table output\n"))
-		}); err != nil {
-			t.Fatalf("Print table error: %v", err)
-		}
-	})
+	var buf bytes.Buffer
+	if err := Print(&buf, FormatTable, nil, func(w io.Writer) {
+		called = true
+		_, _ = w.Write([]byte("table output\n"))
+	}); err != nil {
+		t.Fatalf("Print table error: %v", err)
+	}
+	out := buf.String()
 
 	if !called {
 		t.Error("table function was not called")
@@ -207,11 +179,11 @@ func TestPrintTable(t *testing.T) {
 
 func TestPrintJSONSlice(t *testing.T) {
 	data := []string{"a", "b", "c"}
-	out := captureStdout(t, func() {
-		if err := Print(FormatJSON, data, nil); err != nil {
-			t.Fatalf("Print JSON error: %v", err)
-		}
-	})
+	var buf bytes.Buffer
+	if err := Print(&buf, FormatJSON, data, nil); err != nil {
+		t.Fatalf("Print JSON error: %v", err)
+	}
+	out := buf.String()
 
 	var got []string
 	if err := json.Unmarshal([]byte(out), &got); err != nil {
@@ -224,9 +196,9 @@ func TestPrintJSONSlice(t *testing.T) {
 
 func TestPrintJSONIndented(t *testing.T) {
 	data := map[string]int{"x": 1}
-	out := captureStdout(t, func() {
-		_ = Print(FormatJSON, data, nil)
-	})
+	var buf bytes.Buffer
+	_ = Print(&buf, FormatJSON, data, nil)
+	out := buf.String()
 
 	// Should be indented with 2 spaces
 	if !strings.Contains(out, "  ") {

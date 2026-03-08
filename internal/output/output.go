@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 	"text/tabwriter"
 
@@ -39,22 +38,22 @@ func ParseFormat(s string) Format {
 	}
 }
 
-func Print(format Format, data any, tableFunc func(w io.Writer)) error {
+func Print(out io.Writer, format Format, data any, tableFunc func(w io.Writer)) error {
 	switch format {
 	case FormatJSON:
-		enc := json.NewEncoder(os.Stdout)
+		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
 		if err := enc.Encode(data); err != nil {
 			return fmt.Errorf("encoding JSON: %w", err)
 		}
 	case FormatYAML:
-		enc := yaml.NewEncoder(os.Stdout)
+		enc := yaml.NewEncoder(out)
 		enc.SetIndent(2)
 		if err := enc.Encode(data); err != nil {
 			return fmt.Errorf("encoding YAML: %w", err)
 		}
 	default:
-		tableFunc(os.Stdout)
+		tableFunc(out)
 	}
 	return nil
 }

@@ -1,7 +1,6 @@
 package billing
 
 import (
-	"context"
 	"fmt"
 	"io"
 
@@ -12,60 +11,6 @@ import (
 	"github.com/pidginhost/phctl/internal/cmdutil"
 	"github.com/pidginhost/phctl/internal/confirm"
 	"github.com/pidginhost/phctl/internal/output"
-)
-
-// Local types to bypass SDK float64 vs string mismatches for decimal fields.
-
-type rawFundsBalance struct {
-	Balance       string `json:"balance"`
-	ThresholdType string `json:"threshold_type"`
-}
-
-type rawDeposit struct {
-	Id       int32  `json:"id"`
-	Status   string `json:"status"`
-	Amount   string `json:"amount"`
-	VatValue string `json:"vat_value"`
-	Total    string `json:"total"`
-	Created  string `json:"created"`
-}
-
-type rawInvoiceList struct {
-	Id             int32  `json:"id"`
-	NumberProforma string `json:"number_proforma"`
-	NumberFiscal   string `json:"number_fiscal"`
-	Status         string `json:"status"`
-	Subtotal       string `json:"subtotal"`
-	VatValue       string `json:"vat_value"`
-	Total          string `json:"total"`
-	InvoiceDate    string `json:"invoice_date"`
-	PaymentMethod  string `json:"payment_method"`
-}
-
-type rawServiceList struct {
-	Id           int32  `json:"id"`
-	Hostname     string `json:"hostname"`
-	Status       string `json:"status"`
-	Price        string `json:"price"`
-	NextInvoice  string `json:"next_invoice"`
-	BillingCycle string `json:"billing_cycle"`
-	AutoPayment  string `json:"auto_payment"`
-	Company      string `json:"company"`
-}
-
-type rawSubscription struct {
-	Id              int32  `json:"id"`
-	Status          string `json:"status"`
-	ServiceHostname string `json:"service_hostname"`
-	Subtotal        string `json:"subtotal"`
-	VatValue        string `json:"vat_value"`
-	Total           string `json:"total"`
-	CreationDate    string `json:"creation_date"`
-}
-
-var (
-	outputFormat = cmdutil.OutputFormat
-	force        = cmdutil.Force
 )
 
 var Cmd = &cobra.Command{
@@ -87,12 +32,12 @@ var fundsBalanceCmd = &cobra.Command{
 	Use:   "balance",
 	Short: "Show current account balance",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		var balance rawFundsBalance
+		var balance client.RawFundsBalance
 		if err := client.RawGet("/api/billing/funds/", &balance); err != nil {
 			return fmt.Errorf("getting balance: %w", err)
 		}
-		format := outputFormat(cmd)
-		return output.Print(format, balance, func(w io.Writer) {
+		format := cmdutil.OutputFormat(cmd)
+		return output.Print(cmd.OutOrStdout(), format, balance, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "Balance:", balance.Balance)
 			output.PrintRow(tw, "Threshold Type:", balance.ThresholdType)
@@ -110,7 +55,7 @@ var fundsLogCmd = &cobra.Command{
 			return err
 		}
 		logs, err := cmdutil.FetchAll(func(page int32) ([]pidginhost.FundsLog, bool, error) {
-			resp, _, err := c.BillingAPI.BillingFundsLogList(context.Background()).Page(page).Execute()
+			resp, _, err := c.BillingAPI.BillingFundsLogList(cmd.Context()).Page(page).Execute()
 			if err != nil {
 				return nil, false, err
 			}
@@ -119,8 +64,8 @@ var fundsLogCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("listing funds log: %w", err)
 		}
-		format := outputFormat(cmd)
-		return output.Print(format, logs, func(w io.Writer) {
+		format := cmdutil.OutputFormat(cmd)
+		return output.Print(cmd.OutOrStdout(), format, logs, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID", "OPERATION", "AMOUNT", "BALANCE", "DATE")
 			for _, l := range logs {
@@ -143,12 +88,12 @@ var depositListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all deposits",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		deposits, err := client.RawFetchAll[rawDeposit]("/api/billing/deposits/")
+		deposits, err := client.RawFetchAll[client.RawDeposit]("/api/billing/deposits/")
 		if err != nil {
 			return fmt.Errorf("listing deposits: %w", err)
 		}
-		format := outputFormat(cmd)
-		return output.Print(format, deposits, func(w io.Writer) {
+		format := cmdutil.OutputFormat(cmd)
+		return output.Print(cmd.OutOrStdout(), format, deposits, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID", "AMOUNT", "TOTAL", "STATUS", "DATE")
 			for _, d := range deposits {
@@ -164,12 +109,12 @@ var depositGetCmd = &cobra.Command{
 	Short: "Get deposit details",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		var d rawDeposit
+		var d client.RawDeposit
 		if err := client.RawGet(fmt.Sprintf("/api/billing/deposits/%s/", args[0]), &d); err != nil {
 			return fmt.Errorf("getting deposit: %w", err)
 		}
-		format := outputFormat(cmd)
-		return output.Print(format, d, func(w io.Writer) {
+		format := cmdutil.OutputFormat(cmd)
+		return output.Print(cmd.OutOrStdout(), format, d, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID:", d.Id)
 			output.PrintRow(tw, "Amount:", d.Amount)
@@ -193,11 +138,11 @@ var depositCreateCmd = &cobra.Command{
 			return err
 		}
 		body := *pidginhost.NewDepositCreate(depositCreateAmount)
-		resp, _, err := c.BillingAPI.BillingDepositsCreate(context.Background()).DepositCreate(body).Execute()
+		resp, _, err := c.BillingAPI.BillingDepositsCreate(cmd.Context()).DepositCreate(body).Execute()
 		if err != nil {
 			return fmt.Errorf("creating deposit: %w", err)
 		}
-		fmt.Printf("Deposit created (ID: %d, Amount: %.2f)\n", resp.Id, resp.Amount)
+		cmd.Printf("Deposit created (ID: %d, Amount: %.2f)\n", resp.Id, resp.Amount)
 		return nil
 	},
 }
@@ -214,12 +159,12 @@ var invoiceListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all invoices",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		invoices, err := client.RawFetchAll[rawInvoiceList]("/api/billing/invoices/")
+		invoices, err := client.RawFetchAll[client.RawInvoiceList]("/api/billing/invoices/")
 		if err != nil {
 			return fmt.Errorf("listing invoices: %w", err)
 		}
-		format := outputFormat(cmd)
-		return output.Print(format, invoices, func(w io.Writer) {
+		format := cmdutil.OutputFormat(cmd)
+		return output.Print(cmd.OutOrStdout(), format, invoices, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID", "PROFORMA", "FISCAL", "TOTAL", "STATUS", "DATE")
 			for _, inv := range invoices {
@@ -235,12 +180,12 @@ var invoiceGetCmd = &cobra.Command{
 	Short: "Get invoice details",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		var inv rawInvoiceList
+		var inv client.RawInvoiceList
 		if err := client.RawGet(fmt.Sprintf("/api/billing/invoices/%s/", args[0]), &inv); err != nil {
 			return fmt.Errorf("getting invoice: %w", err)
 		}
-		format := outputFormat(cmd)
-		return output.Print(format, inv, func(w io.Writer) {
+		format := cmdutil.OutputFormat(cmd)
+		return output.Print(cmd.OutOrStdout(), format, inv, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID:", inv.Id)
 			output.PrintRow(tw, "Proforma:", inv.NumberProforma)
@@ -261,18 +206,18 @@ var invoicePayCmd = &cobra.Command{
 	Short: "Pay an invoice using account funds",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if !force(cmd) && !confirm.Action(fmt.Sprintf("Pay invoice %s using account funds?", args[0])) {
+		if !cmdutil.Force(cmd) && !confirm.Action(cmd.InOrStdin(), cmd.ErrOrStderr(), fmt.Sprintf("Pay invoice %s using account funds?", args[0])) {
 			return nil
 		}
 		c, err := client.New()
 		if err != nil {
 			return err
 		}
-		resp, _, err := c.BillingAPI.BillingInvoicesPayWithFundsCreate(context.Background(), args[0]).Execute()
+		resp, _, err := c.BillingAPI.BillingInvoicesPayWithFundsCreate(cmd.Context(), args[0]).Execute()
 		if err != nil {
 			return fmt.Errorf("paying invoice: %w", err)
 		}
-		fmt.Printf("Invoice paid: %s\n", resp.Message)
+		cmd.Printf("Invoice paid: %s\n", resp.Message)
 		return nil
 	},
 }
@@ -289,12 +234,12 @@ var serviceListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all services",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		services, err := client.RawFetchAll[rawServiceList]("/api/billing/services/")
+		services, err := client.RawFetchAll[client.RawServiceList]("/api/billing/services/")
 		if err != nil {
 			return fmt.Errorf("listing services: %w", err)
 		}
-		format := outputFormat(cmd)
-		return output.Print(format, services, func(w io.Writer) {
+		format := cmdutil.OutputFormat(cmd)
+		return output.Print(cmd.OutOrStdout(), format, services, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID", "HOSTNAME", "STATUS", "PRICE", "CYCLE", "NEXT INVOICE")
 			for _, s := range services {
@@ -310,12 +255,12 @@ var serviceGetCmd = &cobra.Command{
 	Short: "Get service details",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		var s rawServiceList
+		var s client.RawServiceList
 		if err := client.RawGet(fmt.Sprintf("/api/billing/services/%s/", args[0]), &s); err != nil {
 			return fmt.Errorf("getting service: %w", err)
 		}
-		format := outputFormat(cmd)
-		return output.Print(format, s, func(w io.Writer) {
+		format := cmdutil.OutputFormat(cmd)
+		return output.Print(cmd.OutOrStdout(), format, s, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID:", s.Id)
 			output.PrintRow(tw, "Hostname:", s.Hostname)
@@ -335,18 +280,18 @@ var serviceCancelCmd = &cobra.Command{
 	Short: "Cancel a service",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if !force(cmd) && !confirm.Action(fmt.Sprintf("Cancel service %s?", args[0])) {
+		if !cmdutil.Force(cmd) && !confirm.Action(cmd.InOrStdin(), cmd.ErrOrStderr(), fmt.Sprintf("Cancel service %s?", args[0])) {
 			return nil
 		}
 		c, err := client.New()
 		if err != nil {
 			return err
 		}
-		resp, _, err := c.BillingAPI.BillingServicesCancelCreate(context.Background(), args[0]).Execute()
+		resp, _, err := c.BillingAPI.BillingServicesCancelCreate(cmd.Context(), args[0]).Execute()
 		if err != nil {
 			return fmt.Errorf("cancelling service: %w", err)
 		}
-		fmt.Printf("Service cancelled: %s\n", resp.Message)
+		cmd.Printf("Service cancelled: %s\n", resp.Message)
 		return nil
 	},
 }
@@ -360,7 +305,7 @@ var serviceAutoPayCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		resp, _, err := c.BillingAPI.BillingServicesToggleAutoPaymentCreate(context.Background(), args[0]).Execute()
+		resp, _, err := c.BillingAPI.BillingServicesToggleAutoPaymentCreate(cmd.Context(), args[0]).Execute()
 		if err != nil {
 			return fmt.Errorf("toggling auto-pay: %w", err)
 		}
@@ -368,7 +313,7 @@ var serviceAutoPayCmd = &cobra.Command{
 		if !resp.AutoPayment {
 			state = "disabled"
 		}
-		fmt.Printf("Auto-pay %s: %s\n", state, resp.Message)
+		cmd.Printf("Auto-pay %s: %s\n", state, resp.Message)
 		return nil
 	},
 }
@@ -385,12 +330,12 @@ var subscriptionListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all subscriptions",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		subs, err := client.RawFetchAll[rawSubscription]("/api/billing/subscriptions/")
+		subs, err := client.RawFetchAll[client.RawSubscription]("/api/billing/subscriptions/")
 		if err != nil {
 			return fmt.Errorf("listing subscriptions: %w", err)
 		}
-		format := outputFormat(cmd)
-		return output.Print(format, subs, func(w io.Writer) {
+		format := cmdutil.OutputFormat(cmd)
+		return output.Print(cmd.OutOrStdout(), format, subs, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID", "HOSTNAME", "STATUS", "TOTAL", "CREATED")
 			for _, s := range subs {
@@ -406,12 +351,12 @@ var subscriptionGetCmd = &cobra.Command{
 	Short: "Get subscription details",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		var s rawSubscription
+		var s client.RawSubscription
 		if err := client.RawGet(fmt.Sprintf("/api/billing/subscriptions/%s/", args[0]), &s); err != nil {
 			return fmt.Errorf("getting subscription: %w", err)
 		}
-		format := outputFormat(cmd)
-		return output.Print(format, s, func(w io.Writer) {
+		format := cmdutil.OutputFormat(cmd)
+		return output.Print(cmd.OutOrStdout(), format, s, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID:", s.Id)
 			output.PrintRow(tw, "Hostname:", s.ServiceHostname)

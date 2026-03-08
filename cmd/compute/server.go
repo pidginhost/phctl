@@ -1,7 +1,6 @@
 package compute
 
 import (
-	"context"
 	"fmt"
 	"io"
 
@@ -30,7 +29,7 @@ var serverListCmd = &cobra.Command{
 			return err
 		}
 		servers, err := cmdutil.FetchAll(func(page int32) ([]pidginhost.Server, bool, error) {
-			resp, _, err := c.CloudAPI.CloudServersList(context.Background()).Page(page).Execute()
+			resp, _, err := c.CloudAPI.CloudServersList(cmd.Context()).Page(page).Execute()
 			if err != nil {
 				return nil, false, err
 			}
@@ -39,11 +38,11 @@ var serverListCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("listing servers: %w", err)
 		}
-		return output.Print(outputFormat(cmd), servers, func(w io.Writer) {
+		return output.Print(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), servers, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID", "HOSTNAME", "IMAGE", "PACKAGE", "STATUS")
 			for _, s := range servers {
-				output.PrintRow(tw, s.Id, pstr(s.Hostname), s.Image, s.Package, pstr(s.Status))
+				output.PrintRow(tw, s.Id, output.Pstr(s.Hostname), s.Image, s.Package, output.Pstr(s.Status))
 			}
 			tw.Flush()
 		})
@@ -55,7 +54,7 @@ var serverGetCmd = &cobra.Command{
 	Short: "Get server details",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		id, err := parseInt32(args[0])
+		id, err := cmdutil.ParseInt32(args[0])
 		if err != nil {
 			return err
 		}
@@ -63,12 +62,12 @@ var serverGetCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		s, _, err := c.CloudAPI.CloudServersRetrieve(context.Background(), id).Execute()
+		s, _, err := c.CloudAPI.CloudServersRetrieve(cmd.Context(), id).Execute()
 		if err != nil {
 			return fmt.Errorf("getting server: %w", err)
 		}
 
-		return output.Print(outputFormat(cmd), s, func(w io.Writer) {
+		return output.Print(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), s, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID:", s.Id)
 			output.PrintRow(tw, "Hostname:", s.Hostname)
@@ -122,12 +121,12 @@ var serverCreateCmd = &cobra.Command{
 			body.NewIpv4 = pidginhost.PtrBool(true)
 		}
 
-		resp, _, err := c.CloudAPI.CloudServersCreate(context.Background()).ServerAdd(body).Execute()
+		resp, _, err := c.CloudAPI.CloudServersCreate(cmd.Context()).ServerAdd(body).Execute()
 		if err != nil {
 			return fmt.Errorf("creating server: %w", err)
 		}
 
-		fmt.Printf("Server created (ID: %d)\n", resp.Id)
+		cmd.Printf("Server created (ID: %d)\n", resp.Id)
 		return nil
 	},
 }
@@ -138,22 +137,22 @@ var serverDeleteCmd = &cobra.Command{
 	Short:   "Delete a server",
 	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		id, err := parseInt32(args[0])
+		id, err := cmdutil.ParseInt32(args[0])
 		if err != nil {
 			return err
 		}
-		if !force(cmd) && !confirm.Action(fmt.Sprintf("Delete server %d?", id)) {
+		if !cmdutil.Force(cmd) && !confirm.Action(cmd.InOrStdin(), cmd.ErrOrStderr(), fmt.Sprintf("Delete server %d?", id)) {
 			return nil
 		}
 		c, err := client.New()
 		if err != nil {
 			return err
 		}
-		_, err = c.CloudAPI.CloudServersDestroy(context.Background(), id).Execute()
+		_, err = c.CloudAPI.CloudServersDestroy(cmd.Context(), id).Execute()
 		if err != nil {
 			return fmt.Errorf("deleting server: %w", err)
 		}
-		fmt.Printf("Server %d deleted.\n", id)
+		cmd.Printf("Server %d deleted.\n", id)
 		return nil
 	},
 }
@@ -165,7 +164,7 @@ var serverPowerCmd = &cobra.Command{
 	Short: "Manage server power (--action start|stop|shutdown|reboot)",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		id, err := parseInt32(args[0])
+		id, err := cmdutil.ParseInt32(args[0])
 		if err != nil {
 			return err
 		}
@@ -174,11 +173,11 @@ var serverPowerCmd = &cobra.Command{
 			return err
 		}
 		body := *pidginhost.NewPowerManagementRequest(pidginhost.PowerManagementRequestActionEnum(serverPowerAction))
-		_, _, err = c.CloudAPI.CloudServersPowerManagementCreate(context.Background(), id).PowerManagementRequest(body).Execute()
+		_, _, err = c.CloudAPI.CloudServersPowerManagementCreate(cmd.Context(), id).PowerManagementRequest(body).Execute()
 		if err != nil {
 			return fmt.Errorf("power management: %w", err)
 		}
-		fmt.Printf("Power action '%s' executed on server %d.\n", serverPowerAction, id)
+		cmd.Printf("Power action '%s' executed on server %d.\n", serverPowerAction, id)
 		return nil
 	},
 }
@@ -188,7 +187,7 @@ var serverConsoleCmd = &cobra.Command{
 	Short: "Get server console token",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		id, err := parseInt32(args[0])
+		id, err := cmdutil.ParseInt32(args[0])
 		if err != nil {
 			return err
 		}
@@ -196,11 +195,11 @@ var serverConsoleCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		resp, _, err := c.CloudAPI.CloudServersConsoleCreate(context.Background(), id).Execute()
+		resp, _, err := c.CloudAPI.CloudServersConsoleCreate(cmd.Context(), id).Execute()
 		if err != nil {
 			return fmt.Errorf("getting console: %w", err)
 		}
-		return output.Print(outputFormat(cmd), resp, func(w io.Writer) {
+		return output.Print(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "Token:", resp.Token)
 			output.PrintRow(tw, "Ticket:", resp.Ticket)
@@ -218,7 +217,7 @@ var serverAttachIPv4Cmd = &cobra.Command{
 	Short: "Attach an IPv4 address to a server",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		id, err := parseInt32(args[0])
+		id, err := cmdutil.ParseInt32(args[0])
 		if err != nil {
 			return err
 		}
@@ -227,11 +226,11 @@ var serverAttachIPv4Cmd = &cobra.Command{
 			return err
 		}
 		body := *pidginhost.NewAttachIPv4(serverAttachIPv4Slug)
-		_, _, err = c.CloudAPI.CloudServersAttachIpv4Create(context.Background(), id).AttachIPv4(body).Execute()
+		_, _, err = c.CloudAPI.CloudServersAttachIpv4Create(cmd.Context(), id).AttachIPv4(body).Execute()
 		if err != nil {
 			return fmt.Errorf("attaching IPv4: %w", err)
 		}
-		fmt.Printf("IPv4 %s attached to server %d.\n", serverAttachIPv4Slug, id)
+		cmd.Printf("IPv4 %s attached to server %d.\n", serverAttachIPv4Slug, id)
 		return nil
 	},
 }
@@ -243,7 +242,7 @@ var serverAttachIPv6Cmd = &cobra.Command{
 	Short: "Attach an IPv6 address to a server",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		id, err := parseInt32(args[0])
+		id, err := cmdutil.ParseInt32(args[0])
 		if err != nil {
 			return err
 		}
@@ -252,11 +251,11 @@ var serverAttachIPv6Cmd = &cobra.Command{
 			return err
 		}
 		body := *pidginhost.NewAttachIPv6(serverAttachIPv6Slug)
-		_, _, err = c.CloudAPI.CloudServersAttachIpv6Create(context.Background(), id).AttachIPv6(body).Execute()
+		_, _, err = c.CloudAPI.CloudServersAttachIpv6Create(cmd.Context(), id).AttachIPv6(body).Execute()
 		if err != nil {
 			return fmt.Errorf("attaching IPv6: %w", err)
 		}
-		fmt.Printf("IPv6 %s attached to server %d.\n", serverAttachIPv6Slug, id)
+		cmd.Printf("IPv6 %s attached to server %d.\n", serverAttachIPv6Slug, id)
 		return nil
 	},
 }
@@ -270,7 +269,7 @@ var serverProtectCmd = &cobra.Command{
 	Short: "Toggle destroy protection on a server",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		id, err := parseInt32(args[0])
+		id, err := cmdutil.ParseInt32(args[0])
 		if err != nil {
 			return err
 		}
@@ -279,7 +278,7 @@ var serverProtectCmd = &cobra.Command{
 			return err
 		}
 		body := *pidginhost.NewDestroyProtection(serverProtectEnable)
-		_, _, err = c.CloudAPI.CloudServersDestroyProtectionCreate(context.Background(), id).DestroyProtection(body).Execute()
+		_, _, err = c.CloudAPI.CloudServersDestroyProtectionCreate(cmd.Context(), id).DestroyProtection(body).Execute()
 		if err != nil {
 			return fmt.Errorf("setting destroy protection: %w", err)
 		}
@@ -287,7 +286,7 @@ var serverProtectCmd = &cobra.Command{
 		if !serverProtectEnable {
 			state = "disabled"
 		}
-		fmt.Printf("Destroy protection %s on server %d.\n", state, id)
+		cmd.Printf("Destroy protection %s on server %d.\n", state, id)
 		return nil
 	},
 }
@@ -305,7 +304,7 @@ var serverSnapshotListCmd = &cobra.Command{
 	Short: "List snapshots for a server",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		id, err := parseInt32(args[0])
+		id, err := cmdutil.ParseInt32(args[0])
 		if err != nil {
 			return err
 		}
@@ -314,7 +313,7 @@ var serverSnapshotListCmd = &cobra.Command{
 			return err
 		}
 		snapshots, err := cmdutil.FetchAll(func(page int32) ([]pidginhost.Snapshot, bool, error) {
-			resp, _, err := c.CloudAPI.CloudServersSnapshotsList(context.Background(), id).Page(page).Execute()
+			resp, _, err := c.CloudAPI.CloudServersSnapshotsList(cmd.Context(), id).Page(page).Execute()
 			if err != nil {
 				return nil, false, err
 			}
@@ -323,7 +322,7 @@ var serverSnapshotListCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("listing snapshots: %w", err)
 		}
-		return output.Print(outputFormat(cmd), snapshots, func(w io.Writer) {
+		return output.Print(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), snapshots, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "NAME", "STATE", "CREATED")
 			for _, s := range snapshots {
@@ -345,7 +344,7 @@ var serverSnapshotCreateCmd = &cobra.Command{
 	Short: "Create a snapshot for a server",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		id, err := parseInt32(args[0])
+		id, err := cmdutil.ParseInt32(args[0])
 		if err != nil {
 			return err
 		}
@@ -354,11 +353,11 @@ var serverSnapshotCreateCmd = &cobra.Command{
 			return err
 		}
 		body := *pidginhost.NewSnapshotCreate(snapshotCreateName)
-		_, _, err = c.CloudAPI.CloudServersSnapshotsCreate(context.Background(), id).SnapshotCreate(body).Execute()
+		_, _, err = c.CloudAPI.CloudServersSnapshotsCreate(cmd.Context(), id).SnapshotCreate(body).Execute()
 		if err != nil {
 			return fmt.Errorf("creating snapshot: %w", err)
 		}
-		fmt.Printf("Snapshot '%s' creation queued.\n", snapshotCreateName)
+		cmd.Printf("Snapshot '%s' creation queued.\n", snapshotCreateName)
 		return nil
 	},
 }
@@ -369,22 +368,22 @@ var serverSnapshotDeleteCmd = &cobra.Command{
 	Short:   "Delete a snapshot",
 	Args:    cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		id, err := parseInt32(args[0])
+		id, err := cmdutil.ParseInt32(args[0])
 		if err != nil {
 			return err
 		}
-		if !force(cmd) && !confirm.Action(fmt.Sprintf("Delete snapshot '%s' from server %d?", args[1], id)) {
+		if !cmdutil.Force(cmd) && !confirm.Action(cmd.InOrStdin(), cmd.ErrOrStderr(), fmt.Sprintf("Delete snapshot '%s' from server %d?", args[1], id)) {
 			return nil
 		}
 		c, err := client.New()
 		if err != nil {
 			return err
 		}
-		_, _, err = c.CloudAPI.CloudServersSnapshotsDestroy(context.Background(), id, args[1]).Execute()
+		_, _, err = c.CloudAPI.CloudServersSnapshotsDestroy(cmd.Context(), id, args[1]).Execute()
 		if err != nil {
 			return fmt.Errorf("deleting snapshot: %w", err)
 		}
-		fmt.Printf("Snapshot '%s' deletion queued.\n", args[1])
+		cmd.Printf("Snapshot '%s' deletion queued.\n", args[1])
 		return nil
 	},
 }
@@ -394,22 +393,22 @@ var serverSnapshotRollbackCmd = &cobra.Command{
 	Short: "Rollback a server to a snapshot",
 	Args:  cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		id, err := parseInt32(args[0])
+		id, err := cmdutil.ParseInt32(args[0])
 		if err != nil {
 			return err
 		}
-		if !force(cmd) && !confirm.Action(fmt.Sprintf("Rollback server %d to snapshot '%s'?", id, args[1])) {
+		if !cmdutil.Force(cmd) && !confirm.Action(cmd.InOrStdin(), cmd.ErrOrStderr(), fmt.Sprintf("Rollback server %d to snapshot '%s'?", id, args[1])) {
 			return nil
 		}
 		c, err := client.New()
 		if err != nil {
 			return err
 		}
-		_, _, err = c.CloudAPI.CloudServersSnapshotsRollbackCreate(context.Background(), id, args[1]).Execute()
+		_, _, err = c.CloudAPI.CloudServersSnapshotsRollbackCreate(cmd.Context(), id, args[1]).Execute()
 		if err != nil {
 			return fmt.Errorf("rolling back snapshot: %w", err)
 		}
-		fmt.Printf("Rollback to snapshot '%s' queued.\n", args[1])
+		cmd.Printf("Rollback to snapshot '%s' queued.\n", args[1])
 		return nil
 	},
 }

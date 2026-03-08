@@ -8,8 +8,8 @@ import (
 
 func TestDefaultConfig(t *testing.T) {
 	cfg := DefaultConfig()
-	if cfg.APIURL != "https://www.pidginhost.com" {
-		t.Errorf("default APIURL = %q, want %q", cfg.APIURL, "https://www.pidginhost.com")
+	if cfg.APIURL != DefaultAPIURL {
+		t.Errorf("default APIURL = %q, want %q", cfg.APIURL, DefaultAPIURL)
 	}
 	if cfg.Output != "table" {
 		t.Errorf("default Output = %q, want %q", cfg.Output, "table")
@@ -141,7 +141,7 @@ func TestLoadNonexistentFile(t *testing.T) {
 		t.Fatalf("Load() error: %v", err)
 	}
 	// Should return defaults
-	if cfg.APIURL != "https://www.pidginhost.com" {
+	if cfg.APIURL != DefaultAPIURL {
 		t.Errorf("APIURL = %q, want default", cfg.APIURL)
 	}
 	if cfg.Output != "table" {

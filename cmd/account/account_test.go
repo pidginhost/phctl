@@ -75,16 +75,6 @@ func TestCompanySubcommands(t *testing.T) {
 	}
 }
 
-func TestPstr(t *testing.T) {
-	s := "hello"
-	if got := pstr(&s); got != "hello" {
-		t.Errorf("pstr(&%q) = %q, want %q", s, got, "hello")
-	}
-	if got := pstr[string](nil); got != "<none>" {
-		t.Errorf("pstr(nil) = %q, want %q", got, "<none>")
-	}
-}
-
 func TestSSHKeyCreateFlags(t *testing.T) {
 	keyFlag := sshKeyCreateCmd.Flags().Lookup("key")
 	if keyFlag == nil {
