@@ -64,6 +64,7 @@ phctl <resource> <command> [flags]
 | `phctl freedns` | `fdns` | FreeDNS domains and records |
 | `phctl hosting` | `host` | Web hosting services |
 | `phctl support` | `ticket` | Support tickets |
+| `phctl update` | | Self-update to latest version |
 
 ### Examples
 
