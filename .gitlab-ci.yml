@@ -144,21 +144,10 @@ deploy:github:
     - git config --global user.name "PidginHost CI"
     - git config --global user.email "ci@pidginhost.com"
   script:
-    - git clone "${CI_REPOSITORY_URL}" repo
-    - cd repo
-    - rm -rf .git
-    - git init -b main
-    - git add .
-    - |
-      if [ -n "$CI_COMMIT_TAG" ]; then
-        git commit -m "phctl ${CI_COMMIT_TAG}"
-        git tag "${CI_COMMIT_TAG}"
-      else
-        git commit -m "Update phctl from ${CI_COMMIT_SHORT_SHA}"
-      fi
+    - git clone --mirror "${CI_REPOSITORY_URL}" repo.git
+    - cd repo.git
     - git remote add github "https://${GITHUB_TOKEN}@github.com/pidginhost/phctl.git"
-    - git push github main --force
-    - git push github --tags --force
+    - git push github --mirror
 
 # --- Release stage: GitLab + GitHub releases ---
 
