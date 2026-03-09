@@ -133,7 +133,8 @@ func TestE2E_ComputeServerLifecycle(t *testing.T) {
 		"--image", image,
 		"--package", pkg,
 		"--password", password,
-		"--hostname", hostname)
+		"--hostname", hostname,
+		"--new-ipv4")
 
 	re := regexp.MustCompile(`ID:\s*(\d+)`)
 	matches := re.FindStringSubmatch(out)
