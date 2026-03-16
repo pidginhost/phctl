@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.5.0
+
+### Added
+
+- **One-line installer**: `curl -fsSL .../install.sh | sh` for quick setup on Linux and macOS, with OS/arch auto-detection and `VERSION`/`INSTALL_DIR` overrides
+
+### Changed
+
+- **Dependency updates**: cobra v1.8.1 → v1.10.2, pflag v1.0.5 → v1.0.10, go-md2man v2.0.4 → v2.0.7, x/sys v0.41.0 → v0.42.0, x/term v0.40.0 → v0.41.0
+- **Go version**: bumped minimum from 1.24 to 1.25; CI images updated accordingly
+
 ## v0.4.1
 
 ### Fixed
