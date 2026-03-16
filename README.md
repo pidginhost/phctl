@@ -4,6 +4,18 @@ Command-line interface for managing [PidginHost](https://pidginhost.com) cloud r
 
 ## Installation
 
+### Quick install (Linux & macOS)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/pidginhost/phctl/main/scripts/install.sh | sh
+```
+
+To install a specific version:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/pidginhost/phctl/main/scripts/install.sh | VERSION=v0.4.1 sh
+```
+
 ### From binary releases
 
 Download the latest release for your platform from the [Releases](https://github.com/pidginhost/phctl/releases) page.

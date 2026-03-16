@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	repoAPIURL    = "https://git.pidginhost.net/api/v1/repos/pidginhost/phctl"
+	repoAPIURL    = "https://api.github.com/repos/pidginhost/phctl"
 	backgroundCmd = "__update-check"
 	checkInterval = 24 * time.Hour
 	CheckTimeout  = 2 * time.Second
@@ -106,7 +106,7 @@ func RecordCheck() error {
 	return nil
 }
 
-// LatestRelease fetches the most recent release from the Gitea API.
+// LatestRelease fetches the most recent release from the GitHub API.
 func LatestRelease(timeout time.Duration) (*Release, error) {
 	client := newHTTPClient(timeout)
 	resp, err := client.Get(latestReleaseURL)
