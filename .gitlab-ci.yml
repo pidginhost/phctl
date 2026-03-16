@@ -149,7 +149,8 @@ deploy:github:
     - |
       git filter-repo --force \
         --name-callback 'return b"PidginHost"' \
-        --email-callback 'return b"opensource@pidginhost.com"'
+        --email-callback 'return b"opensource@pidginhost.com"' \
+        --message-callback 'import re; return re.sub(rb"\n*Co-Authored-By:.*", b"", message)'
     - git remote add github "https://${GITHUB_TOKEN}@github.com/pidginhost/phctl.git"
     - git push github --mirror --force
 
