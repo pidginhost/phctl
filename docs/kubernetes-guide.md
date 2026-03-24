@@ -22,46 +22,66 @@ You also need `kubectl` installed: https://kubernetes.io/docs/tasks/tools/
 # List cluster types and their constraints
 phctl k8s types
 
-# Output example:
-# TYPE        MIN WORKERS  MAX WORKERS  PACKAGES
-# standard    1            10           3
-# high-mem    1            5            2
+# Output:
+# TYPE  MIN WORKERS  MAX WORKERS  PACKAGES
+# dev   1            3            8
+# prod  2            20           8
 ```
 
-Note the TYPE and PACKAGES values — you'll need them for cluster creation.
+To see the available packages (worker node sizes) in detail:
+
+```bash
+phctl k8s types -o json
+```
+
+Common packages: `cloudv-1` (smallest) through `cloudv-8` (largest).
 
 ## Step 2: Create a Cluster
 
-```bash
-# Basic creation (returns immediately)
-phctl k8s cluster create \
-  --name my-cluster \
-  --type standard \
-  --package "ph-k8s-std-2" \
-  --pool-size 2 \
-  --kube-version "1.32"
+> **Note:** `phctl k8s cluster create` currently has a known SDK issue where
+> the `--package` flag maps to the wrong API field. Use the workaround below
+> until the SDK is updated. All other commands (get, list, delete, kubeconfig,
+> routes, pools) work correctly.
 
-# With --wait: blocks until cluster is active (ideal for CI/CD)
-phctl k8s cluster create \
-  --name my-cluster \
-  --type standard \
-  --package "ph-k8s-std-2" \
-  --pool-size 2 \
-  --wait \
-  --wait-timeout 15m
+**Workaround using curl:**
+
+```bash
+# Get your token
+TOKEN=$(grep auth_token ~/.config/phctl/config.yaml | awk '{print $2}')
+
+# Create a dev cluster with 1 worker (cloudv-3 package)
+curl -s -X POST "https://www.pidginhost.com/api/kubernetes/clusters/" \
+  -H "Authorization: Token $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "cluster_type": "dev",
+    "resource_pool_package": "cloudv-3",
+    "name": "my-cluster",
+    "resource_pool_size": 1
+  }'
+# Output: {"id": 42}
 ```
 
-Save the cluster ID from the output — you'll use it in every subsequent command.
+Save the cluster ID from the output:
 
 ```bash
 CLUSTER_ID=42
 ```
 
-If you didn't use `--wait`, poll manually:
+Poll until active (~5-6 minutes for a dev cluster):
 
 ```bash
 phctl k8s cluster get $CLUSTER_ID
 # Repeat until Status: active
+```
+
+Or use `--wait` on a loop:
+
+```bash
+while [ "$(phctl k8s cluster get $CLUSTER_ID -o json | python3 -c 'import sys,json; print(json.load(sys.stdin)["status"])')" != "active" ]; do
+  sleep 15
+done
+echo "Cluster is active!"
 ```
 
 ## Step 3: Get the Kubeconfig
@@ -156,7 +176,7 @@ phctl k8s udp-route create $CLUSTER_ID \
 ```bash
 # Add a larger pool for memory-intensive workloads
 phctl k8s pool create $CLUSTER_ID \
-  --package "ph-k8s-std-4" \
+  --package "cloudv-5" \
   --size 1 \
   --wait
 
@@ -204,6 +224,16 @@ phctl k8s pool delete $CLUSTER_ID <pool-id> -f
 phctl k8s cluster delete $CLUSTER_ID -f
 ```
 
+If you used `--merge` to add the kubeconfig, clean up afterwards:
+
+```bash
+# Replace CONTEXT, CLUSTER, USER with the names from your kubeconfig
+kubectl config delete-context <context-name>
+kubectl config delete-cluster <cluster-name>
+kubectl config delete-user <user-name>
+kubectl config use-context <your-default-context>
+```
+
 ## CI/CD Example
 
 Fully scripted cluster lifecycle for automation:
@@ -212,16 +242,30 @@ Fully scripted cluster lifecycle for automation:
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Create and wait (outputs human-readable text, e.g. "Cluster created (ID: 42)")
-CLUSTER_OUTPUT=$(phctl k8s cluster create \
-  --name "ci-${CI_COMMIT_SHORT_SHA}" \
-  --type standard \
-  --package "ph-k8s-std-2" \
-  --pool-size 1 \
-  --wait \
-  --wait-timeout 15m)
+TOKEN="${PIDGINHOST_API_TOKEN}"
 
-CLUSTER_ID=$(echo "$CLUSTER_OUTPUT" | grep -oP 'ID: \K\d+')
+# Create cluster via API (SDK workaround)
+CLUSTER_ID=$(curl -sf -X POST "https://www.pidginhost.com/api/kubernetes/clusters/" \
+  -H "Authorization: Token $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"cluster_type\": \"dev\",
+    \"resource_pool_package\": \"cloudv-3\",
+    \"name\": \"ci-${CI_COMMIT_SHORT_SHA}\",
+    \"resource_pool_size\": 1
+  }" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
+
+echo "Cluster created: $CLUSTER_ID"
+
+# Wait for active (~5-6 minutes)
+while true; do
+  STATUS=$(phctl k8s cluster get "$CLUSTER_ID" -o json | \
+    python3 -c "import sys,json; print(json.load(sys.stdin)['status'])")
+  echo "Status: $STATUS"
+  [ "$STATUS" = "active" ] && break
+  [ "$STATUS" = "failed" ] && echo "Cluster failed!" && exit 1
+  sleep 15
+done
 
 # Merge kubeconfig for kubectl access
 phctl k8s cluster kubeconfig "$CLUSTER_ID" --merge
@@ -262,13 +306,17 @@ phctl k8s cluster kubeconfig $CLUSTER_ID -o json
 | Task | Command |
 |------|---------|
 | List clusters | `phctl k8s cluster list` |
-| Create cluster | `phctl k8s cluster create --type T --package P [--wait]` |
+| Get cluster details | `phctl k8s cluster get ID` |
 | Get kubeconfig | `phctl k8s cluster kubeconfig ID [--merge]` |
 | Delete cluster | `phctl k8s cluster delete ID [-f]` |
 | Upgrade k8s | `phctl k8s cluster upgrade-kube ID [--wait]` |
+| Upgrade Talos | `phctl k8s cluster upgrade-talos ID [--wait]` |
+| List types | `phctl k8s types` |
 | List pools | `phctl k8s pool list CLUSTER_ID` |
-| Add pool | `phctl k8s pool create CLUSTER_ID --package P --size N` |
+| Add pool | `phctl k8s pool create CLUSTER_ID --package P --size N [--wait]` |
 | List nodes | `phctl k8s node list CLUSTER_ID POOL_ID` |
 | HTTP route | `phctl k8s http-route create ID --name N --hostname H --backend B --port P [--tls]` |
 | TCP route | `phctl k8s tcp-route create ID --name N --port P --backend B --backend-port BP` |
+| UDP route | `phctl k8s udp-route create ID --name N --port P --backend B --backend-port BP` |
 | Connect VM | `phctl k8s cluster connect-vm ID --server S` |
+| List connected VMs | `phctl k8s cluster connected-vms ID` |
