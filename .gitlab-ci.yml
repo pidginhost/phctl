@@ -244,9 +244,22 @@ release:github:
         echo "Created GitHub release ${VERSION} (ID: ${RELEASE_ID})"
       fi
 
-      # Upload binaries
+      # Upload binaries (delete existing assets first to allow re-runs)
+      EXISTING_ASSETS=$(curl -s \
+        -H "Authorization: token ${GITHUB_TOKEN}" \
+        "https://api.github.com/repos/pidginhost/phctl/releases/${RELEASE_ID}/assets")
+
       for file in phctl-linux-amd64 phctl-linux-arm64 phctl-darwin-amd64 phctl-darwin-arm64 phctl-windows-amd64.exe phctl-windows-arm64.exe; do
         if [ -f "$file" ]; then
+          # Delete existing asset with the same name if present
+          ASSET_ID=$(echo "$EXISTING_ASSETS" | jq -r ".[] | select(.name == \"${file}\") | .id")
+          if [ -n "$ASSET_ID" ] && [ "$ASSET_ID" != "null" ]; then
+            echo "Replacing existing asset $file (ID: ${ASSET_ID})..."
+            curl -sf -X DELETE \
+              -H "Authorization: token ${GITHUB_TOKEN}" \
+              "https://api.github.com/repos/pidginhost/phctl/releases/assets/${ASSET_ID}"
+          fi
+
           echo "Uploading $file..."
           curl -sf -X POST \
             -H "Authorization: token ${GITHUB_TOKEN}" \
