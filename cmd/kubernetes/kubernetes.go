@@ -3,6 +3,7 @@ package kubernetes
 import (
 	"fmt"
 	"io"
+	"time"
 
 	pidginhost "github.com/pidginhost/sdk-go"
 	"github.com/spf13/cobra"
@@ -80,6 +81,8 @@ var (
 	clusterCreatePkg     string
 	clusterCreateSize    int32
 	clusterCreateVersion string
+	clusterCreateWait    bool
+	clusterCreateTimeout time.Duration
 )
 
 var clusterCreateCmd = &cobra.Command{
@@ -110,6 +113,14 @@ var clusterCreateCmd = &cobra.Command{
 			return fmt.Errorf("creating cluster: %w", err)
 		}
 		cmd.Printf("Cluster created (ID: %d)\n", resp.Id)
+
+		if clusterCreateWait {
+			id := fmt.Sprintf("%d", resp.Id)
+			if err := waitForCluster(cmd.Context(), id, clusterCreateTimeout, cmd); err != nil {
+				return err
+			}
+			cmd.Printf("Cluster %s is active.\n", id)
+		}
 		return nil
 	},
 }
@@ -120,6 +131,9 @@ var clusterDeleteCmd = &cobra.Command{
 	Short:   "Delete a cluster",
 	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if _, err := cmdutil.ParseInt32(args[0]); err != nil {
+			return err
+		}
 		if !cmdutil.Force(cmd) && !confirm.Action(cmd.InOrStdin(), cmd.ErrOrStderr(), fmt.Sprintf("Delete cluster %s?", args[0])) {
 			return nil
 		}
@@ -136,10 +150,20 @@ var clusterDeleteCmd = &cobra.Command{
 	},
 }
 
+var kubeconfigMerge bool
+
 var clusterKubeconfigCmd = &cobra.Command{
 	Use:   "kubeconfig <id>",
 	Short: "Get cluster kubeconfig",
-	Args:  cobra.ExactArgs(1),
+	Long: `Download the kubeconfig for a cluster.
+
+By default, prints the raw kubeconfig YAML to stdout so you can redirect it:
+  phctl k8s cluster kubeconfig 42 > ~/.kube/my-cluster.yaml
+
+With --merge, the kubeconfig is merged into your existing kubeconfig file
+(~/.kube/config or $KUBECONFIG) and the new context is set as current:
+  phctl k8s cluster kubeconfig 42 --merge`,
+	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c, err := newClient()
 		if err != nil {
@@ -149,11 +173,26 @@ var clusterKubeconfigCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("getting kubeconfig: %w", err)
 		}
+
+		if kubeconfigMerge {
+			path, err := mergeKubeconfig(resp)
+			if err != nil {
+				return fmt.Errorf("merging kubeconfig: %w", err)
+			}
+			cmd.Printf("Kubeconfig merged into %s and context set.\n", path)
+			return nil
+		}
+
 		return output.Print(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp, func(w io.Writer) {
 			fmt.Fprintln(w, resp)
 		})
 	},
 }
+
+var (
+	upgradeKubeWait    bool
+	upgradeKubeTimeout time.Duration
+)
 
 var clusterUpgradeKubeCmd = &cobra.Command{
 	Use:   "upgrade-kube <id>",
@@ -172,9 +211,21 @@ var clusterUpgradeKubeCmd = &cobra.Command{
 			return fmt.Errorf("upgrading kube version: %w", err)
 		}
 		cmd.Printf("Kubernetes upgrade initiated: %s\n", resp.Status)
+
+		if upgradeKubeWait {
+			if err := waitForCluster(cmd.Context(), args[0], upgradeKubeTimeout, cmd); err != nil {
+				return err
+			}
+			cmd.Printf("Cluster %s upgrade complete.\n", args[0])
+		}
 		return nil
 	},
 }
+
+var (
+	upgradeTalosWait    bool
+	upgradeTalosTimeout time.Duration
+)
 
 var clusterUpgradeTalosCmd = &cobra.Command{
 	Use:   "upgrade-talos <id>",
@@ -193,6 +244,13 @@ var clusterUpgradeTalosCmd = &cobra.Command{
 			return fmt.Errorf("upgrading talos version: %w", err)
 		}
 		cmd.Printf("Talos upgrade initiated: %s\n", resp.Status)
+
+		if upgradeTalosWait {
+			if err := waitForCluster(cmd.Context(), args[0], upgradeTalosTimeout, cmd); err != nil {
+				return err
+			}
+			cmd.Printf("Cluster %s upgrade complete.\n", args[0])
+		}
 		return nil
 	},
 }
@@ -342,8 +400,10 @@ var poolListCmd = &cobra.Command{
 }
 
 var (
-	poolCreatePkg  string
-	poolCreateSize int32
+	poolCreatePkg     string
+	poolCreateSize    int32
+	poolCreateWait    bool
+	poolCreateTimeout time.Duration
 )
 
 var poolCreateCmd = &cobra.Command{
@@ -365,6 +425,13 @@ var poolCreateCmd = &cobra.Command{
 			return fmt.Errorf("creating pool: %w", err)
 		}
 		cmd.Printf("Resource pool created (ID: %d)\n", resp.Id)
+
+		if poolCreateWait {
+			if err := waitForCluster(cmd.Context(), args[0], poolCreateTimeout, cmd); err != nil {
+				return err
+			}
+			cmd.Printf("Cluster %s is active.\n", args[0])
+		}
 		return nil
 	},
 }
@@ -377,6 +444,9 @@ var poolDeleteCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		clusterId, err := cmdutil.ParseInt32(args[0])
 		if err != nil {
+			return err
+		}
+		if _, err := cmdutil.ParseInt32(args[1]); err != nil {
 			return err
 		}
 		if !cmdutil.Force(cmd) && !confirm.Action(cmd.InOrStdin(), cmd.ErrOrStderr(), fmt.Sprintf("Delete resource pool %s from cluster %d?", args[1], clusterId)) {
@@ -456,6 +526,9 @@ var nodeDeleteCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		if _, err := cmdutil.ParseInt32(args[2]); err != nil {
+			return err
+		}
 		if !cmdutil.Force(cmd) && !confirm.Action(cmd.InOrStdin(), cmd.ErrOrStderr(), fmt.Sprintf("Delete node %s from pool %d?", args[2], poolId)) {
 			return nil
 		}
@@ -478,8 +551,18 @@ func init() {
 	clusterCreateCmd.Flags().StringVar(&clusterCreatePkg, "package", "", "Resource pool package (required)")
 	clusterCreateCmd.Flags().Int32Var(&clusterCreateSize, "pool-size", 0, "Resource pool size")
 	clusterCreateCmd.Flags().StringVar(&clusterCreateVersion, "kube-version", "", "Kubernetes version")
+	clusterCreateCmd.Flags().BoolVar(&clusterCreateWait, "wait", false, "Wait for the cluster to become active")
+	clusterCreateCmd.Flags().DurationVar(&clusterCreateTimeout, "wait-timeout", defaultWaitTimeout, "Timeout for --wait")
 	clusterCreateCmd.MarkFlagRequired("type")
 	clusterCreateCmd.MarkFlagRequired("package")
+
+	clusterKubeconfigCmd.Flags().BoolVar(&kubeconfigMerge, "merge", false, "Merge into existing kubeconfig (~/.kube/config or $KUBECONFIG)")
+
+	clusterUpgradeKubeCmd.Flags().BoolVar(&upgradeKubeWait, "wait", false, "Wait for the upgrade to complete")
+	clusterUpgradeKubeCmd.Flags().DurationVar(&upgradeKubeTimeout, "wait-timeout", defaultWaitTimeout, "Timeout for --wait")
+
+	clusterUpgradeTalosCmd.Flags().BoolVar(&upgradeTalosWait, "wait", false, "Wait for the upgrade to complete")
+	clusterUpgradeTalosCmd.Flags().DurationVar(&upgradeTalosTimeout, "wait-timeout", defaultWaitTimeout, "Timeout for --wait")
 
 	clusterConnectVMCmd.Flags().Int32Var(&connectVMServer, "server", 0, "Server ID to connect (required)")
 	clusterConnectVMCmd.MarkFlagRequired("server")
@@ -489,6 +572,8 @@ func init() {
 
 	poolCreateCmd.Flags().StringVar(&poolCreatePkg, "package", "", "Package slug (required)")
 	poolCreateCmd.Flags().Int32Var(&poolCreateSize, "size", 0, "Pool size (required)")
+	poolCreateCmd.Flags().BoolVar(&poolCreateWait, "wait", false, "Wait for the cluster to become active after pool creation")
+	poolCreateCmd.Flags().DurationVar(&poolCreateTimeout, "wait-timeout", defaultWaitTimeout, "Timeout for --wait")
 	poolCreateCmd.MarkFlagRequired("package")
 	poolCreateCmd.MarkFlagRequired("size")
 

@@ -50,6 +50,7 @@ func TestDomainRenewFlags(t *testing.T) {
 	years := domainRenewCmd.Flags().Lookup("years")
 	if years == nil {
 		t.Fatal("missing --years flag on renew")
+		return
 	}
 	if years.DefValue != "1" {
 		t.Errorf("renew --years default = %q, want %q", years.DefValue, "1")

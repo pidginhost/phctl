@@ -114,6 +114,9 @@ var httpRouteDeleteCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		if _, err := cmdutil.ParseInt32(args[1]); err != nil {
+			return err
+		}
 		if !cmdutil.Force(cmd) && !confirm.Action(cmd.InOrStdin(), cmd.ErrOrStderr(), fmt.Sprintf("Delete HTTP route %s?", args[1])) {
 			return nil
 		}
@@ -225,6 +228,9 @@ var tcpRouteDeleteCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		if _, err := cmdutil.ParseInt32(args[1]); err != nil {
+			return err
+		}
 		if !cmdutil.Force(cmd) && !confirm.Action(cmd.InOrStdin(), cmd.ErrOrStderr(), fmt.Sprintf("Delete TCP route %s?", args[1])) {
 			return nil
 		}
@@ -334,6 +340,9 @@ var udpRouteDeleteCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		id, err := cmdutil.ParseInt32(args[0])
 		if err != nil {
+			return err
+		}
+		if _, err := cmdutil.ParseInt32(args[1]); err != nil {
 			return err
 		}
 		if !cmdutil.Force(cmd) && !confirm.Action(cmd.InOrStdin(), cmd.ErrOrStderr(), fmt.Sprintf("Delete UDP route %s?", args[1])) {

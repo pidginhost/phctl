@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 
@@ -60,6 +61,10 @@ func RawGet(ctx context.Context, path string, dst interface{}) error {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		if len(body) > 0 {
+			return fmt.Errorf("HTTP %d from %s: %s", resp.StatusCode, path, body)
+		}
 		return fmt.Errorf("HTTP %d from %s", resp.StatusCode, path)
 	}
 	return json.NewDecoder(resp.Body).Decode(dst)

@@ -22,6 +22,7 @@ func TestRootPersistentFlags(t *testing.T) {
 	output := rootCmd.PersistentFlags().Lookup("output")
 	if output == nil {
 		t.Fatal("output flag not registered")
+		return
 	}
 	if output.Shorthand != "o" {
 		t.Errorf("output shorthand = %q, want %q", output.Shorthand, "o")
@@ -30,6 +31,7 @@ func TestRootPersistentFlags(t *testing.T) {
 	force := rootCmd.PersistentFlags().Lookup("force")
 	if force == nil {
 		t.Fatal("force flag not registered")
+		return
 	}
 	if force.Shorthand != "f" {
 		t.Errorf("force shorthand = %q, want %q", force.Shorthand, "f")

@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.6.0
+
+### Added
+
+- **`--wait` / `--wait-timeout` for async Kubernetes operations**: `cluster create`, `cluster upgrade-kube`, `cluster upgrade-talos`, and `pool create` now support `--wait` to block until the cluster reaches active state, with a configurable `--wait-timeout` (default 10m). Ideal for CI/CD pipelines
+- **`--merge` flag for kubeconfig**: `cluster kubeconfig --merge` upserts cluster, context, and user entries into the existing kubeconfig file (`~/.kube/config` or `$KUBECONFIG`), sets the new context as current, and preserves all existing top-level fields including extensions
+- **Decimal type**: replaced raw `json.Number` fields with a purpose-built `Decimal` type that accepts both JSON strings and numbers on unmarshal, emits bare JSON numbers on marshal, and preserves exact precision in YAML output (e.g. `42.50` stays `42.50`)
+- **Kubernetes deployment guide**: `docs/kubernetes-guide.md` with end-to-end walkthrough covering cluster creation, kubeconfig, app deployment, HTTP/TCP/UDP routes, resource pools, VM connectivity, upgrades, teardown, and a CI/CD script example
+
+### Fixed
+
+- **Inconsistent ID validation**: `cluster delete`, `pool delete`, `node delete`, and all route delete commands now validate numeric IDs client-side before making API calls, matching the pattern already used by list and create commands
+- **Opaque API error messages**: `RawGet` now reads up to 512 bytes of the HTTP error response body, surfacing server error details instead of just the status code
+- **Missing route test coverage**: added tests for `http-route`, `tcp-route`, and `udp-route` subcommand registration and flag presence
+
+### Changed
+
+- **golangci-lint**: CI updated from v2.9.0 to v2.11.4
+
 ## v0.5.0
 
 ### Added
