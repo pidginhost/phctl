@@ -97,6 +97,10 @@ var clusterCreateCmd = &cobra.Command{
 			pidginhost.ClusterTypeEnum(clusterCreateType),
 			clusterCreatePkg,
 		)
+		// Clear the SDK's hardcoded kube_version default so the API
+		// picks its own current default. The SDK default goes stale
+		// whenever new Kubernetes versions are released.
+		body.KubeVersion = nil
 		if clusterCreateName != "" {
 			body.Name = pidginhost.PtrString(clusterCreateName)
 		}
