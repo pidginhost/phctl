@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.6.1
+
+### Fixed
+
+- **`server list` / `server get` crash**: updated sdk-go from v0.3.0 to v0.4.0 to include the `Server.generation` field now returned by the API
+
 ## v0.6.0
 
 ### Added
