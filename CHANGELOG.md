@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.6.2
+
+### Fixed
+
+- **Silent API failures**: updated sdk-go from v0.4.0 to v0.4.1 — removes `DisallowUnknownFields` from all model deserialization, fixing silent failures when the API returns new fields
+
 ## v0.6.1
 
 ### Fixed
