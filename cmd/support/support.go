@@ -225,7 +225,8 @@ func runTicketReopen(cmd *cobra.Command, args []string) error {
 func newRootTicketCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "ticket",
-		Short: "Manage support tickets",
+		Short: "Shortcut for 'support ticket'",
+		Long:  "Equivalent to 'phctl support ticket'. Provided as a top-level shortcut for the most common support workflows.",
 		Args:  cobra.NoArgs,
 	}
 	cmd.AddCommand(newTicketListAliasCmd())
