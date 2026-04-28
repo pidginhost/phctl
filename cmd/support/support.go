@@ -14,7 +14,8 @@ import (
 
 var Cmd = &cobra.Command{
 	Use:   "support",
-	Short: "Manage support tickets",
+	Short: "Manage support tickets and departments",
+	Long:  "Manage customer support resources, including tickets (open, reply, close) and the list of available departments.",
 	Args:  cobra.NoArgs,
 }
 
