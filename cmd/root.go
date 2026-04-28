@@ -29,6 +29,12 @@ var rootCmd = &cobra.Command{
 	Long:          "phctl is a CLI for managing PidginHost cloud resources.",
 	SilenceErrors: true,
 	SilenceUsage:  true,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if len(args) > 0 {
+			return fmt.Errorf("unknown command %q for %q", args[0], cmd.CommandPath())
+		}
+		return cmd.Help()
+	},
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		return validateOutputFlag(cmd)
 	},
@@ -73,7 +79,6 @@ func init() {
 	rootCmd.AddCommand(freedns.Cmd)
 	rootCmd.AddCommand(hosting.Cmd)
 	rootCmd.AddCommand(support.Cmd)
-	rootCmd.AddCommand(support.TicketCmd)
 	rootCmd.AddCommand(update.Cmd)
 	rootCmd.AddCommand(update.CheckCmd)
 

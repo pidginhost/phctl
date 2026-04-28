@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"bytes"
+	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -44,7 +46,7 @@ func TestRootSubcommands(t *testing.T) {
 		names[c.Name()] = true
 	}
 
-	for _, want := range []string{"auth", "compute", "account", "domain", "kubernetes", "billing", "dedicated", "freedns", "hosting", "support", "ticket", "update"} {
+	for _, want := range []string{"auth", "compute", "account", "domain", "kubernetes", "billing", "dedicated", "freedns", "hosting", "support", "update"} {
 		if !names[want] {
 			t.Errorf("missing subcommand %q", want)
 		}
@@ -52,22 +54,34 @@ func TestRootSubcommands(t *testing.T) {
 }
 
 func TestTicketCommandRoutes(t *testing.T) {
-	tests := []struct {
-		args []string
-		want string
-	}{
-		{args: []string{"ticket", "list"}, want: "phctl ticket list"},
-		{args: []string{"support", "ticket", "list"}, want: "phctl support ticket list"},
+	cmd, _, err := rootCmd.Find([]string{"support", "ticket", "list"})
+	if err != nil {
+		t.Fatalf("Find error: %v", err)
 	}
+	if got, want := cmd.CommandPath(), "phctl support ticket list"; got != want {
+		t.Fatalf("command path = %q, want %q", got, want)
+	}
+}
 
-	for _, tt := range tests {
-		cmd, _, err := rootCmd.Find(tt.args)
-		if err != nil {
-			t.Fatalf("Find(%v) error: %v", tt.args, err)
-		}
-		if got := cmd.CommandPath(); got != tt.want {
-			t.Fatalf("Find(%v) command path = %q, want %q", tt.args, got, tt.want)
-		}
+func TestRootRejectsUnknownCommand(t *testing.T) {
+	t.Setenv("PHCTL_NO_UPDATE_CHECK", "1")
+
+	var buf bytes.Buffer
+	rootCmd.SetOut(&buf)
+	rootCmd.SetErr(&buf)
+	rootCmd.SetArgs([]string{"nonexistent"})
+	t.Cleanup(func() {
+		rootCmd.SetArgs(nil)
+		rootCmd.SetOut(nil)
+		rootCmd.SetErr(nil)
+	})
+
+	err := rootCmd.Execute()
+	if err == nil {
+		t.Fatal("expected error for unknown command, got nil")
+	}
+	if !strings.Contains(err.Error(), "unknown command") {
+		t.Errorf("error = %q, want it to contain %q", err.Error(), "unknown command")
 	}
 }
 

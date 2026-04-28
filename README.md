@@ -75,7 +75,7 @@ phctl <resource> <command> [flags]
 | `phctl dedicated` | `ded` | Dedicated servers |
 | `phctl freedns` | `fdns` | FreeDNS domains and records |
 | `phctl hosting` | `host` | Web hosting services |
-| `phctl support` | `ticket` | Support tickets |
+| `phctl support` | | Support tickets and departments |
 | `phctl update` | | Self-update to latest version |
 
 ### Examples
@@ -113,7 +113,7 @@ phctl compute server delete 123 -f
 
 - `kubernetes` → `k8s`, `compute` → `c`, `domain` → `dns`
 - `billing` → `bill`, `dedicated` → `ded`, `freedns` → `fdns`
-- `hosting` → `host`, `support` → `ticket`
+- `hosting` → `host`
 - `delete` → `rm` or `destroy`
 
 ## Building

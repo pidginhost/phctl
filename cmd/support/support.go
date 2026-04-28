@@ -19,8 +19,6 @@ var Cmd = &cobra.Command{
 	Args:  cobra.NoArgs,
 }
 
-var TicketCmd = newRootTicketCmd()
-
 // --- Departments ---
 
 var departmentCmd = &cobra.Command{
@@ -222,97 +220,16 @@ func runTicketReopen(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func newRootTicketCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "ticket",
-		Short: "Shortcut for 'support ticket'",
-		Long:  "Equivalent to 'phctl support ticket'. Provided as a top-level shortcut for the most common support workflows.",
-		Args:  cobra.NoArgs,
-	}
-	cmd.AddCommand(newTicketListAliasCmd())
-	cmd.AddCommand(newTicketGetAliasCmd())
-	cmd.AddCommand(newTicketCreateAliasCmd())
-	cmd.AddCommand(newTicketReplyAliasCmd())
-	cmd.AddCommand(newTicketCloseAliasCmd())
-	cmd.AddCommand(newTicketReopenAliasCmd())
-	return cmd
-}
-
-func newTicketListAliasCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "list",
-		Short: "List all tickets",
-		Args:  cobra.NoArgs,
-		RunE:  runTicketList,
-	}
-}
-
-func newTicketGetAliasCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "get <id>",
-		Short: "Get ticket details",
-		Args:  cobra.ExactArgs(1),
-		RunE:  runTicketGet,
-	}
-}
-
-func newTicketCreateAliasCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "create",
-		Short: "Create a support ticket",
-		Args:  cobra.NoArgs,
-		RunE:  runTicketCreate,
-	}
-	addTicketCreateFlags(cmd)
-	return cmd
-}
-
-func newTicketReplyAliasCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "reply <id>",
-		Short: "Reply to a ticket",
-		Args:  cobra.ExactArgs(1),
-		RunE:  runTicketReply,
-	}
-	addTicketReplyFlags(cmd)
-	return cmd
-}
-
-func newTicketCloseAliasCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "close <id>",
-		Short: "Close a ticket",
-		Args:  cobra.ExactArgs(1),
-		RunE:  runTicketClose,
-	}
-}
-
-func newTicketReopenAliasCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "reopen <id>",
-		Short: "Reopen a ticket",
-		Args:  cobra.ExactArgs(1),
-		RunE:  runTicketReopen,
-	}
-}
-
-func addTicketCreateFlags(cmd *cobra.Command) {
-	cmd.Flags().StringVar(&ticketCreateSubject, "subject", "", "Ticket subject (required)")
-	cmd.Flags().Int32Var(&ticketCreateDept, "department", 0, "Department ID (required)")
-	cmd.Flags().StringVar(&ticketCreateMessage, "message", "", "Initial message (required)")
-	cmd.MarkFlagRequired("subject")
-	cmd.MarkFlagRequired("department")
-	cmd.MarkFlagRequired("message")
-}
-
-func addTicketReplyFlags(cmd *cobra.Command) {
-	cmd.Flags().StringVar(&ticketReplyMessage, "message", "", "Reply message (required)")
-	cmd.MarkFlagRequired("message")
-}
-
 func init() {
-	addTicketCreateFlags(ticketCreateCmd)
-	addTicketReplyFlags(ticketReplyCmd)
+	ticketCreateCmd.Flags().StringVar(&ticketCreateSubject, "subject", "", "Ticket subject (required)")
+	ticketCreateCmd.Flags().Int32Var(&ticketCreateDept, "department", 0, "Department ID (required)")
+	ticketCreateCmd.Flags().StringVar(&ticketCreateMessage, "message", "", "Initial message (required)")
+	ticketCreateCmd.MarkFlagRequired("subject")
+	ticketCreateCmd.MarkFlagRequired("department")
+	ticketCreateCmd.MarkFlagRequired("message")
+
+	ticketReplyCmd.Flags().StringVar(&ticketReplyMessage, "message", "", "Reply message (required)")
+	ticketReplyCmd.MarkFlagRequired("message")
 
 	departmentCmd.AddCommand(departmentListCmd)
 
