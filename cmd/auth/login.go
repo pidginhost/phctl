@@ -153,10 +153,20 @@ func browserLogin(cmd *cobra.Command) error {
 			body, _ := io.ReadAll(io.LimitReader(pollResp.Body, 1024))
 			pollResp.Body.Close()
 			msg := strings.TrimSpace(string(body))
-			if msg == "" {
-				return fmt.Errorf("polling login status: unexpected status %d", pollResp.StatusCode)
+			statusErr := fmt.Errorf("polling login status: unexpected status %d", pollResp.StatusCode)
+			if msg != "" {
+				statusErr = fmt.Errorf("polling login status: unexpected status %d: %s", pollResp.StatusCode, msg)
 			}
-			return fmt.Errorf("polling login status: unexpected status %d: %s", pollResp.StatusCode, msg)
+			// 5xx is treated as transient and counts toward the retry budget.
+			// 4xx is treated as a hard failure (auth/config problem).
+			if pollResp.StatusCode >= 500 {
+				consecutiveErrors++
+				if consecutiveErrors >= maxPollErrors {
+					return fmt.Errorf("polling login status after %d retries: %w", consecutiveErrors, statusErr)
+				}
+				continue
+			}
+			return statusErr
 		}
 
 		var poll cliSessionPollResponse

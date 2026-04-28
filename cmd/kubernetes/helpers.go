@@ -12,7 +12,11 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/pidginhost/phctl/internal/client"
+	"github.com/pidginhost/phctl/internal/cmdutil"
 )
+
+// writeAtomic is a seam so tests can simulate atomic-write failures.
+var writeAtomic = cmdutil.WriteAtomic
 
 var newClient = client.New
 
@@ -113,7 +117,7 @@ func mergeKubeconfig(rawYAML string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if err := os.WriteFile(kubePath, data, 0600); err != nil {
+	if err := writeAtomic(kubePath, data, 0600); err != nil {
 		return "", err
 	}
 	return kubePath, nil

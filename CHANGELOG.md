@@ -1,5 +1,28 @@
 # Changelog
 
+## v0.7.0
+
+### Security
+
+- **Self-update integrity verification**: `phctl update` now downloads the release's `checksums.txt` asset and verifies the SHA-256 of the downloaded binary before applying it. Releases without `checksums.txt` are rejected so a tampered or partial download cannot replace the running binary
+- **`auth set` no longer takes the token as a positional argument** (BREAKING): the token is read from stdin (`echo "$TOKEN" | phctl auth set`) so it cannot leak via `ps`, `/proc/<pid>/cmdline`, or shell history
+
+### Added
+
+- **Atomic writes for `config.yaml` and merged kubeconfig**: both files are now written via temp-file + rename via the new `cmdutil.WriteAtomic` helper, so a crash or a concurrent save can't leave a half-written file at the destination
+
+### Changed
+
+- **Go version**: bumped minimum from 1.25 to 1.26; CI images updated accordingly
+- **Dependency updates**: sdk-go v0.4.1 → v0.5.0, x/sys v0.42.0 → v0.43.0, x/term v0.41.0 → v0.42.0
+- **GitHub API requests**: `phctl update` now sends a `phctl/<version>` `User-Agent` header on both the release-metadata and asset-download calls
+
+### Fixed
+
+- **`update` claimed "Already up to date" for development builds**: when `version` is unparseable (empty, "dev", commit SHA, etc.), the command now prints "Running a development build" and refuses to overwrite the binary
+- **`auth login` aborted on a single transient 5xx**: the poll now treats 5xx as retryable up to the existing 3-error budget; 4xx still fails fast
+- **Unbounded pagination loops**: `cmdutil.FetchAll` and `internal/client.RawFetchAll` now error out after 10000 pages instead of looping forever if the API never signals the last page
+
 ## v0.6.2
 
 ### Fixed

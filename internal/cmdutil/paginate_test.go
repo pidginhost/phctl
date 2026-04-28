@@ -63,3 +63,20 @@ func TestFetchAll_Error(t *testing.T) {
 		t.Fatal("expected error, got nil")
 	}
 }
+
+func TestFetchAll_RunawayPaginationCapped(t *testing.T) {
+	calls := 0
+	_, err := FetchAll(func(page int32) ([]string, bool, error) {
+		calls++
+		return []string{"x"}, true, nil
+	})
+	if err == nil {
+		t.Fatal("expected error when fetcher never reports last page, got nil")
+	}
+	if calls > MaxPages {
+		t.Errorf("fetcher called %d times, must stop at MaxPages=%d", calls, MaxPages)
+	}
+	if calls != MaxPages {
+		t.Errorf("fetcher called %d times, want exactly MaxPages=%d", calls, MaxPages)
+	}
+}

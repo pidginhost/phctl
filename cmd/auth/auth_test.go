@@ -3,6 +3,7 @@ package auth
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -44,24 +45,45 @@ func TestAuthSubcommands(t *testing.T) {
 	}
 }
 
-func TestSetCmd(t *testing.T) {
+func TestSetCmdReadsFromStdin(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)
 	t.Setenv("PIDGINHOST_API_TOKEN", "")
 	t.Setenv("PIDGINHOST_API_URL", "")
 
-	err := setCmd.RunE(setCmd, []string{"my-test-token"})
-	if err != nil {
+	setCmd.SetIn(strings.NewReader("my-test-token\n"))
+	t.Cleanup(func() { setCmd.SetIn(nil) })
+
+	if err := setCmd.RunE(setCmd, nil); err != nil {
 		t.Fatalf("set RunE error: %v", err)
 	}
 
-	// Verify token was saved
 	data, err := os.ReadFile(filepath.Join(tmp, ".config", "phctl", "config.yaml"))
 	if err != nil {
 		t.Fatalf("read config: %v", err)
 	}
 	if !contains(string(data), "my-test-token") {
 		t.Errorf("config file should contain token, got: %s", data)
+	}
+}
+
+func TestSetCmdRejectsPositionalArg(t *testing.T) {
+	if err := setCmd.Args(setCmd, []string{"my-token"}); err == nil {
+		t.Error("set must not accept positional token args (would leak via ps and /proc/<pid>/cmdline)")
+	}
+}
+
+func TestSetCmdRejectsEmptyStdin(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+	t.Setenv("PIDGINHOST_API_TOKEN", "")
+	t.Setenv("PIDGINHOST_API_URL", "")
+
+	setCmd.SetIn(strings.NewReader("   \n"))
+	t.Cleanup(func() { setCmd.SetIn(nil) })
+
+	if err := setCmd.RunE(setCmd, nil); err == nil {
+		t.Error("set should error on empty/whitespace stdin")
 	}
 }
 

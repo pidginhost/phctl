@@ -14,7 +14,11 @@ var version string
 
 func SetVersion(v string) {
 	version = v
+	iupdate.SetVersion(v)
 }
+
+// latestRelease is a package-level seam so tests can stub the GitHub call.
+var latestRelease = iupdate.LatestRelease
 
 var Cmd = &cobra.Command{
 	Use:   "update",
@@ -26,11 +30,17 @@ var Cmd = &cobra.Command{
 		}
 
 		cmd.Println("Checking for updates...")
-		rel, err := iupdate.LatestRelease(iupdate.UpdateTimeout)
+		rel, err := latestRelease(iupdate.UpdateTimeout)
 		if err != nil {
 			return fmt.Errorf("checking for updates: %w", err)
 		}
 		_ = iupdate.RecordCheck()
+
+		if iupdate.IsDevBuild(version) {
+			cmd.Printf("Running a development build (version=%q); latest release is %s.\n", version, rel.TagName)
+			cmd.Println("Refusing to overwrite a non-release binary. Install a tagged release if you want auto-updates.")
+			return nil
+		}
 
 		if !iupdate.IsNewer(version, rel.TagName) {
 			cmd.Printf("Already up to date (%s).\n", version)

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -66,6 +67,67 @@ func TestBrowserLoginReturnsPollStatusErrors(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "upstream failed") {
 		t.Fatalf("browserLogin() error = %q, want response body", err)
+	}
+}
+
+func TestBrowserLoginRetriesTransient5xx(t *testing.T) {
+	var pollCalls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/auth/cli-session/":
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(cliSessionCreateResponse{
+				SessionID:       "session-123",
+				VerificationURL: "https://example.test/verify",
+			})
+		case "/api/auth/cli-session/session-123/":
+			n := pollCalls.Add(1)
+			if n == 1 {
+				http.Error(w, "upstream busy", http.StatusBadGateway)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(cliSessionPollResponse{
+				Status:   "approved",
+				TokenKey: "secret-token",
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	oldClient := newLoginClient
+	oldOpen := openBrowserFunc
+	oldInterval := loginPollInterval
+	oldTimeout := loginWaitTimeout
+	t.Cleanup(func() {
+		newLoginClient = oldClient
+		openBrowserFunc = oldOpen
+		loginPollInterval = oldInterval
+		loginWaitTimeout = oldTimeout
+	})
+
+	newLoginClient = func() *http.Client { return server.Client() }
+	openBrowserFunc = func(string) error { return nil }
+	loginPollInterval = 0
+	loginWaitTimeout = 5 * time.Second
+
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+	t.Setenv("PIDGINHOST_API_TOKEN", "")
+	t.Setenv("PIDGINHOST_API_URL", server.URL)
+
+	cmd := &cobra.Command{Use: "login"}
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+
+	if err := browserLogin(cmd); err != nil {
+		t.Fatalf("browserLogin() error = %v, want success after transient 502", err)
+	}
+	if pollCalls.Load() < 2 {
+		t.Errorf("expected at least 2 poll calls (1 retry), got %d", pollCalls.Load())
 	}
 }
 

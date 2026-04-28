@@ -1,6 +1,8 @@
 package kubernetes
 
 import (
+	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -248,6 +250,58 @@ current-context: ""
 	cluster := clusters[0]["cluster"].(map[string]interface{})
 	if cluster["server"] != "https://updated.example.com" {
 		t.Errorf("server = %v, want https://updated.example.com", cluster["server"])
+	}
+}
+
+func TestMergeKubeconfigPreservesExistingOnWriteFailure(t *testing.T) {
+	tmp := t.TempDir()
+	kubePath := filepath.Join(tmp, "config")
+	t.Setenv("KUBECONFIG", kubePath)
+
+	existing := `apiVersion: v1
+kind: Config
+clusters:
+- cluster:
+    server: https://old.example.com
+  name: old-cluster
+contexts: []
+users: []
+current-context: ""
+`
+	if err := os.WriteFile(kubePath, []byte(existing), 0600); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	before, err := os.ReadFile(kubePath)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+
+	old := writeAtomic
+	writeAtomic = func(string, []byte, os.FileMode) error {
+		return errors.New("simulated atomic write failure")
+	}
+	t.Cleanup(func() { writeAtomic = old })
+
+	incoming := `apiVersion: v1
+kind: Config
+clusters:
+- cluster:
+    server: https://new.example.com
+  name: new-cluster
+contexts: []
+users: []
+current-context: ""
+`
+	if _, err := mergeKubeconfig(incoming); err == nil {
+		t.Fatal("expected error when atomic write fails")
+	}
+
+	after, err := os.ReadFile(kubePath)
+	if err != nil {
+		t.Fatalf("ReadFile after: %v", err)
+	}
+	if !bytes.Equal(before, after) {
+		t.Errorf("kubeconfig was modified despite write failure\nbefore: %s\nafter:  %s", before, after)
 	}
 }
 

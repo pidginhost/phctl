@@ -8,7 +8,10 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
+
+	"github.com/pidginhost/phctl/internal/cmdutil"
 )
 
 func TestNewNoToken(t *testing.T) {
@@ -227,6 +230,35 @@ func TestRawFetchAllNoToken(t *testing.T) {
 	_, err := RawFetchAll[RawDeposit](context.Background(), "/api/billing/deposits/")
 	if err == nil {
 		t.Fatal("expected error when no token configured")
+	}
+}
+
+func TestRawFetchAllRunawayCapped(t *testing.T) {
+	var calls atomic.Int64
+	next := "always"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(PaginatedResponse[RawDeposit]{
+			Count:   999999,
+			Results: []RawDeposit{{Id: 1}},
+			Next:    &next,
+		})
+	}))
+	defer server.Close()
+
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+	t.Setenv("PIDGINHOST_API_TOKEN", "test-token")
+	t.Setenv("PIDGINHOST_API_URL", server.URL)
+	withHTTPClient(t, server.Client())
+
+	_, err := RawFetchAll[RawDeposit](context.Background(), "/api/billing/deposits/")
+	if err == nil {
+		t.Fatal("expected error when server never returns nil Next, got nil")
+	}
+	if got := calls.Load(); got > int64(cmdutil.MaxPages) {
+		t.Errorf("server called %d times, must cap at MaxPages=%d", got, cmdutil.MaxPages)
 	}
 }
 

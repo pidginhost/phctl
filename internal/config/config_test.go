@@ -1,6 +1,8 @@
 package config
 
 import (
+	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -229,6 +231,40 @@ func TestSavePreservesExistingValues(t *testing.T) {
 	}
 	if cfg.AuthToken != "second-token" {
 		t.Errorf("AuthToken = %q, want %q", cfg.AuthToken, "second-token")
+	}
+}
+
+func TestSaveAtomic_PreservesExistingOnFailure(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+	t.Setenv("PIDGINHOST_API_TOKEN", "")
+	t.Setenv("PIDGINHOST_API_URL", "")
+
+	if err := Save(&Config{AuthToken: "original"}); err != nil {
+		t.Fatalf("seed Save: %v", err)
+	}
+	path, _ := Path()
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+
+	old := writeAtomic
+	writeAtomic = func(string, []byte, os.FileMode) error {
+		return errors.New("simulated atomic write failure")
+	}
+	t.Cleanup(func() { writeAtomic = old })
+
+	if err := Save(&Config{AuthToken: "would-overwrite"}); err == nil {
+		t.Fatal("expected error when atomic write fails")
+	}
+
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile after: %v", err)
+	}
+	if !bytes.Equal(before, after) {
+		t.Errorf("config was modified despite save failure\nbefore: %s\nafter:  %s", before, after)
 	}
 }
 

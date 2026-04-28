@@ -74,7 +74,7 @@ func RawGet(ctx context.Context, path string, dst interface{}) error {
 // bypassing SDK type mismatches (e.g. decimal strings vs float64).
 func RawFetchAll[T any](ctx context.Context, path string) ([]T, error) {
 	var all []T
-	for page := int32(1); ; page++ {
+	for page := int32(1); page <= cmdutil.MaxPages; page++ {
 		pagePath := fmt.Sprintf("%s?page=%d", path, page)
 		var resp PaginatedResponse[T]
 		if err := RawGet(ctx, pagePath, &resp); err != nil {
@@ -82,8 +82,8 @@ func RawFetchAll[T any](ctx context.Context, path string) ([]T, error) {
 		}
 		all = append(all, resp.Results...)
 		if resp.Next == nil {
-			break
+			return all, nil
 		}
 	}
-	return all, nil
+	return nil, fmt.Errorf("pagination exceeded %d pages for %s; aborting to avoid runaway loop", cmdutil.MaxPages, path)
 }

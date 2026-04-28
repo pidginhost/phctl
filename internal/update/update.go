@@ -1,6 +1,8 @@
 package update
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,6 +19,8 @@ import (
 	"github.com/pidginhost/phctl/internal/config"
 )
 
+const checksumsAssetName = "checksums.txt"
+
 const (
 	repoAPIURL    = "https://api.github.com/repos/pidginhost/phctl"
 	backgroundCmd = "__update-check"
@@ -30,9 +34,23 @@ var (
 	newHTTPClient    = func(timeout time.Duration) *http.Client {
 		return &http.Client{Timeout: timeout}
 	}
-	execPathFunc = execPath
-	execCommand  = exec.Command
+	execPathFunc  = execPath
+	execCommand   = exec.Command
+	clientVersion = "dev"
 )
+
+// SetVersion records the running phctl version so update HTTP requests can
+// include a meaningful User-Agent. Safe to call once during initialization.
+func SetVersion(v string) {
+	if v == "" {
+		v = "dev"
+	}
+	clientVersion = v
+}
+
+func userAgent() string {
+	return "phctl/" + clientVersion
+}
 
 var ErrSelfUpdateUnsupported = errors.New("self-update is not supported on Windows; download the latest phctl release manually")
 
@@ -109,7 +127,13 @@ func RecordCheck() error {
 // LatestRelease fetches the most recent release from the GitHub API.
 func LatestRelease(timeout time.Duration) (*Release, error) {
 	client := newHTTPClient(timeout)
-	resp, err := client.Get(latestReleaseURL)
+	req, err := http.NewRequest(http.MethodGet, latestReleaseURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", userAgent())
+	req.Header.Set("Accept", "application/vnd.github+json")
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -122,6 +146,14 @@ func LatestRelease(timeout time.Duration) (*Release, error) {
 		return nil, err
 	}
 	return &rel, nil
+}
+
+// IsDevBuild reports whether the current version string is unparseable as
+// a semver (empty, "dev", a commit SHA, etc.). Such builds did not come
+// from a tagged release and the self-update path should not pretend they
+// are "up to date" relative to the latest GitHub release.
+func IsDevBuild(current string) bool {
+	return parseVersion(current) == nil
 }
 
 // IsNewer reports whether latest is a newer semver than current.
@@ -160,23 +192,53 @@ func parseVersion(v string) []int {
 	return nums
 }
 
-// DownloadAsset downloads the release asset matching the current OS/arch
-// and returns the path to the temporary file.
+// DownloadAsset downloads the release asset matching the current OS/arch,
+// verifies its SHA-256 against the release's checksums.txt asset, and returns
+// the path to the temporary file. A missing or mismatched checksum aborts the
+// update so a tampered or partial download cannot replace the running binary.
 func DownloadAsset(rel *Release) (string, error) {
 	want := assetName()
-	var downloadURL string
+	var downloadURL, checksumsURL string
 	for _, a := range rel.Assets {
-		if a.Name == want {
+		switch a.Name {
+		case want:
 			downloadURL = a.BrowserDownloadURL
-			break
+		case checksumsAssetName:
+			checksumsURL = a.BrowserDownloadURL
 		}
 	}
 	if downloadURL == "" {
 		return "", fmt.Errorf("no asset found for %s (check release %s has a matching binary)", want, rel.TagName)
 	}
+	if checksumsURL == "" {
+		return "", fmt.Errorf("release %s is missing a %s asset; refusing to install an unverified binary", rel.TagName, checksumsAssetName)
+	}
 
+	expectedSum, err := fetchExpectedChecksum(checksumsURL, want)
+	if err != nil {
+		return "", err
+	}
+
+	tmpPath, err := downloadToTempFile(downloadURL)
+	if err != nil {
+		return "", err
+	}
+
+	if err := verifyChecksum(tmpPath, expectedSum); err != nil {
+		_ = os.Remove(tmpPath)
+		return "", err
+	}
+	return tmpPath, nil
+}
+
+func downloadToTempFile(url string) (string, error) {
 	client := newHTTPClient(UpdateTimeout)
-	resp, err := client.Get(downloadURL)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return "", fmt.Errorf("preparing download request: %w", err)
+	}
+	req.Header.Set("User-Agent", userAgent())
+	resp, err := client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("downloading asset: %w", err)
 	}
@@ -189,12 +251,10 @@ func DownloadAsset(rel *Release) (string, error) {
 	if err != nil {
 		return "", err
 	}
-
 	tmp, err := os.CreateTemp(filepath.Dir(exe), "phctl-update-*")
 	if err != nil {
 		return "", fmt.Errorf("creating temp file: %w", err)
 	}
-
 	if _, err := io.Copy(tmp, resp.Body); err != nil {
 		_ = tmp.Close()
 		_ = os.Remove(tmp.Name())
@@ -210,6 +270,71 @@ func DownloadAsset(rel *Release) (string, error) {
 		return "", fmt.Errorf("closing temp file: %w", err)
 	}
 	return tmp.Name(), nil
+}
+
+// fetchExpectedChecksum downloads the checksums.txt asset and returns the
+// hex-encoded SHA-256 entry for assetName. Lines look like:
+//
+//	abcd...  phctl-linux-amd64
+//
+// Comments (#...) and blank lines are skipped. Filenames may have a leading
+// '*' (binary mode) which we strip.
+func fetchExpectedChecksum(url, asset string) (string, error) {
+	client := newHTTPClient(UpdateTimeout)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return "", fmt.Errorf("preparing checksums request: %w", err)
+	}
+	req.Header.Set("User-Agent", userAgent())
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("downloading checksums: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("checksums download returned status %d", resp.StatusCode)
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
+	if err != nil {
+		return "", fmt.Errorf("reading checksums: %w", err)
+	}
+
+	for _, line := range strings.Split(string(body), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+		name := strings.TrimPrefix(fields[len(fields)-1], "*")
+		if name == asset {
+			return strings.ToLower(fields[0]), nil
+		}
+	}
+	return "", fmt.Errorf("no checksum entry for %s in checksums.txt", asset)
+}
+
+func verifyChecksum(path, expected string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return fmt.Errorf("opening downloaded asset for hashing: %w", err)
+	}
+	h := sha256.New()
+	_, copyErr := io.Copy(h, f)
+	closeErr := f.Close()
+	if copyErr != nil {
+		return fmt.Errorf("hashing downloaded asset: %w", copyErr)
+	}
+	if closeErr != nil {
+		return fmt.Errorf("closing downloaded asset after hashing: %w", closeErr)
+	}
+	got := hex.EncodeToString(h.Sum(nil))
+	if !strings.EqualFold(got, expected) {
+		return fmt.Errorf("checksum mismatch: expected %s, got %s", expected, got)
+	}
+	return nil
 }
 
 // Apply replaces the running binary with the file at tmpPath.

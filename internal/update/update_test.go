@@ -1,8 +1,11 @@
 package update
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -13,6 +16,42 @@ import (
 	"testing"
 	"time"
 )
+
+const testBinaryPayload = "new-binary"
+
+func testBinarySum() string {
+	h := sha256.Sum256([]byte(testBinaryPayload))
+	return hex.EncodeToString(h[:])
+}
+
+// makeReleaseHandler returns a roundTripFunc that serves a binary asset and
+// (optionally) a checksums.txt asset. checksumsBody is served verbatim; pass
+// an empty string to skip the checksums.txt asset URL entirely.
+func makeReleaseHandler(t *testing.T, binaryURL, payload, checksumsURL, checksumsBody string) roundTripFunc {
+	t.Helper()
+	return func(r *http.Request) (*http.Response, error) {
+		switch r.URL.String() {
+		case binaryURL:
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(payload)),
+				Header:     make(http.Header),
+			}, nil
+		case checksumsURL:
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(checksumsBody)),
+				Header:     make(http.Header),
+			}, nil
+		default:
+			return &http.Response{
+				StatusCode: http.StatusNotFound,
+				Body:       io.NopCloser(strings.NewReader("not found")),
+				Header:     make(http.Header),
+			}, nil
+		}
+	}
+}
 
 func withLatestReleaseURL(t *testing.T, url string) {
 	t.Helper()
@@ -97,6 +136,23 @@ func TestIsNewer(t *testing.T) {
 	for _, tt := range tests {
 		if got := IsNewer(tt.current, tt.latest); got != tt.want {
 			t.Errorf("IsNewer(%q, %q) = %v, want %v", tt.current, tt.latest, got, tt.want)
+		}
+	}
+}
+
+func TestIsDevBuild(t *testing.T) {
+	cases := map[string]bool{
+		"":        true,
+		"dev":     true,
+		"garbage": true,
+		"1.2":     true,
+		"1.2.3":   false,
+		"v1.2.3":  false,
+		"v0.6.1":  false,
+	}
+	for v, want := range cases {
+		if got := IsDevBuild(v); got != want {
+			t.Errorf("IsDevBuild(%q) = %v, want %v", v, got, want)
 		}
 	}
 }
@@ -221,6 +277,71 @@ func TestLatestRelease(t *testing.T) {
 	}
 }
 
+func TestLatestReleaseSendsUserAgent(t *testing.T) {
+	withLatestReleaseURL(t, "https://updates.example.test/releases/latest")
+	var gotUA string
+	withHTTPClient(t, func(r *http.Request) (*http.Response, error) {
+		gotUA = r.Header.Get("User-Agent")
+		data, _ := json.Marshal(Release{TagName: "v0.0.0"})
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader(string(data))),
+			Header:     make(http.Header),
+		}, nil
+	})
+
+	if _, err := LatestRelease(time.Second); err != nil {
+		t.Fatalf("LatestRelease error: %v", err)
+	}
+	if !strings.HasPrefix(gotUA, "phctl/") {
+		t.Errorf("User-Agent = %q, want phctl/<version> prefix", gotUA)
+	}
+}
+
+func TestDownloadAssetSendsUserAgent(t *testing.T) {
+	dir := t.TempDir()
+	exe := filepath.Join(dir, "phctl")
+	if err := os.WriteFile(exe, []byte("current"), 0755); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	withExecPathFunc(t, func() (string, error) { return exe, nil })
+
+	checksums := fmt.Sprintf("%s  %s\n", testBinarySum(), assetName())
+	var binaryUA string
+	withHTTPClient(t, func(r *http.Request) (*http.Response, error) {
+		switch r.URL.String() {
+		case "https://example.test/asset":
+			binaryUA = r.Header.Get("User-Agent")
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(testBinaryPayload)),
+				Header:     make(http.Header),
+			}, nil
+		case "https://example.test/checksums.txt":
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(checksums)),
+				Header:     make(http.Header),
+			}, nil
+		}
+		return &http.Response{StatusCode: http.StatusNotFound, Body: io.NopCloser(strings.NewReader("")), Header: make(http.Header)}, nil
+	})
+
+	rel := &Release{
+		TagName: "v1.2.3",
+		Assets: []Asset{
+			{Name: assetName(), BrowserDownloadURL: "https://example.test/asset"},
+			{Name: "checksums.txt", BrowserDownloadURL: "https://example.test/checksums.txt"},
+		},
+	}
+	if _, err := DownloadAsset(rel); err != nil {
+		t.Fatalf("DownloadAsset error: %v", err)
+	}
+	if !strings.HasPrefix(binaryUA, "phctl/") {
+		t.Errorf("User-Agent on binary download = %q, want phctl/<version> prefix", binaryUA)
+	}
+}
+
 func TestDownloadAsset(t *testing.T) {
 	dir := t.TempDir()
 	exe := filepath.Join(dir, "phctl")
@@ -230,25 +351,14 @@ func TestDownloadAsset(t *testing.T) {
 	withExecPathFunc(t, func() (string, error) {
 		return exe, nil
 	})
-	withHTTPClient(t, func(r *http.Request) (*http.Response, error) {
-		if r.URL.String() != "https://downloads.example.test/download" {
-			return &http.Response{
-				StatusCode: http.StatusNotFound,
-				Body:       io.NopCloser(strings.NewReader("not found")),
-				Header:     make(http.Header),
-			}, nil
-		}
-		return &http.Response{
-			StatusCode: http.StatusOK,
-			Body:       io.NopCloser(strings.NewReader("new-binary")),
-			Header:     make(http.Header),
-		}, nil
-	})
+	checksums := fmt.Sprintf("%s  %s\n", testBinarySum(), assetName())
+	withHTTPClient(t, makeReleaseHandler(t, "https://downloads.example.test/download", testBinaryPayload, "https://downloads.example.test/checksums.txt", checksums))
 
 	path, err := DownloadAsset(&Release{
 		TagName: "v1.2.3",
 		Assets: []Asset{
 			{Name: assetName(), BrowserDownloadURL: "https://downloads.example.test/download"},
+			{Name: "checksums.txt", BrowserDownloadURL: "https://downloads.example.test/checksums.txt"},
 		},
 	})
 	if err != nil {
@@ -259,11 +369,125 @@ func TestDownloadAsset(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadFile() error: %v", err)
 	}
-	if string(data) != "new-binary" {
-		t.Fatalf("downloaded binary = %q, want %q", string(data), "new-binary")
+	if string(data) != testBinaryPayload {
+		t.Fatalf("downloaded binary = %q, want %q", string(data), testBinaryPayload)
 	}
 	if filepath.Dir(path) != dir {
 		t.Fatalf("DownloadAsset() path dir = %q, want %q", filepath.Dir(path), dir)
+	}
+}
+
+func TestDownloadAsset_RejectsWithoutChecksumsAsset(t *testing.T) {
+	dir := t.TempDir()
+	exe := filepath.Join(dir, "phctl")
+	if err := os.WriteFile(exe, []byte("current"), 0755); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	withExecPathFunc(t, func() (string, error) { return exe, nil })
+	withHTTPClient(t, makeReleaseHandler(t, "https://example.test/binary", testBinaryPayload, "", ""))
+
+	rel := &Release{
+		TagName: "v1.2.3",
+		Assets: []Asset{
+			{Name: assetName(), BrowserDownloadURL: "https://example.test/binary"},
+		},
+	}
+	_, err := DownloadAsset(rel)
+	if err == nil {
+		t.Fatal("expected error when release has no checksums.txt asset")
+	}
+	if !strings.Contains(err.Error(), "checksum") {
+		t.Errorf("error = %q, want it to mention 'checksum'", err)
+	}
+}
+
+func TestDownloadAsset_RejectsOnChecksumMismatch(t *testing.T) {
+	dir := t.TempDir()
+	exe := filepath.Join(dir, "phctl")
+	if err := os.WriteFile(exe, []byte("current"), 0755); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	withExecPathFunc(t, func() (string, error) { return exe, nil })
+
+	wrongSum := strings.Repeat("00", sha256.Size)
+	checksumsBody := fmt.Sprintf("%s  %s\n", wrongSum, assetName())
+	withHTTPClient(t, makeReleaseHandler(t, "https://example.test/binary", testBinaryPayload, "https://example.test/checksums.txt", checksumsBody))
+
+	rel := &Release{
+		TagName: "v1.2.3",
+		Assets: []Asset{
+			{Name: assetName(), BrowserDownloadURL: "https://example.test/binary"},
+			{Name: "checksums.txt", BrowserDownloadURL: "https://example.test/checksums.txt"},
+		},
+	}
+	_, err := DownloadAsset(rel)
+	if err == nil {
+		t.Fatal("expected error on checksum mismatch")
+	}
+	if !strings.Contains(strings.ToLower(err.Error()), "checksum") {
+		t.Errorf("error = %q, want it to mention 'checksum'", err)
+	}
+
+	entries, _ := os.ReadDir(dir)
+	for _, e := range entries {
+		if e.Name() != "phctl" {
+			t.Errorf("leftover file after mismatch: %s", e.Name())
+		}
+	}
+}
+
+func TestDownloadAsset_RejectsWhenEntryMissing(t *testing.T) {
+	dir := t.TempDir()
+	exe := filepath.Join(dir, "phctl")
+	if err := os.WriteFile(exe, []byte("current"), 0755); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	withExecPathFunc(t, func() (string, error) { return exe, nil })
+
+	checksumsBody := "deadbeef  some-other-asset\n"
+	withHTTPClient(t, makeReleaseHandler(t, "https://example.test/binary", testBinaryPayload, "https://example.test/checksums.txt", checksumsBody))
+
+	rel := &Release{
+		TagName: "v1.2.3",
+		Assets: []Asset{
+			{Name: assetName(), BrowserDownloadURL: "https://example.test/binary"},
+			{Name: "checksums.txt", BrowserDownloadURL: "https://example.test/checksums.txt"},
+		},
+	}
+	_, err := DownloadAsset(rel)
+	if err == nil {
+		t.Fatal("expected error when asset is not listed in checksums.txt")
+	}
+}
+
+func TestDownloadAsset_AcceptsValidChecksum(t *testing.T) {
+	dir := t.TempDir()
+	exe := filepath.Join(dir, "phctl")
+	if err := os.WriteFile(exe, []byte("current"), 0755); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	withExecPathFunc(t, func() (string, error) { return exe, nil })
+
+	checksumsBody := fmt.Sprintf("%s  %s\nffff  some-other\n", testBinarySum(), assetName())
+	withHTTPClient(t, makeReleaseHandler(t, "https://example.test/binary", testBinaryPayload, "https://example.test/checksums.txt", checksumsBody))
+
+	rel := &Release{
+		TagName: "v1.2.3",
+		Assets: []Asset{
+			{Name: assetName(), BrowserDownloadURL: "https://example.test/binary"},
+			{Name: "checksums.txt", BrowserDownloadURL: "https://example.test/checksums.txt"},
+		},
+	}
+	path, err := DownloadAsset(rel)
+	if err != nil {
+		t.Fatalf("DownloadAsset error: %v", err)
+	}
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	if string(got) != testBinaryPayload {
+		t.Errorf("payload = %q, want %q", got, testBinaryPayload)
 	}
 }
 

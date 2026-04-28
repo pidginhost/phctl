@@ -2,9 +2,13 @@ package update
 
 import (
 	"bytes"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/spf13/cobra"
+
+	iupdate "github.com/pidginhost/phctl/internal/update"
 )
 
 func TestUpdateCommandStructure(t *testing.T) {
@@ -85,6 +89,44 @@ func TestCheckCmdCanBeFound(t *testing.T) {
 	}
 	if !cmd.Hidden {
 		t.Error("__update-check should be hidden")
+	}
+}
+
+func TestUpdateCmdDevBuildDoesNotClaimUpToDate(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+
+	oldVersion := version
+	defer func() { version = oldVersion }()
+	version = "" // simulate a dev build
+
+	oldFetch := latestRelease
+	defer func() { latestRelease = oldFetch }()
+	latestRelease = func(timeout time.Duration) (*iupdate.Release, error) {
+		return &iupdate.Release{
+			TagName: "v1.2.3",
+			Assets: []iupdate.Asset{
+				{Name: "phctl-linux-amd64", BrowserDownloadURL: "https://example.test/x"},
+			},
+		}, nil
+	}
+
+	var out bytes.Buffer
+	Cmd.SetOut(&out)
+	Cmd.SetErr(&out)
+
+	if err := Cmd.RunE(Cmd, nil); err != nil {
+		t.Fatalf("Cmd.RunE error: %v", err)
+	}
+	got := out.String()
+	if strings.Contains(got, "Already up to date") {
+		t.Errorf("output claims up-to-date for dev build:\n%s", got)
+	}
+	if !strings.Contains(strings.ToLower(got), "development build") {
+		t.Errorf("output should mention development build, got:\n%s", got)
+	}
+	if strings.Contains(got, "Downloading") {
+		t.Errorf("update should not be applied to a dev build, got:\n%s", got)
 	}
 }
 

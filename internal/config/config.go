@@ -6,7 +6,12 @@ import (
 	"path/filepath"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/pidginhost/phctl/internal/cmdutil"
 )
+
+// writeAtomic is a seam so tests can simulate atomic-write failures.
+var writeAtomic = cmdutil.WriteAtomic
 
 const DefaultAPIURL = "https://www.pidginhost.com"
 
@@ -144,5 +149,5 @@ func Save(cfg *Config) error {
 		return err
 	}
 
-	return os.WriteFile(path, out, 0600)
+	return writeAtomic(path, out, 0600)
 }

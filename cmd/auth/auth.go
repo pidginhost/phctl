@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"os"
@@ -47,11 +48,27 @@ var initCmd = &cobra.Command{
 }
 
 var setCmd = &cobra.Command{
-	Use:   "set <token>",
-	Short: "Set API token directly",
-	Args:  cobra.ExactArgs(1),
+	Use:   "set",
+	Short: "Set API token from stdin",
+	Long: `Set the API token by piping it on stdin.
+
+Token is read from stdin to avoid leaking it via the process argument list
+(visible in 'ps' output and /proc/<pid>/cmdline). Examples:
+
+  echo "$MY_TOKEN" | phctl auth set
+  phctl auth set < token.txt`,
+	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := config.Save(&config.Config{AuthToken: args[0]}); err != nil {
+		reader := bufio.NewReader(cmd.InOrStdin())
+		line, err := reader.ReadString('\n')
+		if err != nil && err != io.EOF {
+			return fmt.Errorf("reading token from stdin: %w", err)
+		}
+		token := strings.TrimSpace(line)
+		if token == "" {
+			return fmt.Errorf("token cannot be empty (pipe it on stdin)")
+		}
+		if err := config.Save(&config.Config{AuthToken: token}); err != nil {
 			return err
 		}
 		cmd.Println("Token saved.")
