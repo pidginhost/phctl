@@ -17,13 +17,13 @@ variables:
 
 fmt:
   stage: check
-  image: golang:1.26
+  image: golang:1.26.2
   script:
     - test -z "$(gofmt -l .)"
 
 vet:
   stage: check
-  image: golang:1.26
+  image: golang:1.26.2
   script:
     - go vet ./...
 
@@ -35,7 +35,7 @@ lint:
 
 test:
   stage: check
-  image: golang:1.26
+  image: golang:1.26.2
   before_script:
     - go install gotest.tools/gotestsum@latest
   script:
@@ -58,7 +58,7 @@ test:
 
 e2e:
   stage: check
-  image: golang:1.26
+  image: golang:1.26.2
   rules:
     - if: $PIDGINHOST_API_TOKEN
   script:
@@ -66,13 +66,13 @@ e2e:
 
 build:check:
   stage: check
-  image: golang:1.26
+  image: golang:1.26.2
   script:
     - go build ./...
 
 .build_template: &build_template
   stage: build
-  image: golang:1.26
+  image: golang:1.26.2
   rules:
     - if: $CI_COMMIT_TAG
   script:
@@ -231,7 +231,7 @@ release:gitlab:
 
 release:github:
   stage: release
-  image: golang:1.26
+  image: golang:1.26.2
   rules:
     - if: $CI_COMMIT_TAG
   needs:
