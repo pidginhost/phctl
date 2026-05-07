@@ -90,8 +90,9 @@ var serverGetCmd = &cobra.Command{
 
 // resolveUserData picks the cloud-init payload from --user-data or
 // --user-data-file. Cobra enforces mutual exclusion. A path of "-"
-// reads stdin. The size cap mirrors the API's 64 KiB limit so we fail
-// before the round trip.
+// reads from stdin (the caller passes cmd.InOrStdin() so tests can
+// inject a reader). The size cap mirrors the API's 64 KiB limit so we
+// fail before the round trip.
 func resolveUserData(inline, path string, stdin io.Reader) (string, error) {
 	if inline != "" {
 		if len(inline) > userDataMaxBytes {
@@ -107,9 +108,6 @@ func resolveUserData(inline, path string, stdin io.Reader) (string, error) {
 		err  error
 	)
 	if path == "-" {
-		if stdin == nil {
-			stdin = os.Stdin
-		}
 		data, err = io.ReadAll(stdin)
 	} else {
 		data, err = os.ReadFile(path)
