@@ -3,6 +3,7 @@ package compute
 import (
 	"fmt"
 	"io"
+	"os"
 
 	pidginhost "github.com/pidginhost/sdk-go"
 	"github.com/spf13/cobra"
@@ -12,6 +13,8 @@ import (
 	"github.com/pidginhost/phctl/internal/confirm"
 	"github.com/pidginhost/phctl/internal/output"
 )
+
+const userDataMaxBytes = 65536
 
 var serverCmd = &cobra.Command{
 	Use:     "server",
@@ -85,14 +88,48 @@ var serverGetCmd = &cobra.Command{
 	},
 }
 
+// resolveUserData picks the cloud-init payload from --user-data or
+// --user-data-file. Cobra enforces mutual exclusion. A path of "-"
+// reads stdin. The size cap mirrors the API's 64 KiB limit so we fail
+// before the round trip.
+func resolveUserData(inline, path string) (string, error) {
+	if inline != "" {
+		if len(inline) > userDataMaxBytes {
+			return "", fmt.Errorf("--user-data exceeds %d bytes", userDataMaxBytes)
+		}
+		return inline, nil
+	}
+	if path == "" {
+		return "", nil
+	}
+	var (
+		data []byte
+		err  error
+	)
+	if path == "-" {
+		data, err = io.ReadAll(os.Stdin)
+	} else {
+		data, err = os.ReadFile(path)
+	}
+	if err != nil {
+		return "", fmt.Errorf("reading user-data: %w", err)
+	}
+	if len(data) > userDataMaxBytes {
+		return "", fmt.Errorf("user-data exceeds %d bytes", userDataMaxBytes)
+	}
+	return string(data), nil
+}
+
 var (
-	serverCreateImage    string
-	serverCreatePackage  string
-	serverCreateHostname string
-	serverCreateProject  string
-	serverCreateSSHKeyID string
-	serverCreatePassword string
-	serverCreateNewIPv4  bool
+	serverCreateImage        string
+	serverCreatePackage      string
+	serverCreateHostname     string
+	serverCreateProject      string
+	serverCreateSSHKeyID     string
+	serverCreatePassword     string
+	serverCreateNewIPv4      bool
+	serverCreateUserData     string
+	serverCreateUserDataFile string
 )
 
 var serverCreateCmd = &cobra.Command{
@@ -100,6 +137,11 @@ var serverCreateCmd = &cobra.Command{
 	Short: "Create a new server",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c, err := client.New()
+		if err != nil {
+			return err
+		}
+
+		userData, err := resolveUserData(serverCreateUserData, serverCreateUserDataFile)
 		if err != nil {
 			return err
 		}
@@ -119,6 +161,9 @@ var serverCreateCmd = &cobra.Command{
 		}
 		if serverCreateNewIPv4 {
 			body.NewIpv4 = pidginhost.PtrBool(true)
+		}
+		if userData != "" {
+			body.UserData = pidginhost.PtrString(userData)
 		}
 
 		resp, _, err := c.CloudAPI.CloudServersCreate(cmd.Context()).ServerAdd(body).Execute()
@@ -421,6 +466,9 @@ func init() {
 	serverCreateCmd.Flags().StringVar(&serverCreateSSHKeyID, "ssh-key-id", "", "SSH key ID to inject")
 	serverCreateCmd.Flags().StringVar(&serverCreatePassword, "password", "", "Root password")
 	serverCreateCmd.Flags().BoolVar(&serverCreateNewIPv4, "new-ipv4", false, "Allocate a new public IPv4")
+	serverCreateCmd.Flags().StringVar(&serverCreateUserData, "user-data", "", "Cloud-init startup script body (Linux only, mutually exclusive with --user-data-file)")
+	serverCreateCmd.Flags().StringVar(&serverCreateUserDataFile, "user-data-file", "", "Path to cloud-init startup script (use '-' for stdin)")
+	serverCreateCmd.MarkFlagsMutuallyExclusive("user-data", "user-data-file")
 	serverCreateCmd.MarkFlagRequired("image")
 	serverCreateCmd.MarkFlagRequired("package")
 

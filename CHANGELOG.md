@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **`server create --user-data` and `--user-data-file`**: pass a cloud-init startup script (bash with shebang or `#cloud-config` YAML) at provision time. Linux images only. Use `--user-data-file -` to read from stdin. Capped at 64 KiB to match the API.
+
+### Changed
+
+- **Dependency updates**: sdk-go v0.5.0 -> v0.6.0 (adds `ServerAdd.UserData` field).
+
 ## v0.7.0
 
 ### Security
