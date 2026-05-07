@@ -92,7 +92,7 @@ var serverGetCmd = &cobra.Command{
 // --user-data-file. Cobra enforces mutual exclusion. A path of "-"
 // reads stdin. The size cap mirrors the API's 64 KiB limit so we fail
 // before the round trip.
-func resolveUserData(inline, path string) (string, error) {
+func resolveUserData(inline, path string, stdin io.Reader) (string, error) {
 	if inline != "" {
 		if len(inline) > userDataMaxBytes {
 			return "", fmt.Errorf("--user-data exceeds %d bytes", userDataMaxBytes)
@@ -107,7 +107,10 @@ func resolveUserData(inline, path string) (string, error) {
 		err  error
 	)
 	if path == "-" {
-		data, err = io.ReadAll(os.Stdin)
+		if stdin == nil {
+			stdin = os.Stdin
+		}
+		data, err = io.ReadAll(stdin)
 	} else {
 		data, err = os.ReadFile(path)
 	}
@@ -141,7 +144,7 @@ var serverCreateCmd = &cobra.Command{
 			return err
 		}
 
-		userData, err := resolveUserData(serverCreateUserData, serverCreateUserDataFile)
+		userData, err := resolveUserData(serverCreateUserData, serverCreateUserDataFile, cmd.InOrStdin())
 		if err != nil {
 			return err
 		}

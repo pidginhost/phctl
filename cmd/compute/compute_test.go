@@ -98,7 +98,7 @@ func TestResolveUserData(t *testing.T) {
 	tmp := t.TempDir()
 
 	t.Run("empty returns empty", func(t *testing.T) {
-		got, err := resolveUserData("", "")
+		got, err := resolveUserData("", "", nil)
 		if err != nil {
 			t.Fatalf("err: %v", err)
 		}
@@ -108,7 +108,7 @@ func TestResolveUserData(t *testing.T) {
 	})
 
 	t.Run("inline returns body", func(t *testing.T) {
-		got, err := resolveUserData("#!/bin/sh\necho hi", "")
+		got, err := resolveUserData("#!/bin/sh\necho hi", "", nil)
 		if err != nil {
 			t.Fatalf("err: %v", err)
 		}
@@ -118,7 +118,7 @@ func TestResolveUserData(t *testing.T) {
 	})
 
 	t.Run("inline rejects oversize", func(t *testing.T) {
-		_, err := resolveUserData(strings.Repeat("a", userDataMaxBytes+1), "")
+		_, err := resolveUserData(strings.Repeat("a", userDataMaxBytes+1), "", nil)
 		if err == nil {
 			t.Fatal("expected error for oversize inline")
 		}
@@ -130,7 +130,7 @@ func TestResolveUserData(t *testing.T) {
 		if err := writeTestFile(t, path, body); err != nil {
 			t.Fatalf("write: %v", err)
 		}
-		got, err := resolveUserData("", path)
+		got, err := resolveUserData("", path, nil)
 		if err != nil {
 			t.Fatalf("err: %v", err)
 		}
@@ -144,14 +144,25 @@ func TestResolveUserData(t *testing.T) {
 		if err := writeTestFile(t, path, strings.Repeat("a", userDataMaxBytes+1)); err != nil {
 			t.Fatalf("write: %v", err)
 		}
-		_, err := resolveUserData("", path)
+		_, err := resolveUserData("", path, nil)
 		if err == nil {
 			t.Fatal("expected error for oversize file")
 		}
 	})
 
+	t.Run("dash reads provided stdin", func(t *testing.T) {
+		body := "#!/bin/sh\necho from stdin\n"
+		got, err := resolveUserData("", "-", strings.NewReader(body))
+		if err != nil {
+			t.Fatalf("err: %v", err)
+		}
+		if got != body {
+			t.Errorf("got %q, want %q", got, body)
+		}
+	})
+
 	t.Run("missing file returns error", func(t *testing.T) {
-		_, err := resolveUserData("", filepath.Join(tmp, "does-not-exist"))
+		_, err := resolveUserData("", filepath.Join(tmp, "does-not-exist"), nil)
 		if err == nil {
 			t.Fatal("expected error for missing file")
 		}
