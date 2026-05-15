@@ -17,3 +17,6 @@ require (
 	golang.org/x/sys v0.43.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 )
+
+// Local SDK build for floating-IP development. Remove once a new sdk-go tag is published.
+replace github.com/pidginhost/sdk-go => ../sdk/go/out

@@ -18,4 +18,5 @@ func init() {
 	Cmd.AddCommand(ipv6Cmd)
 	Cmd.AddCommand(networkCmd)
 	Cmd.AddCommand(packageCmd)
+	Cmd.AddCommand(floatingIPCmd)
 }
