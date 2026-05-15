@@ -1,6 +1,7 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -38,6 +39,21 @@ func New() (*pidginhost.APIClient, error) {
 // RawGet makes an authenticated GET request and decodes JSON into dst.
 // Use this to bypass SDK type mismatches (e.g. decimal strings vs float64).
 func RawGet(ctx context.Context, path string, dst interface{}) error {
+	return rawRequest(ctx, http.MethodGet, path, nil, dst, http.StatusOK)
+}
+
+func RawPost(ctx context.Context, path string, body interface{}, dst interface{}, expectedStatuses ...int) error {
+	if len(expectedStatuses) == 0 {
+		expectedStatuses = []int{http.StatusOK}
+	}
+	return rawRequest(ctx, http.MethodPost, path, body, dst, expectedStatuses...)
+}
+
+func RawDelete(ctx context.Context, path string) error {
+	return rawRequest(ctx, http.MethodDelete, path, nil, nil, http.StatusNoContent)
+}
+
+func rawRequest(ctx context.Context, method string, path string, body interface{}, dst interface{}, expectedStatuses ...int) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -50,24 +66,48 @@ func RawGet(ctx context.Context, path string, dst interface{}) error {
 		return fmt.Errorf("no API token configured. Run 'phctl auth init' or set PIDGINHOST_API_TOKEN")
 	}
 	url := strings.TrimRight(cfg.APIURL, "/") + path
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	var reader io.Reader
+	if body != nil {
+		var buf bytes.Buffer
+		if err := json.NewEncoder(&buf).Encode(body); err != nil {
+			return err
+		}
+		reader = &buf
+	}
+	req, err := http.NewRequestWithContext(ctx, method, url, reader)
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Authorization", "Token "+cfg.AuthToken)
+	req.Header.Set("Accept", "application/json")
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
 	resp, err := httpClient.Do(req)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
+	if !expectedStatus(resp.StatusCode, expectedStatuses) {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
 		if len(body) > 0 {
 			return fmt.Errorf("HTTP %d from %s: %s", resp.StatusCode, path, body)
 		}
 		return fmt.Errorf("HTTP %d from %s", resp.StatusCode, path)
 	}
+	if dst == nil {
+		return nil
+	}
 	return json.NewDecoder(resp.Body).Decode(dst)
+}
+
+func expectedStatus(got int, expected []int) bool {
+	for _, want := range expected {
+		if got == want {
+			return true
+		}
+	}
+	return false
 }
 
 // RawFetchAll paginates through a DRF list endpoint using raw HTTP,

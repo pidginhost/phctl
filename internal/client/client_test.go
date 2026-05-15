@@ -147,6 +147,82 @@ func TestRawGetHTTPError(t *testing.T) {
 	}
 }
 
+func TestRawPostJSONSuccess(t *testing.T) {
+	type floatingIP struct {
+		Id      int32  `json:"id"`
+		Address string `json:"address"`
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("method = %s, want POST", r.Method)
+		}
+		if r.URL.Path != "/api/cloud/floating-ipv4/" {
+			http.NotFound(w, r)
+			return
+		}
+		if got := r.Header.Get("Authorization"); got != "Token test-token" {
+			t.Errorf("Authorization = %q, want %q", got, "Token test-token")
+		}
+		if got := r.Header.Get("Content-Type"); got != "application/json" {
+			t.Errorf("Content-Type = %q, want application/json", got)
+		}
+		var body map[string]string
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Errorf("decode request body: %v", err)
+		}
+		if body["label"] != "ha-db" {
+			t.Errorf("label = %q, want ha-db", body["label"])
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(w).Encode(floatingIP{Id: 42, Address: "192.0.2.10"})
+	}))
+	defer server.Close()
+
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+	t.Setenv("PIDGINHOST_API_TOKEN", "test-token")
+	t.Setenv("PIDGINHOST_API_URL", server.URL)
+	withHTTPClient(t, server.Client())
+
+	var got floatingIP
+	err := RawPost(context.Background(), "/api/cloud/floating-ipv4/", map[string]string{"label": "ha-db"}, &got, http.StatusCreated)
+	if err != nil {
+		t.Fatalf("RawPost error: %v", err)
+	}
+	if got.Id != 42 || got.Address != "192.0.2.10" {
+		t.Errorf("response = %+v, want ID 42/address 192.0.2.10", got)
+	}
+}
+
+func TestRawDeleteSuccess(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodDelete {
+			t.Errorf("method = %s, want DELETE", r.Method)
+		}
+		if r.URL.Path != "/api/cloud/floating-ipv4/42/" {
+			http.NotFound(w, r)
+			return
+		}
+		if got := r.Header.Get("Authorization"); got != "Token test-token" {
+			t.Errorf("Authorization = %q, want %q", got, "Token test-token")
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+	t.Setenv("PIDGINHOST_API_TOKEN", "test-token")
+	t.Setenv("PIDGINHOST_API_URL", server.URL)
+	withHTTPClient(t, server.Client())
+
+	if err := RawDelete(context.Background(), "/api/cloud/floating-ipv4/42/"); err != nil {
+		t.Fatalf("RawDelete error: %v", err)
+	}
+}
+
 func TestRawFetchAllSinglePage(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

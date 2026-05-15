@@ -3,8 +3,8 @@ package compute
 import (
 	"fmt"
 	"io"
+	"net/http"
 
-	pidginhost "github.com/pidginhost/sdk-go"
 	"github.com/spf13/cobra"
 
 	"github.com/pidginhost/phctl/internal/client"
@@ -33,50 +33,67 @@ func isIPv6(cmd *cobra.Command) bool {
 	return v
 }
 
+type floatingIP struct {
+	Id                int32  `json:"id" yaml:"id"`
+	Address           string `json:"address" yaml:"address"`
+	Gateway           string `json:"gateway" yaml:"gateway"`
+	Prefix            int32  `json:"prefix" yaml:"prefix"`
+	Label             string `json:"label" yaml:"label"`
+	AuthorizedVmCount int32  `json:"authorized_vm_count" yaml:"authorized_vm_count"`
+	CreatedAt         string `json:"created_at" yaml:"created_at"`
+}
+
+type floatingIPCreateRequest struct {
+	Label string `json:"label,omitempty"`
+}
+
+type floatingIPAuthorizeRequest struct {
+	ServerId int32 `json:"server_id"`
+}
+
+type floatingIPAuthorization struct {
+	Id             int32  `json:"id" yaml:"id"`
+	ServerId       int32  `json:"server_id" yaml:"server_id"`
+	ServerHostname string `json:"server_hostname" yaml:"server_hostname"`
+	CreatedAt      string `json:"created_at" yaml:"created_at"`
+}
+
+func floatingIPFamily(ipv6 bool) string {
+	if ipv6 {
+		return "IPv6"
+	}
+	return "IPv4"
+}
+
+func floatingIPCollectionPath(ipv6 bool) string {
+	if ipv6 {
+		return "/api/cloud/floating-ipv6/"
+	}
+	return "/api/cloud/floating-ipv4/"
+}
+
+func floatingIPDetailPath(ipv6 bool, id int32) string {
+	return fmt.Sprintf("%s%d/", floatingIPCollectionPath(ipv6), id)
+}
+
+func floatingIPActionPath(ipv6 bool, id int32, action string) string {
+	return fmt.Sprintf("%s%s/", floatingIPDetailPath(ipv6, id), action)
+}
+
 var floatingIPListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List floating IPs",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		c, err := client.New()
+		ipv6 := isIPv6(cmd)
+		ips, err := client.RawFetchAll[floatingIP](cmd.Context(), floatingIPCollectionPath(ipv6))
 		if err != nil {
-			return err
+			return fmt.Errorf("listing floating %s: %w", floatingIPFamily(ipv6), err)
 		}
-		format := cmdutil.OutputFormat(cmd)
-		if isIPv6(cmd) {
-			ips, err := cmdutil.FetchAll(func(page int32) ([]pidginhost.FloatingIPv6, bool, error) {
-				resp, _, err := c.CloudAPI.CloudFloatingIpv6List(cmd.Context()).Page(page).Execute()
-				if err != nil {
-					return nil, false, err
-				}
-				return resp.Results, resp.Next.Get() != nil, nil
-			})
-			if err != nil {
-				return fmt.Errorf("listing floating IPv6: %w", err)
-			}
-			return output.Print(cmd.OutOrStdout(), format, ips, func(w io.Writer) {
-				tw := output.NewTabWriter(w)
-				output.PrintRow(tw, "ID", "ADDRESS", "LABEL", "AUTHORIZED")
-				for _, ip := range ips {
-					output.PrintRow(tw, ip.Id, ip.Address, ip.GetLabel(), ip.AuthorizedVmCount)
-				}
-				tw.Flush()
-			})
-		}
-		ips, err := cmdutil.FetchAll(func(page int32) ([]pidginhost.FloatingIPv4, bool, error) {
-			resp, _, err := c.CloudAPI.CloudFloatingIpv4List(cmd.Context()).Page(page).Execute()
-			if err != nil {
-				return nil, false, err
-			}
-			return resp.Results, resp.Next.Get() != nil, nil
-		})
-		if err != nil {
-			return fmt.Errorf("listing floating IPv4: %w", err)
-		}
-		return output.Print(cmd.OutOrStdout(), format, ips, func(w io.Writer) {
+		return output.Print(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), ips, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID", "ADDRESS", "LABEL", "AUTHORIZED")
 			for _, ip := range ips {
-				output.PrintRow(tw, ip.Id, ip.Address, ip.GetLabel(), ip.AuthorizedVmCount)
+				output.PrintRow(tw, ip.Id, ip.Address, ip.Label, ip.AuthorizedVmCount)
 			}
 			tw.Flush()
 		})
@@ -87,26 +104,14 @@ var floatingIPCreateCmd = &cobra.Command{
 	Use:   "create",
 	Short: "Allocate a new floating IP",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		c, err := client.New()
-		if err != nil {
-			return err
-		}
+		ipv6 := isIPv6(cmd)
 		label, _ := cmd.Flags().GetString("label")
-		if isIPv6(cmd) {
-			req := pidginhost.FloatingIPv6Create{Label: &label}
-			resp, _, err := c.CloudAPI.CloudFloatingIpv6Create(cmd.Context()).FloatingIPv6Create(req).Execute()
-			if err != nil {
-				return fmt.Errorf("creating floating IPv6: %w", err)
-			}
-			cmd.Printf("Floating IPv6 created (ID: %d, Address: %s)\n", resp.Id, resp.Address)
-			return nil
+		req := floatingIPCreateRequest{Label: label}
+		var resp floatingIP
+		if err := client.RawPost(cmd.Context(), floatingIPCollectionPath(ipv6), req, &resp, http.StatusCreated); err != nil {
+			return fmt.Errorf("creating floating %s: %w", floatingIPFamily(ipv6), err)
 		}
-		req := pidginhost.FloatingIPv4Create{Label: &label}
-		resp, _, err := c.CloudAPI.CloudFloatingIpv4Create(cmd.Context()).FloatingIPv4Create(req).Execute()
-		if err != nil {
-			return fmt.Errorf("creating floating IPv4: %w", err)
-		}
-		cmd.Printf("Floating IPv4 created (ID: %d, Address: %s)\n", resp.Id, resp.Address)
+		cmd.Printf("Floating %s created (ID: %d, Address: %s)\n", floatingIPFamily(ipv6), resp.Id, resp.Address)
 		return nil
 	},
 }
@@ -124,16 +129,8 @@ var floatingIPDeleteCmd = &cobra.Command{
 		if !cmdutil.Force(cmd) && !confirm.Action(cmd.InOrStdin(), cmd.ErrOrStderr(), fmt.Sprintf("Delete floating IP %d?", id)) {
 			return nil
 		}
-		c, err := client.New()
-		if err != nil {
-			return err
-		}
-		if isIPv6(cmd) {
-			_, err = c.CloudAPI.CloudFloatingIpv6Destroy(cmd.Context(), id).Execute()
-		} else {
-			_, err = c.CloudAPI.CloudFloatingIpv4Destroy(cmd.Context(), id).Execute()
-		}
-		if err != nil {
+		ipv6 := isIPv6(cmd)
+		if err := client.RawDelete(cmd.Context(), floatingIPDetailPath(ipv6, id)); err != nil {
 			return fmt.Errorf("deleting floating IP: %w", err)
 		}
 		cmd.Printf("Floating IP %d deleted.\n", id)
@@ -154,17 +151,9 @@ var floatingIPAuthorizeCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		c, err := client.New()
-		if err != nil {
-			return err
-		}
-		body := pidginhost.FloatingIPAuthorizeRequest{ServerId: serverID}
-		if isIPv6(cmd) {
-			_, _, err = c.CloudAPI.CloudFloatingIpv6AuthorizeCreate(cmd.Context(), id).FloatingIPAuthorizeRequest(body).Execute()
-		} else {
-			_, _, err = c.CloudAPI.CloudFloatingIpv4AuthorizeCreate(cmd.Context(), id).FloatingIPAuthorizeRequest(body).Execute()
-		}
-		if err != nil {
+		ipv6 := isIPv6(cmd)
+		body := floatingIPAuthorizeRequest{ServerId: serverID}
+		if err := client.RawPost(cmd.Context(), floatingIPActionPath(ipv6, id, "authorize"), body, nil); err != nil {
 			return fmt.Errorf("authorizing server %d for floating IP %d: %w", serverID, id, err)
 		}
 		cmd.Printf("Server %d authorized for floating IP %d.\n", serverID, id)
@@ -186,17 +175,9 @@ var floatingIPUnauthorizeCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		c, err := client.New()
-		if err != nil {
-			return err
-		}
-		body := pidginhost.FloatingIPAuthorizeRequest{ServerId: serverID}
-		if isIPv6(cmd) {
-			_, _, err = c.CloudAPI.CloudFloatingIpv6UnauthorizeCreate(cmd.Context(), id).FloatingIPAuthorizeRequest(body).Execute()
-		} else {
-			_, _, err = c.CloudAPI.CloudFloatingIpv4UnauthorizeCreate(cmd.Context(), id).FloatingIPAuthorizeRequest(body).Execute()
-		}
-		if err != nil {
+		ipv6 := isIPv6(cmd)
+		body := floatingIPAuthorizeRequest{ServerId: serverID}
+		if err := client.RawPost(cmd.Context(), floatingIPActionPath(ipv6, id, "unauthorize"), body, nil); err != nil {
 			return fmt.Errorf("unauthorizing server %d for floating IP %d: %w", serverID, id, err)
 		}
 		cmd.Printf("Server %d unauthorized for floating IP %d.\n", serverID, id)
@@ -213,17 +194,9 @@ var floatingIPAuthorizationsCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		c, err := client.New()
-		if err != nil {
-			return err
-		}
-		var auths []pidginhost.FloatingIPAuthorization
-		if isIPv6(cmd) {
-			auths, _, err = c.CloudAPI.CloudFloatingIpv6AuthorizationsList(cmd.Context(), id).Execute()
-		} else {
-			auths, _, err = c.CloudAPI.CloudFloatingIpv4AuthorizationsList(cmd.Context(), id).Execute()
-		}
-		if err != nil {
+		ipv6 := isIPv6(cmd)
+		var auths []floatingIPAuthorization
+		if err := client.RawGet(cmd.Context(), floatingIPActionPath(ipv6, id, "authorizations"), &auths); err != nil {
 			return fmt.Errorf("listing authorizations: %w", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
