@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.9.0
+
+### Added
+
+- **`compute floating-ip` commands**: `list`, `create`, `delete`, `authorize`, `unauthorize`, `authorizations` for managing floating IPs that can be authorized on multiple servers simultaneously (multi-VM HA via keepalived/VRRP inside the guest). Use `--ipv6` to target IPv6 floating addresses; otherwise the IPv4 endpoints are hit.
+
+### Changed
+
+- **Floating-IP commands use raw HTTP via the `internal/client` helpers** instead of generated SDK methods, so phctl ships floating-IP support without waiting for an sdk-go release. New helpers `RawGet`, `RawPost`, `RawDelete`, `RawFetchAll` cover the basic CRUD + paginated-list shape.
+
 ## v0.8.0
 
 ### Added
