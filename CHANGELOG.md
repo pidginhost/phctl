@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.9.1
+
+### Changed
+
+- **Floating-IP commands switch to typed sdk-go v0.7.0 methods**. `compute floating-ip {list,create,delete,authorize,unauthorize,authorizations}` now uses the generated `CloudFloatingIpv4*`/`CloudFloatingIpv6*` API surface and model types instead of the raw HTTP helpers in `internal/client`. Behaviour, flags, and output are unchanged; pagination on `list` and `authorizations` now flows through `cmdutil.FetchAll` like the rest of the compute commands.
+- **Dependency updates**: sdk-go v0.6.0 → v0.7.0 (adds floating-IP API surface).
+
 ## v0.9.0
 
 ### Added
