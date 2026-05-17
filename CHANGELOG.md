@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.10.2
+
+### Fixed
+
+- **`compute ipv4 reverse-dns`** now validates `--hostname ""` before initialising the API client, so the error surfaces even when the config or auth env is missing. Includes a regression test.
+
 ## v0.10.1
 
 ### Fixed
