@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.10.0
+
+### Added
+
+- **`compute package list` shows full specs and accepts a generation filter**. The table gains `CPUS`, `MEMORY_GB`, `DISK_GB`, `TRAFFIC` columns sourced from the package config (no more probing an existing server to learn what a SKU contains). `--generation <slug>` narrows the list to packages allowed on that hardware generation; the backend hides free-tier-only packages on generations not flagged free-tier eligible.
+- **`compute ipv4 reverse-dns <id>` (alias `rdns`)** reads the current PTR record for an IPv4 address. Pass `--hostname <fqdn>` to set it via `POST /cloud/ipv4/<id>/rdns/`.
+
+### Changed
+
+- **Dependency updates**: sdk-go v0.7.0 → v0.8.0 (typed `ServerProduct.Cpus/Memory/DiskSize/Traffic` fields and the `ApiCloudServerPackagesListRequest.Generation()` builder).
+
 ## v0.9.1
 
 ### Changed

@@ -23,12 +23,20 @@ var packageListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all server packages",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		generation, err := cmd.Flags().GetString("generation")
+		if err != nil {
+			return err
+		}
 		c, err := client.New()
 		if err != nil {
 			return err
 		}
 		packages, err := cmdutil.FetchAll(func(page int32) ([]pidginhost.ServerProduct, bool, error) {
-			resp, _, err := c.CloudAPI.CloudServerPackagesList(cmd.Context()).Page(page).Execute()
+			req := c.CloudAPI.CloudServerPackagesList(cmd.Context()).Page(page)
+			if generation != "" {
+				req = req.Generation(generation)
+			}
+			resp, _, err := req.Execute()
 			if err != nil {
 				return nil, false, err
 			}
@@ -40,9 +48,9 @@ var packageListCmd = &cobra.Command{
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, packages, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
-			output.PrintRow(tw, "ID", "NAME", "SLUG")
+			output.PrintRow(tw, "ID", "NAME", "SLUG", "CPUS", "MEMORY_GB", "DISK_GB", "TRAFFIC")
 			for _, p := range packages {
-				output.PrintRow(tw, p.Id, p.Name, p.Slug)
+				output.PrintRow(tw, p.Id, p.Name, p.Slug, p.Cpus, p.Memory, p.DiskSize, p.Traffic)
 			}
 			tw.Flush()
 		})
@@ -50,5 +58,7 @@ var packageListCmd = &cobra.Command{
 }
 
 func init() {
+	packageListCmd.Flags().String("generation", "", "Filter packages available on the given hardware generation (slug)")
+
 	packageCmd.AddCommand(packageListCmd)
 }
