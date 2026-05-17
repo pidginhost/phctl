@@ -94,6 +94,36 @@ func TestServerPowerFlags(t *testing.T) {
 	}
 }
 
+func TestIPv4ReverseDNSEmptyHostnameValidatedBeforeClient(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("PIDGINHOST_API_TOKEN", "")
+	t.Setenv("PIDGINHOST_API_URL", "")
+
+	flag := ipv4ReverseDNSCmd.Flags().Lookup("hostname")
+	if flag == nil {
+		t.Fatal("reverse-dns missing --hostname flag")
+	}
+	originalValue := flag.Value.String()
+	originalChanged := flag.Changed
+	t.Cleanup(func() {
+		_ = flag.Value.Set(originalValue)
+		flag.Changed = originalChanged
+	})
+
+	if err := flag.Value.Set(""); err != nil {
+		t.Fatalf("set hostname flag: %v", err)
+	}
+	flag.Changed = true
+
+	err := ipv4ReverseDNSCmd.RunE(ipv4ReverseDNSCmd, []string{"1"})
+	if err == nil {
+		t.Fatal("expected empty hostname error")
+	}
+	if got, want := err.Error(), "--hostname requires a non-empty FQDN"; got != want {
+		t.Fatalf("error = %q, want %q", got, want)
+	}
+}
+
 func TestResolveUserData(t *testing.T) {
 	tmp := t.TempDir()
 

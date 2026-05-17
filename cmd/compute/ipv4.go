@@ -131,15 +131,15 @@ var ipv4ReverseDNSCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		if cmd.Flags().Changed("hostname") && hostname == "" {
+			return fmt.Errorf("--hostname requires a non-empty FQDN")
+		}
 		c, err := client.New()
 		if err != nil {
 			return err
 		}
 		var resp *pidginhost.ReverseDNS
 		if cmd.Flags().Changed("hostname") {
-			if hostname == "" {
-				return fmt.Errorf("--hostname requires a non-empty FQDN")
-			}
 			body := pidginhost.NewReverseDNS(hostname)
 			resp, _, err = c.CloudAPI.CloudIpv4RdnsCreate(cmd.Context(), id).ReverseDNS(*body).Execute()
 			if err != nil {
