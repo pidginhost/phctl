@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.11.0
+
+### Added
+
+- **`compute server create --generation <slug>`**: pick a hardware generation at provision time (e.g. `compute-optimized`). Omit to use the backend's default generation. SDK already shipped `ServerAdd.Generation` in v0.8.0; this exposes it on the CLI.
+
+### Documented
+
+- **`compute server attach-ipv4` 1-IPv4-per-server limit**: the backend caps attachments at one IPv4 per server via this endpoint, and a second call returns success but is a no-op. phctl cannot currently distinguish the two cases — the backend's success and "already attached" responses use the same OpenAPI schema (`inline_serializer("AttachIPv4", ...)`) which collides with the request body type, so the SDK deserialises both into an empty `AttachIPv4{}`. The `Long:` help on the command now warns about the limit and points at `compute floating-ip authorize` for multi-IP-per-VM scenarios.
+
 ## v0.10.2
 
 ### Fixed

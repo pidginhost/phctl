@@ -124,6 +124,7 @@ func resolveUserData(inline, path string, stdin io.Reader) (string, error) {
 var (
 	serverCreateImage        string
 	serverCreatePackage      string
+	serverCreateGeneration   string
 	serverCreateHostname     string
 	serverCreateProject      string
 	serverCreateSSHKeyID     string
@@ -148,6 +149,9 @@ var serverCreateCmd = &cobra.Command{
 		}
 
 		body := *pidginhost.NewServerAdd(serverCreateImage, serverCreatePackage)
+		if serverCreateGeneration != "" {
+			body.Generation = pidginhost.PtrString(serverCreateGeneration)
+		}
 		if serverCreateHostname != "" {
 			body.Hostname = pidginhost.PtrString(serverCreateHostname)
 		}
@@ -261,7 +265,11 @@ var serverAttachIPv4Slug string
 var serverAttachIPv4Cmd = &cobra.Command{
 	Use:   "attach-ipv4 <server-id>",
 	Short: "Attach an IPv4 address to a server",
-	Args:  cobra.ExactArgs(1),
+	Long: "Attach an IPv4 address to a server. The backend allows at most one IPv4 per server " +
+		"via this endpoint; a second call returns success but is a no-op (and phctl currently " +
+		"cannot distinguish that from a real attach due to a backend response-schema collision). " +
+		"For multiple IPs on the same VM, use `compute floating-ip authorize`.",
+	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		id, err := cmdutil.ParseInt32(args[0])
 		if err != nil {
@@ -462,6 +470,7 @@ var serverSnapshotRollbackCmd = &cobra.Command{
 func init() {
 	serverCreateCmd.Flags().StringVar(&serverCreateImage, "image", "", "OS image (required)")
 	serverCreateCmd.Flags().StringVar(&serverCreatePackage, "package", "", "Server package (required)")
+	serverCreateCmd.Flags().StringVar(&serverCreateGeneration, "generation", "", "Hardware generation slug (e.g. compute-optimized). Defaults to the backend's default generation.")
 	serverCreateCmd.Flags().StringVar(&serverCreateHostname, "hostname", "", "Server hostname")
 	serverCreateCmd.Flags().StringVar(&serverCreateProject, "project", "", "Project name")
 	serverCreateCmd.Flags().StringVar(&serverCreateSSHKeyID, "ssh-key-id", "", "SSH key ID to inject")
