@@ -48,7 +48,7 @@ var packageListCmd = &cobra.Command{
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, packages, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
-			output.PrintRow(tw, "ID", "NAME", "SLUG", "CPUS", "MEMORY_GB", "DISK_GB", "TRAFFIC")
+			output.PrintRow(tw, "ID", "NAME", "SLUG", "CPUS", "MEMORY_GB", "DISK_GB", "TRAFFIC_GB")
 			for _, p := range packages {
 				output.PrintRow(tw, p.Id, p.Name, p.Slug, p.Cpus, p.Memory, p.DiskSize, p.Traffic)
 			}

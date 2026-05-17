@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.10.1
+
+### Fixed
+
+- **`compute package list` traffic column now labelled `TRAFFIC_GB`** to match the actual unit (included traffic is stored in GB, not unitless or TB as the column previously implied).
+- **`compute ipv4 reverse-dns --hostname ""`** now rejects an empty FQDN client-side with a clear error instead of round-tripping to the API and surfacing the validator's 400.
+
 ## v0.10.0
 
 ### Added
