@@ -166,7 +166,7 @@ var floatingIPAuthorizeCmd = &cobra.Command{
 			_, _, err = c.CloudAPI.CloudFloatingIpv4AuthorizeCreate(cmd.Context(), id).FloatingIPAuthorizeRequest(body).Execute()
 		}
 		if err != nil {
-			return fmt.Errorf("authorizing server %d for floating IP %d: %w", serverID, id, err)
+			return cmdutil.APIError(fmt.Sprintf("authorizing server %d for floating IP %d", serverID, id), err)
 		}
 		cmd.Printf("Server %d authorized for floating IP %d.\n", serverID, id)
 		return nil
@@ -198,7 +198,7 @@ var floatingIPUnauthorizeCmd = &cobra.Command{
 			_, _, err = c.CloudAPI.CloudFloatingIpv4UnauthorizeCreate(cmd.Context(), id).FloatingIPAuthorizeRequest(body).Execute()
 		}
 		if err != nil {
-			return fmt.Errorf("unauthorizing server %d for floating IP %d: %w", serverID, id, err)
+			return cmdutil.APIError(fmt.Sprintf("unauthorizing server %d for floating IP %d", serverID, id), err)
 		}
 		cmd.Printf("Server %d unauthorized for floating IP %d.\n", serverID, id)
 		return nil

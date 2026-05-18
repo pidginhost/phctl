@@ -18,7 +18,7 @@ func APIError(op string, err error) error {
 	if err == nil {
 		return nil
 	}
-	var apiErr pidginhost.GenericOpenAPIError
+	var apiErr *pidginhost.GenericOpenAPIError
 	if errors.As(err, &apiErr) {
 		body := apiErr.Body()
 		if len(body) > 0 {

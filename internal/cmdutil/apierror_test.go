@@ -1,9 +1,14 @@
 package cmdutil
 
 import (
+	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+
+	pidginhost "github.com/pidginhost/sdk-go"
 )
 
 func TestAPIErrorNil(t *testing.T) {
@@ -21,6 +26,33 @@ func TestAPIErrorPlainError(t *testing.T) {
 	want := "listing things: connection refused"
 	if got != want {
 		t.Errorf("APIError plain = %q, want %q", got, want)
+	}
+}
+
+func TestAPIErrorSDKErrorIncludesResponseBodyAndKeepsChain(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"ipv4": ["Invalid pk \"99\""]}`))
+	}))
+	defer server.Close()
+
+	apiClient := pidginhost.New("test-token", server.URL)
+	_, _, err := apiClient.CloudAPI.CloudIpv4Create(context.Background()).Execute()
+	if err == nil {
+		t.Fatal("expected SDK error")
+	}
+
+	wrapped := APIError("creating IPv4", err)
+	if wrapped == nil {
+		t.Fatal("expected wrapped error")
+	}
+	if got := wrapped.Error(); !strings.Contains(got, `creating IPv4: 400 Bad Request: ipv4=Invalid pk "99"`) {
+		t.Fatalf("wrapped error = %q", got)
+	}
+	var sdkErr *pidginhost.GenericOpenAPIError
+	if !errors.As(wrapped, &sdkErr) {
+		t.Fatalf("wrapped error does not preserve GenericOpenAPIError chain: %v", wrapped)
 	}
 }
 
