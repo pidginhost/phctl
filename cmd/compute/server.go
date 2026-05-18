@@ -265,10 +265,8 @@ var serverAttachIPv4Slug string
 var serverAttachIPv4Cmd = &cobra.Command{
 	Use:   "attach-ipv4 <server-id>",
 	Short: "Attach an IPv4 address to a server",
-	Long: "Attach an IPv4 address to a server. The backend allows at most one IPv4 per server " +
-		"via this endpoint; a second call returns success but is a no-op (and phctl currently " +
-		"cannot distinguish that from a real attach due to a backend response-schema collision). " +
-		"For multiple IPs on the same VM, use `compute floating-ip authorize`.",
+	Long: "Attach an IPv4 address to a server. The first IPv4 lands on the primary NIC; " +
+		"subsequent attaches add a new secondary NIC carrying just that IPv4.",
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		id, err := cmdutil.ParseInt32(args[0])
@@ -280,11 +278,52 @@ var serverAttachIPv4Cmd = &cobra.Command{
 			return err
 		}
 		body := *pidginhost.NewAttachIPv4(serverAttachIPv4Slug)
-		_, _, err = c.CloudAPI.CloudServersAttachIpv4Create(cmd.Context(), id).AttachIPv4(body).Execute()
+		resp, _, err := c.CloudAPI.CloudServersAttachIpv4Create(cmd.Context(), id).AttachIPv4(body).Execute()
 		if err != nil {
 			return fmt.Errorf("attaching IPv4: %w", err)
 		}
+		if resp != nil && !resp.Attached {
+			return fmt.Errorf("attaching IPv4: backend reported the IPv4 was not attached")
+		}
 		cmd.Printf("IPv4 %s attached to server %d.\n", serverAttachIPv4Slug, id)
+		return nil
+	},
+}
+
+var serverDetachIPv4Slug string
+
+var serverDetachIPv4Cmd = &cobra.Command{
+	Use:   "detach-ipv4 <server-id>",
+	Short: "Detach an IPv4 address from a server",
+	Long: "Detach an IPv4 address from a server. Without --ipv4, the primary NIC's IPv4 " +
+		"is detached. Pass --ipv4 <id|slug> to target a specific attached address " +
+		"(required when the server has more than one IPv4).",
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		id, err := cmdutil.ParseInt32(args[0])
+		if err != nil {
+			return err
+		}
+		c, err := client.New()
+		if err != nil {
+			return err
+		}
+		req := c.CloudAPI.CloudServersDetachIpv4Create(cmd.Context(), id)
+		if serverDetachIPv4Slug != "" {
+			req = req.Ipv4(serverDetachIPv4Slug)
+		}
+		resp, _, err := req.Execute()
+		if err != nil {
+			return fmt.Errorf("detaching IPv4: %w", err)
+		}
+		if resp != nil && !resp.Detached {
+			return fmt.Errorf("detaching IPv4: backend reported the IPv4 was not detached")
+		}
+		if serverDetachIPv4Slug != "" {
+			cmd.Printf("IPv4 %s detached from server %d.\n", serverDetachIPv4Slug, id)
+		} else {
+			cmd.Printf("Primary IPv4 detached from server %d.\n", id)
+		}
 		return nil
 	},
 }
@@ -488,6 +527,8 @@ func init() {
 	serverAttachIPv4Cmd.Flags().StringVar(&serverAttachIPv4Slug, "ipv4", "", "IPv4 ID or slug (required)")
 	serverAttachIPv4Cmd.MarkFlagRequired("ipv4")
 
+	serverDetachIPv4Cmd.Flags().StringVar(&serverDetachIPv4Slug, "ipv4", "", "IPv4 ID or slug to detach. Required when the server has more than one IPv4; omit to detach the primary NIC's IPv4 on single-IPv4 servers.")
+
 	serverAttachIPv6Cmd.Flags().StringVar(&serverAttachIPv6Slug, "ipv6", "", "IPv6 ID or slug (required)")
 	serverAttachIPv6Cmd.MarkFlagRequired("ipv6")
 
@@ -508,6 +549,7 @@ func init() {
 	serverCmd.AddCommand(serverPowerCmd)
 	serverCmd.AddCommand(serverConsoleCmd)
 	serverCmd.AddCommand(serverAttachIPv4Cmd)
+	serverCmd.AddCommand(serverDetachIPv4Cmd)
 	serverCmd.AddCommand(serverAttachIPv6Cmd)
 	serverCmd.AddCommand(serverProtectCmd)
 	serverCmd.AddCommand(snapshotCmd)

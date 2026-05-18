@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.12.0
+
+### Added
+
+- **`compute server detach-ipv4 <id>`**: detach an IPv4 from a VM. Without `--ipv4`, the primary NIC's IPv4 is detached. Pass `--ipv4 <id|slug>` to target a specific attached address (required when the server has more than one IPv4 after the backend's multi-NIC support landed).
+- **Both `compute server attach-ipv4` and `detach-ipv4` now read the backend's typed response** (`Attached`/`Detached` boolean) and fail loudly when the backend says the operation was a no-op — closes the "phctl can't tell success from no-op" gap from v0.11.0.
+
+### Changed
+
+- **`compute server attach-ipv4` help text rewritten**: the "one IPv4 per server" caveat no longer applies — the backend now creates a new secondary NIC on the second and subsequent attaches.
+- **Dependency updates**: sdk-go v0.8.0 → v0.9.0 (typed `AttachIPv4Response`/`DetachIPv4Response` models, `Ipv4()` builder on `ApiCloudServersDetachIpv4CreateRequest` for the new `?ipv4=` query param).
+
 ## v0.11.0
 
 ### Added
