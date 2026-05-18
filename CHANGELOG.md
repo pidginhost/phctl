@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.13.0
+
+### Added
+
+- **`compute floating-ip reverse-dns <id>` (alias `rdns`)** reads the current PTR record for a floating IP. Pass `--hostname <fqdn>` to set it. Combine with `--ipv6` to target a floating IPv6. Backed by the new `/cloud/floating-ipv{4,6}/{id}/rdns/` endpoints — until now, floating IPs had no API path for rDNS because the regular `ipv4`/`ipv6` viewsets explicitly excluded floating-backed IPs.
+
+### Changed
+
+- **Dependency updates**: sdk-go v0.9.0 → v0.10.1 (new `CloudFloatingIpv4Rdns{Retrieve,Create}` and `CloudFloatingIpv6Rdns{Retrieve,Create}` methods; restored typing on `CloudFloatingIpv{4,6}AuthorizationsList` after a brief v0.10.0 regression that named it `Retrieve` and typed the response as a single floating IP).
+
 ## v0.12.2
 
 ### Fixed

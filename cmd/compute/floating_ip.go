@@ -251,13 +251,70 @@ var floatingIPAuthorizationsCmd = &cobra.Command{
 	},
 }
 
+var floatingIPReverseDNSCmd = &cobra.Command{
+	Use:     "reverse-dns <id>",
+	Aliases: []string{"rdns"},
+	Short:   "Get or set the PTR record for a floating IP",
+	Long: "Without --hostname, prints the current PTR record. " +
+		"With --hostname <fqdn>, sets it. Use --ipv6 to target a floating IPv6.",
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		id, err := cmdutil.ParseInt32(args[0])
+		if err != nil {
+			return err
+		}
+		hostname, err := cmd.Flags().GetString("hostname")
+		if err != nil {
+			return err
+		}
+		if cmd.Flags().Changed("hostname") && hostname == "" {
+			return fmt.Errorf("--hostname requires a non-empty FQDN")
+		}
+		c, err := client.New()
+		if err != nil {
+			return err
+		}
+		var resp *pidginhost.ReverseDNS
+		ipv6 := isIPv6(cmd)
+		if cmd.Flags().Changed("hostname") {
+			body := pidginhost.NewReverseDNS(hostname)
+			if ipv6 {
+				resp, _, err = c.CloudAPI.CloudFloatingIpv6RdnsCreate(cmd.Context(), id).ReverseDNS(*body).Execute()
+			} else {
+				resp, _, err = c.CloudAPI.CloudFloatingIpv4RdnsCreate(cmd.Context(), id).ReverseDNS(*body).Execute()
+			}
+			if err != nil {
+				return cmdutil.APIError("setting floating IP reverse DNS", err)
+			}
+		} else {
+			if ipv6 {
+				resp, _, err = c.CloudAPI.CloudFloatingIpv6RdnsRetrieve(cmd.Context(), id).Execute()
+			} else {
+				resp, _, err = c.CloudAPI.CloudFloatingIpv4RdnsRetrieve(cmd.Context(), id).Execute()
+			}
+			if err != nil {
+				return cmdutil.APIError("fetching floating IP reverse DNS", err)
+			}
+		}
+		format := cmdutil.OutputFormat(cmd)
+		return output.Print(cmd.OutOrStdout(), format, resp, func(w io.Writer) {
+			tw := output.NewTabWriter(w)
+			output.PrintRow(tw, "ID", "REVERSE_DNS")
+			output.PrintRow(tw, id, resp.ReverseDns)
+			tw.Flush()
+		})
+	},
+}
+
 func init() {
 	floatingIPFlags(floatingIPCmd)
 	floatingIPCreateCmd.Flags().String("label", "", "Optional label (e.g. ha-mysql-vip)")
+	floatingIPReverseDNSCmd.Flags().String("hostname", "", "Set PTR record to this FQDN (omit to read current value)")
 	floatingIPCmd.AddCommand(floatingIPListCmd)
 	floatingIPCmd.AddCommand(floatingIPCreateCmd)
 	floatingIPCmd.AddCommand(floatingIPDeleteCmd)
 	floatingIPCmd.AddCommand(floatingIPAuthorizeCmd)
 	floatingIPCmd.AddCommand(floatingIPUnauthorizeCmd)
 	floatingIPCmd.AddCommand(floatingIPAuthorizationsCmd)
+	floatingIPCmd.AddCommand(floatingIPReverseDNSCmd)
 }
