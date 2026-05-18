@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.13.1
+
+### Added
+
+- **`compute server create --private-network <id|slug>`** plus optional **`--private-address <ipv4>`** to attach a VM to a private network at provision time (auto-assigns an IP if address is omitted). Avoids the post-create `compute network add-server` round-trip when bootstrapping a fleet that needs intra-cluster traffic on a 10.x SDN — Galera gcomm, MySQL replication, app→DB without using public IPs.
+
 ## v0.13.0
 
 ### Added

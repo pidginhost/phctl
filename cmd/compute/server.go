@@ -122,16 +122,18 @@ func resolveUserData(inline, path string, stdin io.Reader) (string, error) {
 }
 
 var (
-	serverCreateImage        string
-	serverCreatePackage      string
-	serverCreateGeneration   string
-	serverCreateHostname     string
-	serverCreateProject      string
-	serverCreateSSHKeyID     string
-	serverCreatePassword     string
-	serverCreateNewIPv4      bool
-	serverCreateUserData     string
-	serverCreateUserDataFile string
+	serverCreateImage          string
+	serverCreatePackage        string
+	serverCreateGeneration     string
+	serverCreateHostname       string
+	serverCreateProject        string
+	serverCreateSSHKeyID       string
+	serverCreatePassword       string
+	serverCreateNewIPv4        bool
+	serverCreatePrivateNetwork string
+	serverCreatePrivateAddress string
+	serverCreateUserData       string
+	serverCreateUserDataFile   string
 )
 
 var serverCreateCmd = &cobra.Command{
@@ -166,6 +168,12 @@ var serverCreateCmd = &cobra.Command{
 		}
 		if serverCreateNewIPv4 {
 			body.NewIpv4 = pidginhost.PtrBool(true)
+		}
+		if serverCreatePrivateNetwork != "" {
+			body.PrivateNetwork = pidginhost.PtrString(serverCreatePrivateNetwork)
+		}
+		if serverCreatePrivateAddress != "" {
+			body.PrivateAddress = pidginhost.PtrString(serverCreatePrivateAddress)
 		}
 		if userData != "" {
 			body.UserData = pidginhost.PtrString(userData)
@@ -515,6 +523,8 @@ func init() {
 	serverCreateCmd.Flags().StringVar(&serverCreateSSHKeyID, "ssh-key-id", "", "SSH key ID to inject")
 	serverCreateCmd.Flags().StringVar(&serverCreatePassword, "password", "", "Root password")
 	serverCreateCmd.Flags().BoolVar(&serverCreateNewIPv4, "new-ipv4", false, "Allocate a new public IPv4")
+	serverCreateCmd.Flags().StringVar(&serverCreatePrivateNetwork, "private-network", "", "Attach to this private network at create time (ID or CIDR slug). Pair with --private-address for a specific IP.")
+	serverCreateCmd.Flags().StringVar(&serverCreatePrivateAddress, "private-address", "", "Static IPv4 inside --private-network. Leave empty for auto-assign.")
 	serverCreateCmd.Flags().StringVar(&serverCreateUserData, "user-data", "", "Cloud-init startup script body (Linux only, mutually exclusive with --user-data-file)")
 	serverCreateCmd.Flags().StringVar(&serverCreateUserDataFile, "user-data-file", "", "Path to cloud-init startup script (use '-' for stdin)")
 	serverCreateCmd.MarkFlagsMutuallyExclusive("user-data", "user-data-file")
