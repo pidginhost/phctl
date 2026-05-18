@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.12.1
+
+### Changed
+
+- **`compute` commands now surface the backend error body** on 4xx/5xx responses. The previous wrapping dropped the JSON payload, leaving cryptic messages like `attaching IPv4: 400 Bad Request` with no clue why. The new `cmdutil.APIError` helper extracts the body and flattens the validation errors (e.g. `attaching IPv4: 400 Bad Request: ipv4=Invalid pk "1"`). Wrapped errors still chain so `errors.As(err, &pidginhost.GenericOpenAPIError{})` keeps working.
+
 ## v0.12.0
 
 ### Added

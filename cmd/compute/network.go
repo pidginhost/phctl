@@ -36,7 +36,7 @@ var networkListCmd = &cobra.Command{
 			return resp.Results, resp.Next.Get() != nil, nil
 		})
 		if err != nil {
-			return fmt.Errorf("listing networks: %w", err)
+			return cmdutil.APIError("listing networks", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, networks, func(w io.Writer) {
@@ -65,7 +65,7 @@ var networkGetCmd = &cobra.Command{
 		}
 		net, _, err := c.CloudAPI.CloudPrivateNetworksRetrieve(cmd.Context(), id).Execute()
 		if err != nil {
-			return fmt.Errorf("getting network: %w", err)
+			return cmdutil.APIError("getting network", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, net, func(w io.Writer) {
@@ -104,7 +104,7 @@ var networkCreateCmd = &cobra.Command{
 		body := *pidginhost.NewPrivateNetwork(0, networkCreateSlug, networkCreateAddress, false, nil)
 		resp, _, err := c.CloudAPI.CloudPrivateNetworksCreate(cmd.Context()).PrivateNetwork(body).Execute()
 		if err != nil {
-			return fmt.Errorf("creating network: %w", err)
+			return cmdutil.APIError("creating network", err)
 		}
 		cmd.Printf("Private network created (ID: %d, Address: %s)\n", resp.Id, resp.Address)
 		return nil
@@ -130,7 +130,7 @@ var networkDeleteCmd = &cobra.Command{
 		}
 		_, err = c.CloudAPI.CloudPrivateNetworksDestroy(cmd.Context(), id).Execute()
 		if err != nil {
-			return fmt.Errorf("deleting network: %w", err)
+			return cmdutil.APIError("deleting network", err)
 		}
 		cmd.Printf("Private network %d deleted.\n", id)
 		return nil
@@ -161,7 +161,7 @@ var networkAddServerCmd = &cobra.Command{
 		}
 		resp, _, err := c.CloudAPI.CloudPrivateNetworksAddServerCreate(cmd.Context(), id).PrivateNetworkAddHost(body).Execute()
 		if err != nil {
-			return fmt.Errorf("adding server to network: %w", err)
+			return cmdutil.APIError("adding server to network", err)
 		}
 		cmd.Printf("Server added to network: %v\n", resp.Created)
 		return nil
@@ -186,7 +186,7 @@ var networkRemoveServerCmd = &cobra.Command{
 		body := *pidginhost.NewPrivateNetworkRemoveHost(networkRemoveServerHost)
 		resp, _, err := c.CloudAPI.CloudPrivateNetworksRemoveServerCreate(cmd.Context(), id).PrivateNetworkRemoveHost(body).Execute()
 		if err != nil {
-			return fmt.Errorf("removing server from network: %w", err)
+			return cmdutil.APIError("removing server from network", err)
 		}
 		cmd.Printf("Server removed from network: %v\n", resp.Removed)
 		return nil

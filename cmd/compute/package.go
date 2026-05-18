@@ -1,7 +1,6 @@
 package compute
 
 import (
-	"fmt"
 	"io"
 
 	pidginhost "github.com/pidginhost/sdk-go"
@@ -43,7 +42,7 @@ var packageListCmd = &cobra.Command{
 			return resp.Results, resp.Next.Get() != nil, nil
 		})
 		if err != nil {
-			return fmt.Errorf("listing packages: %w", err)
+			return cmdutil.APIError("listing packages", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, packages, func(w io.Writer) {

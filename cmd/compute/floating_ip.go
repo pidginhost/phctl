@@ -51,7 +51,7 @@ var floatingIPListCmd = &cobra.Command{
 				return resp.Results, resp.Next.Get() != nil, nil
 			})
 			if err != nil {
-				return fmt.Errorf("listing floating IPv6: %w", err)
+				return cmdutil.APIError("listing floating IPv6", err)
 			}
 			return output.Print(cmd.OutOrStdout(), format, ips, func(w io.Writer) {
 				tw := output.NewTabWriter(w)
@@ -70,7 +70,7 @@ var floatingIPListCmd = &cobra.Command{
 			return resp.Results, resp.Next.Get() != nil, nil
 		})
 		if err != nil {
-			return fmt.Errorf("listing floating IPv4: %w", err)
+			return cmdutil.APIError("listing floating IPv4", err)
 		}
 		return output.Print(cmd.OutOrStdout(), format, ips, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
@@ -97,7 +97,7 @@ var floatingIPCreateCmd = &cobra.Command{
 			body := pidginhost.FloatingIPv6Create{Label: &label}
 			resp, _, err := c.CloudAPI.CloudFloatingIpv6Create(cmd.Context()).FloatingIPv6Create(body).Execute()
 			if err != nil {
-				return fmt.Errorf("creating floating IPv6: %w", err)
+				return cmdutil.APIError("creating floating IPv6", err)
 			}
 			cmd.Printf("Floating IPv6 created (ID: %d, Address: %s)\n", resp.Id, resp.Address)
 			return nil
@@ -105,7 +105,7 @@ var floatingIPCreateCmd = &cobra.Command{
 		body := pidginhost.FloatingIPv4Create{Label: &label}
 		resp, _, err := c.CloudAPI.CloudFloatingIpv4Create(cmd.Context()).FloatingIPv4Create(body).Execute()
 		if err != nil {
-			return fmt.Errorf("creating floating IPv4: %w", err)
+			return cmdutil.APIError("creating floating IPv4", err)
 		}
 		cmd.Printf("Floating IPv4 created (ID: %d, Address: %s)\n", resp.Id, resp.Address)
 		return nil
@@ -135,7 +135,7 @@ var floatingIPDeleteCmd = &cobra.Command{
 			_, err = c.CloudAPI.CloudFloatingIpv4Destroy(cmd.Context(), id).Execute()
 		}
 		if err != nil {
-			return fmt.Errorf("deleting floating IP: %w", err)
+			return cmdutil.APIError("deleting floating IP", err)
 		}
 		cmd.Printf("Floating IP %d deleted.\n", id)
 		return nil
@@ -237,7 +237,7 @@ var floatingIPAuthorizationsCmd = &cobra.Command{
 			})
 		}
 		if err != nil {
-			return fmt.Errorf("listing authorizations: %w", err)
+			return cmdutil.APIError("listing authorizations", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, auths, func(w io.Writer) {

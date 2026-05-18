@@ -36,7 +36,7 @@ var ipv4ListCmd = &cobra.Command{
 			return resp.Results, resp.Next.Get() != nil, nil
 		})
 		if err != nil {
-			return fmt.Errorf("listing IPv4 addresses: %w", err)
+			return cmdutil.APIError("listing IPv4 addresses", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, ips, func(w io.Writer) {
@@ -60,7 +60,7 @@ var ipv4CreateCmd = &cobra.Command{
 		}
 		resp, _, err := c.CloudAPI.CloudIpv4Create(cmd.Context()).Execute()
 		if err != nil {
-			return fmt.Errorf("creating IPv4: %w", err)
+			return cmdutil.APIError("creating IPv4", err)
 		}
 		cmd.Printf("IPv4 address created (ID: %d, Address: %s)\n", resp.Id, resp.Address)
 		return nil
@@ -86,7 +86,7 @@ var ipv4DeleteCmd = &cobra.Command{
 		}
 		_, err = c.CloudAPI.CloudIpv4Destroy(cmd.Context(), id).Execute()
 		if err != nil {
-			return fmt.Errorf("deleting IPv4: %w", err)
+			return cmdutil.APIError("deleting IPv4", err)
 		}
 		cmd.Printf("IPv4 address %d deleted.\n", id)
 		return nil
@@ -108,7 +108,7 @@ var ipv4DetachCmd = &cobra.Command{
 		}
 		resp, _, err := c.CloudAPI.CloudIpv4DetachCreate(cmd.Context(), id).Execute()
 		if err != nil {
-			return fmt.Errorf("detaching IPv4: %w", err)
+			return cmdutil.APIError("detaching IPv4", err)
 		}
 		cmd.Printf("IPv4 detached: %v\n", resp.Detached)
 		return nil
@@ -143,12 +143,12 @@ var ipv4ReverseDNSCmd = &cobra.Command{
 			body := pidginhost.NewReverseDNS(hostname)
 			resp, _, err = c.CloudAPI.CloudIpv4RdnsCreate(cmd.Context(), id).ReverseDNS(*body).Execute()
 			if err != nil {
-				return fmt.Errorf("setting reverse DNS: %w", err)
+				return cmdutil.APIError("setting reverse DNS", err)
 			}
 		} else {
 			resp, _, err = c.CloudAPI.CloudIpv4RdnsRetrieve(cmd.Context(), id).Execute()
 			if err != nil {
-				return fmt.Errorf("fetching reverse DNS: %w", err)
+				return cmdutil.APIError("fetching reverse DNS", err)
 			}
 		}
 		format := cmdutil.OutputFormat(cmd)

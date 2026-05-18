@@ -30,7 +30,7 @@ var volumeListCmd = &cobra.Command{
 		}
 		resp, _, err := c.CloudAPI.CloudVolumesList(cmd.Context()).Execute()
 		if err != nil {
-			return fmt.Errorf("listing volumes: %w", err)
+			return cmdutil.APIError("listing volumes", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, resp, func(w io.Writer) {
@@ -59,7 +59,7 @@ var volumeGetCmd = &cobra.Command{
 		}
 		vol, _, err := c.CloudAPI.CloudVolumesRetrieve(cmd.Context(), id).Execute()
 		if err != nil {
-			return fmt.Errorf("getting volume: %w", err)
+			return cmdutil.APIError("getting volume", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, vol, func(w io.Writer) {
@@ -94,7 +94,7 @@ var volumeDeleteCmd = &cobra.Command{
 		}
 		_, err = c.CloudAPI.CloudVolumesDestroy(cmd.Context(), id).Execute()
 		if err != nil {
-			return fmt.Errorf("deleting volume: %w", err)
+			return cmdutil.APIError("deleting volume", err)
 		}
 		cmd.Printf("Volume %d deleted.\n", id)
 		return nil
@@ -119,7 +119,7 @@ var volumeAttachCmd = &cobra.Command{
 		body := *pidginhost.NewAttachVolume(volumeAttachVM)
 		_, _, err = c.CloudAPI.CloudVolumesAttachCreate(cmd.Context(), id).AttachVolume(body).Execute()
 		if err != nil {
-			return fmt.Errorf("attaching volume: %w", err)
+			return cmdutil.APIError("attaching volume", err)
 		}
 		cmd.Printf("Volume %d attached to server %d.\n", id, volumeAttachVM)
 		return nil
@@ -141,7 +141,7 @@ var volumeDetachCmd = &cobra.Command{
 		}
 		resp, _, err := c.CloudAPI.CloudVolumesDetachCreate(cmd.Context(), id).Execute()
 		if err != nil {
-			return fmt.Errorf("detaching volume: %w", err)
+			return cmdutil.APIError("detaching volume", err)
 		}
 		cmd.Printf("Volume detached: %v\n", resp.Detached)
 		return nil

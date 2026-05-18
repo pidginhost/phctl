@@ -1,7 +1,6 @@
 package compute
 
 import (
-	"fmt"
 	"io"
 
 	pidginhost "github.com/pidginhost/sdk-go"
@@ -34,7 +33,7 @@ var imageListCmd = &cobra.Command{
 			return resp.Results, resp.Next.Get() != nil, nil
 		})
 		if err != nil {
-			return fmt.Errorf("listing images: %w", err)
+			return cmdutil.APIError("listing images", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, images, func(w io.Writer) {

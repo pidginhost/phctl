@@ -35,7 +35,7 @@ var ipv6ListCmd = &cobra.Command{
 			return resp.Results, resp.Next.Get() != nil, nil
 		})
 		if err != nil {
-			return fmt.Errorf("listing IPv6 addresses: %w", err)
+			return cmdutil.APIError("listing IPv6 addresses", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, ips, func(w io.Writer) {
@@ -59,7 +59,7 @@ var ipv6CreateCmd = &cobra.Command{
 		}
 		resp, _, err := c.CloudAPI.CloudIpv6Create(cmd.Context()).Execute()
 		if err != nil {
-			return fmt.Errorf("creating IPv6: %w", err)
+			return cmdutil.APIError("creating IPv6", err)
 		}
 		cmd.Printf("IPv6 address created (ID: %d, Address: %s)\n", resp.Id, resp.Address)
 		return nil
@@ -85,7 +85,7 @@ var ipv6DeleteCmd = &cobra.Command{
 		}
 		_, err = c.CloudAPI.CloudIpv6Destroy(cmd.Context(), id).Execute()
 		if err != nil {
-			return fmt.Errorf("deleting IPv6: %w", err)
+			return cmdutil.APIError("deleting IPv6", err)
 		}
 		cmd.Printf("IPv6 address %d deleted.\n", id)
 		return nil
@@ -107,7 +107,7 @@ var ipv6DetachCmd = &cobra.Command{
 		}
 		resp, _, err := c.CloudAPI.CloudIpv6DetachCreate(cmd.Context(), id).Execute()
 		if err != nil {
-			return fmt.Errorf("detaching IPv6: %w", err)
+			return cmdutil.APIError("detaching IPv6", err)
 		}
 		cmd.Printf("IPv6 detached: %v\n", resp.Detached)
 		return nil

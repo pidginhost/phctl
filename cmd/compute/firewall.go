@@ -30,7 +30,7 @@ var firewallListCmd = &cobra.Command{
 		}
 		resp, _, err := c.CloudAPI.CloudFirewallRulesSetList(cmd.Context()).Execute()
 		if err != nil {
-			return fmt.Errorf("listing firewalls: %w", err)
+			return cmdutil.APIError("listing firewalls", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, resp, func(w io.Writer) {
@@ -59,7 +59,7 @@ var firewallGetCmd = &cobra.Command{
 		}
 		fw, _, err := c.CloudAPI.CloudFirewallRulesSetRetrieve(cmd.Context(), id).Execute()
 		if err != nil {
-			return fmt.Errorf("getting firewall: %w", err)
+			return cmdutil.APIError("getting firewall", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, fw, func(w io.Writer) {
@@ -95,7 +95,7 @@ var firewallCreateCmd = &cobra.Command{
 		body := *pidginhost.NewFirewallRulesSet(0, firewallCreateName, "", []pidginhost.FirewallRule{}, false)
 		resp, _, err := c.CloudAPI.CloudFirewallRulesSetCreate(cmd.Context()).FirewallRulesSet(body).Execute()
 		if err != nil {
-			return fmt.Errorf("creating firewall: %w", err)
+			return cmdutil.APIError("creating firewall", err)
 		}
 		cmd.Printf("Firewall rule set created (ID: %d, Name: %s)\n", resp.Id, resp.Name)
 		return nil
@@ -121,7 +121,7 @@ var firewallDeleteCmd = &cobra.Command{
 		}
 		_, err = c.CloudAPI.CloudFirewallRulesSetDestroy(cmd.Context(), id).Execute()
 		if err != nil {
-			return fmt.Errorf("deleting firewall: %w", err)
+			return cmdutil.APIError("deleting firewall", err)
 		}
 		cmd.Printf("Firewall rule set %d deleted.\n", id)
 		return nil
@@ -147,7 +147,7 @@ var ruleListCmd = &cobra.Command{
 		}
 		resp, _, err := c.CloudAPI.CloudFirewallRulesSetRulesList(cmd.Context(), args[0]).Execute()
 		if err != nil {
-			return fmt.Errorf("listing rules: %w", err)
+			return cmdutil.APIError("listing rules", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, resp, func(w io.Writer) {
@@ -204,7 +204,7 @@ var ruleCreateCmd = &cobra.Command{
 
 		resp, _, err := c.CloudAPI.CloudFirewallRulesSetRulesCreate(cmd.Context(), args[0]).FirewallRule(body).Execute()
 		if err != nil {
-			return fmt.Errorf("creating rule: %w", err)
+			return cmdutil.APIError("creating rule", err)
 		}
 		cmd.Printf("Rule created (ID: %d, Direction: %s, Action: %s)\n", resp.Id, resp.Direction, resp.Action)
 		return nil
@@ -226,7 +226,7 @@ var ruleDeleteCmd = &cobra.Command{
 		}
 		_, err = c.CloudAPI.CloudFirewallRulesSetRulesDestroy(cmd.Context(), args[1], args[0]).Execute()
 		if err != nil {
-			return fmt.Errorf("deleting rule: %w", err)
+			return cmdutil.APIError("deleting rule", err)
 		}
 		cmd.Printf("Rule %s deleted from ruleset %s.\n", args[1], args[0])
 		return nil

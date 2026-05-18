@@ -39,7 +39,7 @@ var serverListCmd = &cobra.Command{
 			return resp.Results, resp.Next.Get() != nil, nil
 		})
 		if err != nil {
-			return fmt.Errorf("listing servers: %w", err)
+			return cmdutil.APIError("listing servers", err)
 		}
 		return output.Print(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), servers, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
@@ -67,7 +67,7 @@ var serverGetCmd = &cobra.Command{
 		}
 		s, _, err := c.CloudAPI.CloudServersRetrieve(cmd.Context(), id).Execute()
 		if err != nil {
-			return fmt.Errorf("getting server: %w", err)
+			return cmdutil.APIError("getting server", err)
 		}
 
 		return output.Print(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), s, func(w io.Writer) {
@@ -173,7 +173,7 @@ var serverCreateCmd = &cobra.Command{
 
 		resp, _, err := c.CloudAPI.CloudServersCreate(cmd.Context()).ServerAdd(body).Execute()
 		if err != nil {
-			return fmt.Errorf("creating server: %w", err)
+			return cmdutil.APIError("creating server", err)
 		}
 
 		cmd.Printf("Server created (ID: %d)\n", resp.Id)
@@ -200,7 +200,7 @@ var serverDeleteCmd = &cobra.Command{
 		}
 		_, err = c.CloudAPI.CloudServersDestroy(cmd.Context(), id).Execute()
 		if err != nil {
-			return fmt.Errorf("deleting server: %w", err)
+			return cmdutil.APIError("deleting server", err)
 		}
 		cmd.Printf("Server %d deleted.\n", id)
 		return nil
@@ -225,7 +225,7 @@ var serverPowerCmd = &cobra.Command{
 		body := *pidginhost.NewPowerManagementRequest(pidginhost.PowerManagementRequestActionEnum(serverPowerAction))
 		_, _, err = c.CloudAPI.CloudServersPowerManagementCreate(cmd.Context(), id).PowerManagementRequest(body).Execute()
 		if err != nil {
-			return fmt.Errorf("power management: %w", err)
+			return cmdutil.APIError("power management", err)
 		}
 		cmd.Printf("Power action '%s' executed on server %d.\n", serverPowerAction, id)
 		return nil
@@ -247,7 +247,7 @@ var serverConsoleCmd = &cobra.Command{
 		}
 		resp, _, err := c.CloudAPI.CloudServersConsoleCreate(cmd.Context(), id).Execute()
 		if err != nil {
-			return fmt.Errorf("getting console: %w", err)
+			return cmdutil.APIError("getting console", err)
 		}
 		return output.Print(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
@@ -280,7 +280,7 @@ var serverAttachIPv4Cmd = &cobra.Command{
 		body := *pidginhost.NewAttachIPv4(serverAttachIPv4Slug)
 		resp, _, err := c.CloudAPI.CloudServersAttachIpv4Create(cmd.Context(), id).AttachIPv4(body).Execute()
 		if err != nil {
-			return fmt.Errorf("attaching IPv4: %w", err)
+			return cmdutil.APIError("attaching IPv4", err)
 		}
 		if resp != nil && !resp.Attached {
 			return fmt.Errorf("attaching IPv4: backend reported the IPv4 was not attached")
@@ -314,7 +314,7 @@ var serverDetachIPv4Cmd = &cobra.Command{
 		}
 		resp, _, err := req.Execute()
 		if err != nil {
-			return fmt.Errorf("detaching IPv4: %w", err)
+			return cmdutil.APIError("detaching IPv4", err)
 		}
 		if resp != nil && !resp.Detached {
 			return fmt.Errorf("detaching IPv4: backend reported the IPv4 was not detached")
@@ -346,7 +346,7 @@ var serverAttachIPv6Cmd = &cobra.Command{
 		body := *pidginhost.NewAttachIPv6(serverAttachIPv6Slug)
 		_, _, err = c.CloudAPI.CloudServersAttachIpv6Create(cmd.Context(), id).AttachIPv6(body).Execute()
 		if err != nil {
-			return fmt.Errorf("attaching IPv6: %w", err)
+			return cmdutil.APIError("attaching IPv6", err)
 		}
 		cmd.Printf("IPv6 %s attached to server %d.\n", serverAttachIPv6Slug, id)
 		return nil
@@ -373,7 +373,7 @@ var serverProtectCmd = &cobra.Command{
 		body := *pidginhost.NewDestroyProtection(serverProtectEnable)
 		_, _, err = c.CloudAPI.CloudServersDestroyProtectionCreate(cmd.Context(), id).DestroyProtection(body).Execute()
 		if err != nil {
-			return fmt.Errorf("setting destroy protection: %w", err)
+			return cmdutil.APIError("setting destroy protection", err)
 		}
 		state := "enabled"
 		if !serverProtectEnable {
@@ -413,7 +413,7 @@ var serverSnapshotListCmd = &cobra.Command{
 			return resp.Results, resp.Next.Get() != nil, nil
 		})
 		if err != nil {
-			return fmt.Errorf("listing snapshots: %w", err)
+			return cmdutil.APIError("listing snapshots", err)
 		}
 		return output.Print(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), snapshots, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
@@ -448,7 +448,7 @@ var serverSnapshotCreateCmd = &cobra.Command{
 		body := *pidginhost.NewSnapshotCreate(snapshotCreateName)
 		_, _, err = c.CloudAPI.CloudServersSnapshotsCreate(cmd.Context(), id).SnapshotCreate(body).Execute()
 		if err != nil {
-			return fmt.Errorf("creating snapshot: %w", err)
+			return cmdutil.APIError("creating snapshot", err)
 		}
 		cmd.Printf("Snapshot '%s' creation queued.\n", snapshotCreateName)
 		return nil
@@ -474,7 +474,7 @@ var serverSnapshotDeleteCmd = &cobra.Command{
 		}
 		_, _, err = c.CloudAPI.CloudServersSnapshotsDestroy(cmd.Context(), id, args[1]).Execute()
 		if err != nil {
-			return fmt.Errorf("deleting snapshot: %w", err)
+			return cmdutil.APIError("deleting snapshot", err)
 		}
 		cmd.Printf("Snapshot '%s' deletion queued.\n", args[1])
 		return nil
@@ -499,7 +499,7 @@ var serverSnapshotRollbackCmd = &cobra.Command{
 		}
 		_, _, err = c.CloudAPI.CloudServersSnapshotsRollbackCreate(cmd.Context(), id, args[1]).Execute()
 		if err != nil {
-			return fmt.Errorf("rolling back snapshot: %w", err)
+			return cmdutil.APIError("rolling back snapshot", err)
 		}
 		cmd.Printf("Rollback to snapshot '%s' queued.\n", args[1])
 		return nil
