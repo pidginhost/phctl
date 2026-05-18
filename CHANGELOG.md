@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.12.2
+
+### Fixed
+
+- **`cmdutil.APIError` now actually extracts SDK response bodies**. v0.12.1 declared the target as `var apiErr GenericOpenAPIError` (value), but the SDK returns the error as `*GenericOpenAPIError`, so `errors.As` never matched and the body branch was unreachable — the release was effectively a no-op for SDK errors. Target is now `*GenericOpenAPIError`, and an httptest-backed integration test pins the behaviour so this can't silently regress.
+- **`compute floating-ip authorize`/`unauthorize` errors** also surface the backend body now (previously missed because their `fmt.Errorf` used `%d, %d, %w` not the `: %w` pattern the bulk-rewrite matched).
+
 ## v0.12.1
 
 ### Changed
