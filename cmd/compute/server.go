@@ -84,6 +84,16 @@ var serverGetCmd = &cobra.Command{
 			output.PrintRow(tw, "Destroy Protection:", s.DestroyProtection)
 			output.PrintRow(tw, "HA Enabled:", s.HaEnabled)
 			tw.Flush()
+			if len(s.FloatingIps) > 0 {
+				fmt.Fprintln(w)
+				fmt.Fprintln(w, "Floating IPs:")
+				ftw := output.NewTabWriter(w)
+				output.PrintRow(ftw, "  ID", "VERSION", "ADDRESS", "LABEL", "REVERSE_DNS")
+				for _, f := range s.FloatingIps {
+					output.PrintRow(ftw, f.Id, f.Version, f.Address, f.Label, f.ReverseDns)
+				}
+				ftw.Flush()
+			}
 		})
 	},
 }

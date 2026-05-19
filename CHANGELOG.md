@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.14.0
+
+### Added
+
+- **`compute package list` `GENERATIONS` column**: shows the hardware-generation slugs each SKU is enabled on (comma-joined). Lets you pick a `--generation` value without first calling `compute generation list`.
+- **`compute floating-ip list` `REVERSE_DNS` column**: PTR record visible in the listing instead of one rdns retrieve per row.
+- **`compute server get` Floating IPs section**: prints every floating IPv4/IPv6 the VM is currently authorized to claim (id, version, address, label, reverse_dns) below the regular details. Empty section hidden when the VM has no authorizations.
+
+### Changed
+
+- **Dependency updates**: sdk-go v0.10.1 → v0.10.2 (`ServerProduct.AvailableGenerations`, `FloatingIPv{4,6}.ReverseDns`, `ServerDetail.FloatingIps []FloatingIPSummary`).
+
 ## v0.13.1
 
 ### Added

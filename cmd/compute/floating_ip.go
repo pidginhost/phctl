@@ -55,9 +55,9 @@ var floatingIPListCmd = &cobra.Command{
 			}
 			return output.Print(cmd.OutOrStdout(), format, ips, func(w io.Writer) {
 				tw := output.NewTabWriter(w)
-				output.PrintRow(tw, "ID", "ADDRESS", "LABEL", "AUTHORIZED")
+				output.PrintRow(tw, "ID", "ADDRESS", "LABEL", "REVERSE_DNS", "AUTHORIZED")
 				for _, ip := range ips {
-					output.PrintRow(tw, ip.Id, ip.Address, ip.GetLabel(), ip.AuthorizedVmCount)
+					output.PrintRow(tw, ip.Id, ip.Address, ip.GetLabel(), ip.ReverseDns, ip.AuthorizedVmCount)
 				}
 				tw.Flush()
 			})
@@ -74,9 +74,9 @@ var floatingIPListCmd = &cobra.Command{
 		}
 		return output.Print(cmd.OutOrStdout(), format, ips, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
-			output.PrintRow(tw, "ID", "ADDRESS", "LABEL", "AUTHORIZED")
+			output.PrintRow(tw, "ID", "ADDRESS", "LABEL", "REVERSE_DNS", "AUTHORIZED")
 			for _, ip := range ips {
-				output.PrintRow(tw, ip.Id, ip.Address, ip.GetLabel(), ip.AuthorizedVmCount)
+				output.PrintRow(tw, ip.Id, ip.Address, ip.GetLabel(), ip.ReverseDns, ip.AuthorizedVmCount)
 			}
 			tw.Flush()
 		})
