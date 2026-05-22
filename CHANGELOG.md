@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.14.2
+
+### Fixed
+
+- **`compute server get` Floating IPs table**: header column `ID` was indented two spaces while data rows were flush-left, throwing tabwriter alignment off for the entire section. Header now matches the row layout.
+- **`compute server create --no-public-ipv4-ack` help text**: previously described the flag as "no public network" gated on four specific flags; reworded to make clear it acknowledges no public IPv4 or IPv6, matching the actual backend `no_network_acknowledged` semantics.
+
+### Changed
+
+- **Internal refactor**: extracted the inline table-rendering closures in `compute floating-ip list`, `compute package list`, and `compute server get` into named functions (`printFloatingIPv{4,6}ListTable`, `printPackageListTable`, `printServerDetailsTable`) so they can be exercised directly from tests. No behavior change.
+- **Test coverage**: added regression tests covering package `GENERATIONS` column rendering, floating-IP `REVERSE_DNS` column rendering, `compute server get` Floating IPs section, and `compute server create --no-public-ipv4-ack` sending `no_network_acknowledged=true` without allocating `new_ipv4`.
+
 ## v0.14.1
 
 ### Added
