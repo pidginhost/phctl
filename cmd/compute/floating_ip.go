@@ -32,6 +32,24 @@ func isIPv6(cmd *cobra.Command) bool {
 	return v
 }
 
+func printFloatingIPv4ListTable(w io.Writer, ips []pidginhost.FloatingIPv4) {
+	tw := output.NewTabWriter(w)
+	output.PrintRow(tw, "ID", "ADDRESS", "LABEL", "REVERSE_DNS", "AUTHORIZED")
+	for _, ip := range ips {
+		output.PrintRow(tw, ip.Id, ip.Address, ip.GetLabel(), ip.ReverseDns, ip.AuthorizedVmCount)
+	}
+	tw.Flush()
+}
+
+func printFloatingIPv6ListTable(w io.Writer, ips []pidginhost.FloatingIPv6) {
+	tw := output.NewTabWriter(w)
+	output.PrintRow(tw, "ID", "ADDRESS", "LABEL", "REVERSE_DNS", "AUTHORIZED")
+	for _, ip := range ips {
+		output.PrintRow(tw, ip.Id, ip.Address, ip.GetLabel(), ip.ReverseDns, ip.AuthorizedVmCount)
+	}
+	tw.Flush()
+}
+
 var floatingIPListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List floating IPs",
@@ -54,12 +72,7 @@ var floatingIPListCmd = &cobra.Command{
 				return cmdutil.APIError("listing floating IPv6", err)
 			}
 			return output.Print(cmd.OutOrStdout(), format, ips, func(w io.Writer) {
-				tw := output.NewTabWriter(w)
-				output.PrintRow(tw, "ID", "ADDRESS", "LABEL", "REVERSE_DNS", "AUTHORIZED")
-				for _, ip := range ips {
-					output.PrintRow(tw, ip.Id, ip.Address, ip.GetLabel(), ip.ReverseDns, ip.AuthorizedVmCount)
-				}
-				tw.Flush()
+				printFloatingIPv6ListTable(w, ips)
 			})
 		}
 		ips, err := cmdutil.FetchAll(func(page int32) ([]pidginhost.FloatingIPv4, bool, error) {
@@ -73,12 +86,7 @@ var floatingIPListCmd = &cobra.Command{
 			return cmdutil.APIError("listing floating IPv4", err)
 		}
 		return output.Print(cmd.OutOrStdout(), format, ips, func(w io.Writer) {
-			tw := output.NewTabWriter(w)
-			output.PrintRow(tw, "ID", "ADDRESS", "LABEL", "REVERSE_DNS", "AUTHORIZED")
-			for _, ip := range ips {
-				output.PrintRow(tw, ip.Id, ip.Address, ip.GetLabel(), ip.ReverseDns, ip.AuthorizedVmCount)
-			}
-			tw.Flush()
+			printFloatingIPv4ListTable(w, ips)
 		})
 	},
 }

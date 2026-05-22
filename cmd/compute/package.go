@@ -19,6 +19,15 @@ var packageCmd = &cobra.Command{
 	Args:    cobra.NoArgs,
 }
 
+func printPackageListTable(w io.Writer, packages []pidginhost.ServerProduct) {
+	tw := output.NewTabWriter(w)
+	output.PrintRow(tw, "ID", "NAME", "SLUG", "CPUS", "MEMORY_GB", "DISK_GB", "TRAFFIC_GB", "GENERATIONS")
+	for _, p := range packages {
+		output.PrintRow(tw, p.Id, p.Name, p.Slug, p.Cpus, p.Memory, p.DiskSize, p.Traffic, strings.Join(p.AvailableGenerations, ","))
+	}
+	tw.Flush()
+}
+
 var packageListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all server packages",
@@ -47,12 +56,7 @@ var packageListCmd = &cobra.Command{
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, packages, func(w io.Writer) {
-			tw := output.NewTabWriter(w)
-			output.PrintRow(tw, "ID", "NAME", "SLUG", "CPUS", "MEMORY_GB", "DISK_GB", "TRAFFIC_GB", "GENERATIONS")
-			for _, p := range packages {
-				output.PrintRow(tw, p.Id, p.Name, p.Slug, p.Cpus, p.Memory, p.DiskSize, p.Traffic, strings.Join(p.AvailableGenerations, ","))
-			}
-			tw.Flush()
+			printPackageListTable(w, packages)
 		})
 	},
 }

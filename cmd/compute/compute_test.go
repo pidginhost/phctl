@@ -1,10 +1,14 @@
 package compute
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
+
+	pidginhost "github.com/pidginhost/sdk-go"
 )
 
 func writeTestFile(t *testing.T, path, body string) error {
@@ -85,6 +89,104 @@ func TestServerCreateFlags(t *testing.T) {
 		if serverCreateCmd.Flags().Lookup(name) == nil {
 			t.Errorf("server create missing flag --%s", name)
 		}
+	}
+}
+
+func TestPackageListTableIncludesAvailableGenerations(t *testing.T) {
+	var out bytes.Buffer
+	printPackageListTable(&out, []pidginhost.ServerProduct{
+		{
+			Id:                   1,
+			Name:                 "Compute-2G",
+			Slug:                 "c2g",
+			Cpus:                 2,
+			Memory:               4,
+			DiskSize:             80,
+			Traffic:              1000,
+			AvailableGenerations: []string{"gen3", "gen4"},
+		},
+	})
+
+	lines := nonEmptyLines(out.String())
+	if len(lines) != 2 {
+		t.Fatalf("lines = %#v, want header and one package row", lines)
+	}
+	assertFields(t, lines[0], []string{"ID", "NAME", "SLUG", "CPUS", "MEMORY_GB", "DISK_GB", "TRAFFIC_GB", "GENERATIONS"})
+	assertFields(t, lines[1], []string{"1", "Compute-2G", "c2g", "2", "4", "80", "1000", "gen3,gen4"})
+}
+
+func TestFloatingIPListTablesIncludeReverseDNS(t *testing.T) {
+	label4 := "edge-v4"
+	var out bytes.Buffer
+	printFloatingIPv4ListTable(&out, []pidginhost.FloatingIPv4{
+		{
+			Id:                11,
+			Address:           "192.0.2.10",
+			ReverseDns:        "edge4.example.com",
+			Label:             &label4,
+			AuthorizedVmCount: 2,
+		},
+	})
+
+	lines := nonEmptyLines(out.String())
+	if len(lines) != 2 {
+		t.Fatalf("IPv4 lines = %#v, want header and one row", lines)
+	}
+	assertFields(t, lines[0], []string{"ID", "ADDRESS", "LABEL", "REVERSE_DNS", "AUTHORIZED"})
+	assertFields(t, lines[1], []string{"11", "192.0.2.10", "edge-v4", "edge4.example.com", "2"})
+
+	label6 := "edge-v6"
+	out.Reset()
+	printFloatingIPv6ListTable(&out, []pidginhost.FloatingIPv6{
+		{
+			Id:                12,
+			Address:           "2001:db8::10",
+			ReverseDns:        "edge6.example.com",
+			Label:             &label6,
+			AuthorizedVmCount: 3,
+		},
+	})
+
+	lines = nonEmptyLines(out.String())
+	if len(lines) != 2 {
+		t.Fatalf("IPv6 lines = %#v, want header and one row", lines)
+	}
+	assertFields(t, lines[0], []string{"ID", "ADDRESS", "LABEL", "REVERSE_DNS", "AUTHORIZED"})
+	assertFields(t, lines[1], []string{"12", "2001:db8::10", "edge-v6", "edge6.example.com", "3"})
+}
+
+func TestServerDetailsTableIncludesFloatingIPs(t *testing.T) {
+	s := newTestServerDetail([]pidginhost.FloatingIPSummary{
+		{
+			Id:         99,
+			Version:    pidginhost.VERSIONENUM_IPV4,
+			Address:    "192.0.2.10",
+			Label:      "edge-v4",
+			ReverseDns: "edge4.example.com",
+		},
+	})
+
+	var out bytes.Buffer
+	printServerDetailsTable(&out, s)
+
+	lines := nonEmptyLines(out.String())
+	section := indexOfLine(lines, "Floating IPs:")
+	if section == -1 {
+		t.Fatalf("output missing Floating IPs section:\n%s", out.String())
+	}
+	if section+2 >= len(lines) {
+		t.Fatalf("Floating IPs section is incomplete: %#v", lines[section:])
+	}
+	assertFields(t, lines[section+1], []string{"ID", "VERSION", "ADDRESS", "LABEL", "REVERSE_DNS"})
+	assertFields(t, lines[section+2], []string{"99", "ipv4", "192.0.2.10", "edge-v4", "edge4.example.com"})
+}
+
+func TestServerDetailsTableHidesEmptyFloatingIPs(t *testing.T) {
+	var out bytes.Buffer
+	printServerDetailsTable(&out, newTestServerDetail(nil))
+
+	if strings.Contains(out.String(), "Floating IPs:") {
+		t.Fatalf("empty floating IP list should be hidden, got:\n%s", out.String())
 	}
 }
 
@@ -208,5 +310,54 @@ func TestSnapshotSubcommands(t *testing.T) {
 		if !names[want] {
 			t.Errorf("snapshot missing subcommand %q", want)
 		}
+	}
+}
+
+func newTestServerDetail(floatingIPs []pidginhost.FloatingIPSummary) *pidginhost.ServerDetail {
+	return pidginhost.NewServerDetail(
+		42,
+		"vm.example.com",
+		"ubuntu-24.04",
+		"c2g",
+		2,
+		4,
+		80,
+		"gen3",
+		map[string]interface{}{},
+		[]pidginhost.Volume{},
+		map[string]interface{}{},
+		floatingIPs,
+		pidginhost.STATUSA57ENUM_ACTIVE,
+		"root",
+		false,
+		true,
+	)
+}
+
+func nonEmptyLines(s string) []string {
+	raw := strings.Split(strings.TrimSpace(s), "\n")
+	lines := make([]string, 0, len(raw))
+	for _, line := range raw {
+		if strings.TrimSpace(line) != "" {
+			lines = append(lines, line)
+		}
+	}
+	return lines
+}
+
+func indexOfLine(lines []string, want string) int {
+	for i, line := range lines {
+		if strings.TrimSpace(line) == want {
+			return i
+		}
+	}
+	return -1
+}
+
+func assertFields(t *testing.T, line string, want []string) {
+	t.Helper()
+	got := strings.Fields(line)
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("fields for %q = %#v, want %#v", line, got, want)
 	}
 }

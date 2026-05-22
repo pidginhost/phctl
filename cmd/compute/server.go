@@ -52,6 +52,32 @@ var serverListCmd = &cobra.Command{
 	},
 }
 
+func printServerDetailsTable(w io.Writer, s *pidginhost.ServerDetail) {
+	tw := output.NewTabWriter(w)
+	output.PrintRow(tw, "ID:", s.Id)
+	output.PrintRow(tw, "Hostname:", s.Hostname)
+	output.PrintRow(tw, "Image:", s.Image)
+	output.PrintRow(tw, "Package:", s.Package)
+	output.PrintRow(tw, "CPUs:", s.Cpus)
+	output.PrintRow(tw, "Memory:", s.Memory)
+	output.PrintRow(tw, "Disk:", s.DiskSize)
+	output.PrintRow(tw, "Status:", s.Status)
+	output.PrintRow(tw, "Username:", s.Username)
+	output.PrintRow(tw, "Destroy Protection:", s.DestroyProtection)
+	output.PrintRow(tw, "HA Enabled:", s.HaEnabled)
+	tw.Flush()
+	if len(s.FloatingIps) > 0 {
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, "Floating IPs:")
+		ftw := output.NewTabWriter(w)
+		output.PrintRow(ftw, "ID", "VERSION", "ADDRESS", "LABEL", "REVERSE_DNS")
+		for _, f := range s.FloatingIps {
+			output.PrintRow(ftw, f.Id, f.Version, f.Address, f.Label, f.ReverseDns)
+		}
+		ftw.Flush()
+	}
+}
+
 var serverGetCmd = &cobra.Command{
 	Use:   "get <id>",
 	Short: "Get server details",
@@ -71,29 +97,7 @@ var serverGetCmd = &cobra.Command{
 		}
 
 		return output.Print(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), s, func(w io.Writer) {
-			tw := output.NewTabWriter(w)
-			output.PrintRow(tw, "ID:", s.Id)
-			output.PrintRow(tw, "Hostname:", s.Hostname)
-			output.PrintRow(tw, "Image:", s.Image)
-			output.PrintRow(tw, "Package:", s.Package)
-			output.PrintRow(tw, "CPUs:", s.Cpus)
-			output.PrintRow(tw, "Memory:", s.Memory)
-			output.PrintRow(tw, "Disk:", s.DiskSize)
-			output.PrintRow(tw, "Status:", s.Status)
-			output.PrintRow(tw, "Username:", s.Username)
-			output.PrintRow(tw, "Destroy Protection:", s.DestroyProtection)
-			output.PrintRow(tw, "HA Enabled:", s.HaEnabled)
-			tw.Flush()
-			if len(s.FloatingIps) > 0 {
-				fmt.Fprintln(w)
-				fmt.Fprintln(w, "Floating IPs:")
-				ftw := output.NewTabWriter(w)
-				output.PrintRow(ftw, "  ID", "VERSION", "ADDRESS", "LABEL", "REVERSE_DNS")
-				for _, f := range s.FloatingIps {
-					output.PrintRow(ftw, f.Id, f.Version, f.Address, f.Label, f.ReverseDns)
-				}
-				ftw.Flush()
-			}
+			printServerDetailsTable(w, s)
 		})
 	},
 }
