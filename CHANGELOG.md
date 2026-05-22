@@ -4,7 +4,7 @@
 
 ### Added
 
-- **`compute server create --no-public-ipv4-ack`**: explicitly acknowledge the VM will have no public network, satisfying the backend `no_network_acknowledged` guard when none of `--new-ipv4`, `--public-ip`, `--new-ipv6`, `--public-ipv6` is set on packages that would otherwise reject the create.
+- **`compute server create --no-public-ipv4-ack`**: explicitly acknowledge the VM will have no public IPv4 or IPv6, satisfying the backend `no_network_acknowledged` guard when no public network is requested on packages that would otherwise reject the create.
 
 ## v0.14.0
 

@@ -541,7 +541,7 @@ func init() {
 	serverCreateCmd.Flags().StringVar(&serverCreateSSHKeyID, "ssh-key-id", "", "SSH key ID to inject")
 	serverCreateCmd.Flags().StringVar(&serverCreatePassword, "password", "", "Root password")
 	serverCreateCmd.Flags().BoolVar(&serverCreateNewIPv4, "new-ipv4", false, "Allocate a new public IPv4")
-	serverCreateCmd.Flags().BoolVar(&serverCreateNoPubIPv4Ack, "no-public-ipv4-ack", false, "Acknowledge that the server will have no public network (required when --new-ipv4, --public-ip, --new-ipv6, and --public-ipv6 are all omitted on packages where the backend would otherwise reject the create).")
+	serverCreateCmd.Flags().BoolVar(&serverCreateNoPubIPv4Ack, "no-public-ipv4-ack", false, "Acknowledge creating the server without a public IPv4 or IPv6. Required when no public network is requested on packages where the backend would otherwise reject the create.")
 	serverCreateCmd.Flags().StringVar(&serverCreatePrivateNetwork, "private-network", "", "Attach to this private network at create time (ID or CIDR slug). Pair with --private-address for a specific IP.")
 	serverCreateCmd.Flags().StringVar(&serverCreatePrivateAddress, "private-address", "", "Static IPv4 inside --private-network. Leave empty for auto-assign.")
 	serverCreateCmd.Flags().StringVar(&serverCreateUserData, "user-data", "", "Cloud-init startup script body (Linux only, mutually exclusive with --user-data-file)")

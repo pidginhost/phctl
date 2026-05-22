@@ -2,6 +2,9 @@ package compute
 
 import (
 	"bytes"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -9,6 +12,7 @@ import (
 	"testing"
 
 	pidginhost "github.com/pidginhost/sdk-go"
+	"github.com/spf13/cobra"
 )
 
 func writeTestFile(t *testing.T, path, body string) error {
@@ -85,10 +89,66 @@ func TestServerDeleteAliases(t *testing.T) {
 }
 
 func TestServerCreateFlags(t *testing.T) {
-	for _, name := range []string{"image", "package", "hostname", "project", "ssh-key-id", "password", "new-ipv4", "user-data", "user-data-file"} {
+	for _, name := range []string{"image", "package", "hostname", "project", "ssh-key-id", "password", "new-ipv4", "no-public-ipv4-ack", "user-data", "user-data-file"} {
 		if serverCreateCmd.Flags().Lookup(name) == nil {
 			t.Errorf("server create missing flag --%s", name)
 		}
+	}
+}
+
+func TestServerCreateNoPublicIPv4AckSendsNoNetworkAcknowledged(t *testing.T) {
+	restore := snapshotServerCreateState(t)
+	t.Cleanup(restore)
+
+	var (
+		gotBody     map[string]interface{}
+		requestSeen bool
+	)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestSeen = true
+		if r.Method != http.MethodPost {
+			t.Errorf("method = %s, want POST", r.Method)
+		}
+		if r.URL.Path != "/api/cloud/servers/" {
+			t.Errorf("path = %s, want /api/cloud/servers/", r.URL.Path)
+		}
+		if got, want := r.Header.Get("Authorization"), "Token test-token"; got != want {
+			t.Errorf("Authorization = %q, want %q", got, want)
+		}
+		if err := json.NewDecoder(r.Body).Decode(&gotBody); err != nil {
+			t.Errorf("decode request body: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":123}`))
+	}))
+	defer server.Close()
+
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("PIDGINHOST_API_TOKEN", "test-token")
+	t.Setenv("PIDGINHOST_API_URL", server.URL)
+
+	setServerCreateFlag(t, "image", "ubuntu-24.04")
+	setServerCreateFlag(t, "package", "starter")
+	setServerCreateFlag(t, "no-public-ipv4-ack", "true")
+
+	cmd := &cobra.Command{}
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+
+	if err := serverCreateCmd.RunE(cmd, nil); err != nil {
+		t.Fatalf("RunE: %v", err)
+	}
+	if !requestSeen {
+		t.Fatal("server create did not call API")
+	}
+	if got, ok := gotBody["no_network_acknowledged"].(bool); !ok || !got {
+		t.Fatalf("no_network_acknowledged = %#v, want true", gotBody["no_network_acknowledged"])
+	}
+	if _, ok := gotBody["new_ipv4"]; ok {
+		t.Fatalf("new_ipv4 was sent even though --new-ipv4 was not set: %#v", gotBody["new_ipv4"])
+	}
+	if got, want := strings.TrimSpace(out.String()), "Server created (ID: 123)"; got != want {
+		t.Fatalf("output = %q, want %q", got, want)
 	}
 }
 
@@ -359,5 +419,98 @@ func assertFields(t *testing.T, line string, want []string) {
 	got := strings.Fields(line)
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("fields for %q = %#v, want %#v", line, got, want)
+	}
+}
+
+func setServerCreateFlag(t *testing.T, name, value string) {
+	t.Helper()
+	if err := serverCreateCmd.Flags().Set(name, value); err != nil {
+		t.Fatalf("set --%s: %v", name, err)
+	}
+}
+
+func snapshotServerCreateState(t *testing.T) func() {
+	t.Helper()
+
+	type flagState struct {
+		value   string
+		changed bool
+	}
+
+	flagStates := map[string]flagState{}
+	for _, name := range []string{
+		"image",
+		"package",
+		"generation",
+		"hostname",
+		"project",
+		"ssh-key-id",
+		"password",
+		"new-ipv4",
+		"no-public-ipv4-ack",
+		"private-network",
+		"private-address",
+		"user-data",
+		"user-data-file",
+	} {
+		flag := serverCreateCmd.Flags().Lookup(name)
+		if flag == nil {
+			t.Fatalf("server create missing flag --%s", name)
+		}
+		flagStates[name] = flagState{value: flag.Value.String(), changed: flag.Changed}
+	}
+
+	state := struct {
+		image          string
+		packageName    string
+		generation     string
+		hostname       string
+		project        string
+		sshKeyID       string
+		password       string
+		newIPv4        bool
+		noPubIPv4Ack   bool
+		privateNetwork string
+		privateAddress string
+		userData       string
+		userDataFile   string
+	}{
+		image:          serverCreateImage,
+		packageName:    serverCreatePackage,
+		generation:     serverCreateGeneration,
+		hostname:       serverCreateHostname,
+		project:        serverCreateProject,
+		sshKeyID:       serverCreateSSHKeyID,
+		password:       serverCreatePassword,
+		newIPv4:        serverCreateNewIPv4,
+		noPubIPv4Ack:   serverCreateNoPubIPv4Ack,
+		privateNetwork: serverCreatePrivateNetwork,
+		privateAddress: serverCreatePrivateAddress,
+		userData:       serverCreateUserData,
+		userDataFile:   serverCreateUserDataFile,
+	}
+
+	return func() {
+		for name, saved := range flagStates {
+			flag := serverCreateCmd.Flags().Lookup(name)
+			if flag == nil {
+				continue
+			}
+			_ = flag.Value.Set(saved.value)
+			flag.Changed = saved.changed
+		}
+		serverCreateImage = state.image
+		serverCreatePackage = state.packageName
+		serverCreateGeneration = state.generation
+		serverCreateHostname = state.hostname
+		serverCreateProject = state.project
+		serverCreateSSHKeyID = state.sshKeyID
+		serverCreatePassword = state.password
+		serverCreateNewIPv4 = state.newIPv4
+		serverCreateNoPubIPv4Ack = state.noPubIPv4Ack
+		serverCreatePrivateNetwork = state.privateNetwork
+		serverCreatePrivateAddress = state.privateAddress
+		serverCreateUserData = state.userData
+		serverCreateUserDataFile = state.userDataFile
 	}
 }
