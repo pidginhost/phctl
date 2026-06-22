@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.15.0
+
+### Added
+
+- **`phctl domain glue` (alias `personal-dns`)**: manage glue / personal-DNS records — child nameserver hosts registered at the registry. `list <domain>`, `set <domain> --name ns1 --ip <ip> [--ip2 <ip>]`, and `delete <domain> --name ns1`. Register a nameserver host (e.g. `ns1.example.ro`) before delegating another domain's nameservers to it. Requires the corresponding `/api/domain/domain/{domain}/dns/` endpoint on the backend.
+
 ## v0.14.3
 
 ### Fixed

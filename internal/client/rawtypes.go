@@ -149,6 +149,14 @@ type RawDomain struct {
 	MaxRenewYears  int32   `json:"max_renew_years"`
 }
 
+// RawGlue is a glue / personal-DNS record: a child nameserver host
+// (<name>.<domain>) registered at the registry pointing at ip[/ip2].
+type RawGlue struct {
+	Name string `json:"name"`
+	Ip   string `json:"ip"`
+	Ip2  string `json:"ip2,omitempty"`
+}
+
 // --- Kubernetes ---
 
 type RawCluster struct {

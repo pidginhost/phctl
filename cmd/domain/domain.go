@@ -213,6 +213,80 @@ var domainNameserversCmd = &cobra.Command{
 	},
 }
 
+// --- Glue / personal DNS ---
+
+var (
+	glueName string
+	glueIP   string
+	glueIP2  string
+)
+
+var domainGlueCmd = &cobra.Command{
+	Use:     "glue",
+	Aliases: []string{"personal-dns"},
+	Short:   "Manage glue / personal-DNS records (child nameserver hosts)",
+	Args:    cobra.NoArgs,
+}
+
+var domainGlueListCmd = &cobra.Command{
+	Use:   "list <domain>",
+	Short: "List glue records for a domain",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		glue, err := client.RawFetchAll[client.RawGlue](cmd.Context(), fmt.Sprintf("/api/domain/domain/%s/dns/", args[0]))
+		if err != nil {
+			return fmt.Errorf("listing glue records: %w", err)
+		}
+		format := cmdutil.OutputFormat(cmd)
+		return output.Print(cmd.OutOrStdout(), format, glue, func(w io.Writer) {
+			tw := output.NewTabWriter(w)
+			output.PrintRow(tw, "NAME", "IP", "IP2")
+			for _, g := range glue {
+				output.PrintRow(tw, g.Name, g.Ip, g.Ip2)
+			}
+			tw.Flush()
+		})
+	},
+}
+
+var domainGlueSetCmd = &cobra.Command{
+	Use:   "set <domain>",
+	Short: "Create or update a glue record (child nameserver host)",
+	Long: "Register a child nameserver host <name>.<domain> at the registry, " +
+		"pointing at --ip (and optional --ip2). This must exist before another " +
+		"domain can delegate its nameservers to it.\n\n" +
+		"Example: phctl domain glue set example.ro --name ns1 --ip 203.0.113.10",
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if glueName == "" || glueIP == "" {
+			return fmt.Errorf("--name and --ip are required")
+		}
+		body := client.RawGlue{Name: glueName, Ip: glueIP, Ip2: glueIP2}
+		var result client.RawGlue
+		if err := client.RawPost(cmd.Context(), fmt.Sprintf("/api/domain/domain/%s/dns/", args[0]), body, &result); err != nil {
+			return fmt.Errorf("setting glue record: %w", err)
+		}
+		cmd.Printf("Glue record %s.%s set.\n", result.Name, args[0])
+		return nil
+	},
+}
+
+var domainGlueDeleteCmd = &cobra.Command{
+	Use:   "delete <domain>",
+	Short: "Delete a glue record (deregister the nameserver host)",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if glueName == "" {
+			return fmt.Errorf("--name is required")
+		}
+		if err := client.RawDelete(cmd.Context(), fmt.Sprintf("/api/domain/domain/%s/dns/%s/", args[0], glueName)); err != nil {
+			return fmt.Errorf("deleting glue record: %w", err)
+		}
+		cmd.Printf("Glue record %s.%s deleted.\n", glueName, args[0])
+		return nil
+	},
+}
+
 // --- TLD ---
 
 var tldCmd = &cobra.Command{
@@ -384,6 +458,18 @@ func init() {
 	domainNameserversCmd.Flags().StringVar(&nameserversValue, "nameservers", "", "Comma-separated nameservers (required)")
 	domainNameserversCmd.MarkFlagRequired("nameservers")
 
+	domainGlueSetCmd.Flags().StringVar(&glueName, "name", "", "Nameserver subdomain label, e.g. ns1 (required)")
+	domainGlueSetCmd.Flags().StringVar(&glueIP, "ip", "", "IP address the nameserver resolves to (required)")
+	domainGlueSetCmd.Flags().StringVar(&glueIP2, "ip2", "", "Optional second IP address")
+	domainGlueSetCmd.MarkFlagRequired("name")
+	domainGlueSetCmd.MarkFlagRequired("ip")
+	domainGlueDeleteCmd.Flags().StringVar(&glueName, "name", "", "Nameserver subdomain label to delete (required)")
+	domainGlueDeleteCmd.MarkFlagRequired("name")
+
+	domainGlueCmd.AddCommand(domainGlueListCmd)
+	domainGlueCmd.AddCommand(domainGlueSetCmd)
+	domainGlueCmd.AddCommand(domainGlueDeleteCmd)
+
 	registrantCreateCmd.Flags().StringVar(&regFirstName, "first-name", "", "First name (required)")
 	registrantCreateCmd.Flags().StringVar(&regLastName, "last-name", "", "Last name (required)")
 	registrantCreateCmd.Flags().StringVar(&regEmail, "email", "", "Email (required)")
@@ -418,6 +504,7 @@ func init() {
 	Cmd.AddCommand(domainCancelCmd)
 	Cmd.AddCommand(domainTransferCmd)
 	Cmd.AddCommand(domainNameserversCmd)
+	Cmd.AddCommand(domainGlueCmd)
 	Cmd.AddCommand(tldCmd)
 	Cmd.AddCommand(registrantCmd)
 }
