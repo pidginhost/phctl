@@ -140,7 +140,8 @@ type RawTLD struct {
 type RawDomain struct {
 	Id             int32   `json:"id"`
 	Domain         string  `json:"domain"`
-	Idna           string  `json:"idna"`
+	Idna           bool    `json:"idna"`
+	IdnaName       string  `json:"idna_name"`
 	Tld            RawTLD  `json:"tld"`
 	Nameservers    *string `json:"nameservers"`
 	ExpirationDate string  `json:"expiration_date"`

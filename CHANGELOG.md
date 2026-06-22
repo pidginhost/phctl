@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.14.3
+
+### Fixed
+
+- **`domain list` and `domain get` no longer crash** with `json: cannot unmarshal bool into Go struct field RawDomain.idna of type string`. The API's `idna` field is a boolean flag, not a string; the struct now decodes it as `bool` and exposes the punycode FQDN via the separate `idna_name` field (shown as "IDNA Name:" in `domain get`).
+
 ## v0.14.2
 
 ### Fixed

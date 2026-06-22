@@ -58,7 +58,7 @@ var domainGetCmd = &cobra.Command{
 			output.PrintRow(tw, "ID:", d.Id)
 			output.PrintRow(tw, "Domain:", d.Domain)
 			output.PrintRow(tw, "TLD:", d.Tld.Tld)
-			output.PrintRow(tw, "IDNA:", d.Idna)
+			output.PrintRow(tw, "IDNA Name:", d.IdnaName)
 			output.PrintRow(tw, "Nameservers:", output.Pstr(d.Nameservers))
 			output.PrintRow(tw, "Expiration:", d.ExpirationDate)
 			output.PrintRow(tw, "Status:", d.ServiceStatus)
