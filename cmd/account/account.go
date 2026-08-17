@@ -1,8 +1,10 @@
 package account
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 
 	pidginhost "github.com/pidginhost/sdk-go"
 	"github.com/spf13/cobra"
@@ -174,23 +176,66 @@ var apiTokenCmd = &cobra.Command{
 	Args:  cobra.NoArgs,
 }
 
+// The API deliberately omits these two read-only fields for personal tokens
+// while multi-user IAM is disabled. sdk-go v0.11.0 marks them as required and
+// otherwise rejects the successful response before phctl can display it.
+func normalizeTokenBindingFields(data []byte) ([]byte, error) {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return nil, err
+	}
+	if fields == nil {
+		return nil, fmt.Errorf("API token response must be a JSON object")
+	}
+	for _, name := range []string{"account", "membership_status"} {
+		if _, ok := fields[name]; !ok {
+			fields[name] = json.RawMessage("null")
+		}
+	}
+	return json.Marshal(fields)
+}
+
+type tolerantAPITokenList pidginhost.APITokenList
+
+func (t *tolerantAPITokenList) UnmarshalJSON(data []byte) error {
+	normalized, err := normalizeTokenBindingFields(data)
+	if err != nil {
+		return err
+	}
+	var token pidginhost.APITokenList
+	if err := json.Unmarshal(normalized, &token); err != nil {
+		return err
+	}
+	*t = tolerantAPITokenList(token)
+	return nil
+}
+
+type tolerantAPITokenCreate pidginhost.APITokenCreate
+
+func (t *tolerantAPITokenCreate) UnmarshalJSON(data []byte) error {
+	normalized, err := normalizeTokenBindingFields(data)
+	if err != nil {
+		return err
+	}
+	var token pidginhost.APITokenCreate
+	if err := json.Unmarshal(normalized, &token); err != nil {
+		return err
+	}
+	*t = tolerantAPITokenCreate(token)
+	return nil
+}
+
 var apiTokenListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List API tokens",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		c, err := client.New()
-		if err != nil {
-			return err
-		}
-		tokens, err := cmdutil.FetchAll(func(page int32) ([]pidginhost.APITokenList, bool, error) {
-			resp, _, err := c.AccountAPI.AccountApiTokensList(cmd.Context()).Page(page).Execute()
-			if err != nil {
-				return nil, false, err
-			}
-			return resp.Results, resp.Next.Get() != nil, nil
-		})
+		wireTokens, err := client.RawFetchAll[tolerantAPITokenList](cmd.Context(), "/api/account/api-tokens/")
 		if err != nil {
 			return fmt.Errorf("listing API tokens: %w", err)
+		}
+		tokens := make([]pidginhost.APITokenList, len(wireTokens))
+		for i := range wireTokens {
+			tokens[i] = pidginhost.APITokenList(wireTokens[i])
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, tokens, func(w io.Writer) {
@@ -210,10 +255,6 @@ var apiTokenCreateCmd = &cobra.Command{
 	Use:   "create",
 	Short: "Create an API token",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		c, err := client.New()
-		if err != nil {
-			return err
-		}
 		// id/key/created and the account fields are server-assigned; the
 		// generated model shares one struct for request and response, so they
 		// are sent empty and null.
@@ -222,11 +263,12 @@ var apiTokenCreateCmd = &cobra.Command{
 			*pidginhost.NewNullableString(nil),
 			*pidginhost.NewNullableString(nil),
 		)
-		resp, _, err := c.AccountAPI.AccountApiTokensCreate(cmd.Context()).APITokenCreate(body).Execute()
-		if err != nil {
+		var wireResp tolerantAPITokenCreate
+		if err := client.RawPost(cmd.Context(), "/api/account/api-tokens/", body, &wireResp, http.StatusCreated); err != nil {
 			return fmt.Errorf("creating API token: %w", err)
 		}
-		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
+		resp := pidginhost.APITokenCreate(wireResp)
+		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), &resp,
 			"API token created (Name: %s)\nToken: %s\nSave this token — it will not be shown again.\n",
 			resp.Name, resp.Key)
 	},

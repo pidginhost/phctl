@@ -81,7 +81,7 @@ func run(cmd *cobra.Command) {
 	cmd.Println(out[0].Name)
 
 	var created Thing
-	if err := client.RawPost(ctx, path, body, &created); err != nil {}
+	if err := client.RawPost(ctx, path, body, &created, http.StatusCreated); err != nil {}
 	cmd.Print(created.ID)
 }`
 
@@ -151,7 +151,16 @@ func analyzeCommandOutputScope(body *ast.BlockStmt, fset *token.FileSet, path st
 				(name != "RawGet" && name != "RawPost") || len(node.Args) == 0 {
 				return true
 			}
-			if ptr, ok := node.Args[len(node.Args)-1].(*ast.UnaryExpr); ok && ptr.Op == token.AND {
+			// RawPost accepts optional expected status codes after dst, so dst is
+			// not necessarily the final argument.
+			dstIndex := 2
+			if name == "RawPost" {
+				dstIndex = 3
+			}
+			if len(node.Args) <= dstIndex {
+				return true
+			}
+			if ptr, ok := node.Args[dstIndex].(*ast.UnaryExpr); ok && ptr.Op == token.AND {
 				addResponse(ptr.X)
 			}
 		}

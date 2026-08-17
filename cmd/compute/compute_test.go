@@ -96,6 +96,30 @@ func TestServerCreateFlags(t *testing.T) {
 	}
 }
 
+func TestServerAttachFlags(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		cmdObj      *cobra.Command
+		addressFlag string
+	}{
+		{name: "ipv4", cmdObj: serverAttachIPv4Cmd, addressFlag: "ipv4"},
+		{name: "ipv6", cmdObj: serverAttachIPv6Cmd, addressFlag: "ipv6"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.cmdObj.Flags().Lookup(tc.addressFlag) == nil {
+				t.Fatalf("%s missing flag --%s", tc.cmdObj.Name(), tc.addressFlag)
+			}
+			reboot := tc.cmdObj.Flags().Lookup("reboot")
+			if reboot == nil {
+				t.Fatalf("%s missing flag --reboot", tc.cmdObj.Name())
+			}
+			if reboot.DefValue != "false" {
+				t.Fatalf("%s --reboot default = %q, want false", tc.cmdObj.Name(), reboot.DefValue)
+			}
+		})
+	}
+}
+
 // runServerCreate drives serverCreateCmd against a stub API and returns the
 // decoded request body plus whatever the command wrote to stdout.
 func runServerCreate(t *testing.T, flags map[string]string) (map[string]interface{}, string) {
@@ -377,6 +401,13 @@ func TestAttachResultMessage(t *testing.T) {
 			},
 			absent: []string{"Restart required"},
 		},
+		{
+			name:           "required restart takes precedence over conflicting success",
+			rebootRequired: true,
+			rebooted:       true,
+			want:           []string{"Restart required", "--reboot"},
+			absent:         []string{"Server restarted"},
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got := attachResultMessage("IPv4", "203.0.113.7", 5, tc.rebootRequired, tc.rebooted)
@@ -414,20 +445,22 @@ func runAttach(t *testing.T, cmdObj *cobra.Command, flags map[string]string, res
 	t.Setenv("PIDGINHOST_API_TOKEN", "test-token")
 	t.Setenv("PIDGINHOST_API_URL", server.URL)
 
+	child := newFakeRootChild(t, format)
+	for _, name := range []string{"ipv4", "ipv6"} {
+		if cmdObj.Flags().Lookup(name) != nil {
+			child.Flags().String(name, "", "address")
+		}
+	}
+	child.Flags().Bool("reboot", false, "restart server")
 	for name, value := range flags {
-		flag := cmdObj.Flags().Lookup(name)
-		if flag == nil {
+		if child.Flags().Lookup(name) == nil {
 			t.Fatalf("missing flag --%s", name)
 		}
-		prev, prevChanged := flag.Value.String(), flag.Changed
-		t.Cleanup(func() { _ = flag.Value.Set(prev); flag.Changed = prevChanged })
-		if err := flag.Value.Set(value); err != nil {
+		if err := child.Flags().Set(name, value); err != nil {
 			t.Fatalf("set --%s: %v", name, err)
 		}
-		flag.Changed = true
 	}
 
-	child := newFakeRootChild(t, format)
 	var out bytes.Buffer
 	child.SetOut(&out)
 
@@ -466,7 +499,7 @@ func TestServerAttachSendsRebootAndReportsRestart(t *testing.T) {
 	}
 }
 
-func TestServerAttachOmitsRebootWhenNotRequested(t *testing.T) {
+func TestServerAttachSendsFalseWhenRebootNotRequested(t *testing.T) {
 	body, out, err := runAttach(t, serverAttachIPv4Cmd,
 		map[string]string{"ipv4": "203.0.113.7"},
 		`{"attached":true,"reboot_required":true,"rebooted":false}`, "table")
@@ -481,6 +514,37 @@ func TestServerAttachOmitsRebootWhenNotRequested(t *testing.T) {
 	}
 	if !strings.Contains(out, "Restart required") {
 		t.Errorf("output %q must warn that the guest cannot see the address yet", out)
+	}
+}
+
+func TestServerAttachRebootFlagDoesNotLeakBetweenRuns(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		cmdObj *cobra.Command
+		flag   string
+		addr   string
+	}{
+		{"ipv4", serverAttachIPv4Cmd, "ipv4", "203.0.113.7"},
+		{"ipv6", serverAttachIPv6Cmd, "ipv6", "2001:db8::10"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, _, err := runAttach(t, tc.cmdObj,
+				map[string]string{tc.flag: tc.addr, "reboot": "true"},
+				`{"attached":true,"reboot_required":false,"rebooted":true}`, "table")
+			if err != nil {
+				t.Fatalf("first RunE: %v", err)
+			}
+
+			body, _, err := runAttach(t, tc.cmdObj,
+				map[string]string{tc.flag: tc.addr},
+				`{"attached":true,"reboot_required":true,"rebooted":false}`, "table")
+			if err != nil {
+				t.Fatalf("second RunE: %v", err)
+			}
+			if got, ok := body["reboot"].(bool); !ok || got {
+				t.Fatalf("reboot = %#v after a prior --reboot run, want false", body["reboot"])
+			}
+		})
 	}
 }
 
