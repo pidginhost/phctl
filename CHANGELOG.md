@@ -6,8 +6,17 @@
 
 - **`compute server create --public-ip`**: attach an IPv4 you already own (by ID or address) at create time, instead of only being able to allocate a new one. Mutually exclusive with `--new-ipv4`.
 - **`compute server create --new-ipv6` / `--public-ipv6`**: the IPv6 counterparts — allocate a new address, or attach one you already own. Mutually exclusive with each other.
+- **`compute server attach-ipv4 --reboot` and `attach-ipv6 --reboot`**: restart the server as part of the attach so the guest OS picks the address up.
+
+### Changed
+
+- **Requires `sdk-go` v0.11.0.** The API split the server attach routes into distinct request and response components, so `AttachIPv4`/`AttachIPv6` became `AttachIPv4Request`/`AttachIPv6Request`, and six enum components were renamed off content-derived names (for example `StatusA57Enum` → `ResourceStatusEnum`).
+- **`support ticket get` renders the message thread.** The API used to return the conversation as one preformatted blob; it is now a list, so each message is printed with its author, date, and attachment name.
 
 ### Fixed
+
+- **`compute server attach-ipv4` / `attach-ipv6` no longer report an unreachable server as done.** A public address is written to the machine config and the guest OS only reads it while booting, so on a running server the address was inert: `IPv4 x attached to server N.` described a machine that answered neither ping nor SSH on it. The command now reports whether a restart is still owed and points at `--reboot` or `compute server power N --action reboot`, and says so when the restart was already issued. A stopped server is never rebooted just to pick the address up.
+- **`compute server attach-ipv6` checks the result.** It discarded the response entirely and always claimed success; it now fails when the backend reports the address was not attached, matching `attach-ipv4`.
 
 - **`-o json` / `-o yaml` now work on commands that return a resource.** `compute server create` printed `Server created (ID: 123)` through `cmd.Printf` and ignored the global `--output` flag entirely, so `-o json` silently produced prose; roughly 35 other commands across compute, kubernetes, domain, billing, account, support, freedns, hosting and dedicated had the same bug. All of them now render through `internal/output`.
 

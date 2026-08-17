@@ -101,6 +101,9 @@ phctl compute server create --image ubuntu-22 --package starter --public-ip 203.
 # Same for IPv6 (--new-ipv6 allocates, --public-ipv6 attaches one you own)
 phctl compute server create --image ubuntu-22 --package starter --new-ipv6
 
+# Attach an IPv4 you own to a running server, restarting it so the guest sees it
+phctl compute server attach-ipv4 123 --ipv4 203.0.113.7 --reboot
+
 # Get server details as JSON
 phctl compute server get 123 -o json
 

@@ -138,6 +138,24 @@ func runTicketList(cmd *cobra.Command, args []string) error {
 	})
 }
 
+// printTicketMessages renders the ticket thread. The API used to return this
+// as one preformatted blob; it is now a list, so each message gets its author
+// and date instead of running together.
+func printTicketMessages(w io.Writer, messages []pidginhost.TicketMessage) {
+	if len(messages) == 0 {
+		return
+	}
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Messages:")
+	for _, m := range messages {
+		fmt.Fprintf(w, "\n[%s] %s\n", m.Date, m.AuthorName)
+		fmt.Fprintln(w, m.Message)
+		if m.AttachmentFilename != "" {
+			fmt.Fprintf(w, "Attachment: %s\n", m.AttachmentFilename)
+		}
+	}
+}
+
 func runTicketGet(cmd *cobra.Command, args []string) error {
 	c, err := client.New()
 	if err != nil {
@@ -158,11 +176,7 @@ func runTicketGet(cmd *cobra.Command, args []string) error {
 		output.PrintRow(tw, "Created:", t.Created)
 		output.PrintRow(tw, "Updated:", t.Updated)
 		tw.Flush()
-		if t.Messages != "" {
-			fmt.Fprintln(w)
-			fmt.Fprintln(w, "Messages:")
-			fmt.Fprintln(w, t.Messages)
-		}
+		printTicketMessages(w, t.Messages)
 	})
 }
 

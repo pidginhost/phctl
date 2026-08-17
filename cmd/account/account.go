@@ -214,7 +214,14 @@ var apiTokenCreateCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		body := *pidginhost.NewAPITokenCreate(0, apiTokenCreateName, "", "")
+		// id/key/created and the account fields are server-assigned; the
+		// generated model shares one struct for request and response, so they
+		// are sent empty and null.
+		body := *pidginhost.NewAPITokenCreate(
+			0, apiTokenCreateName, "", "",
+			*pidginhost.NewNullableString(nil),
+			*pidginhost.NewNullableString(nil),
+		)
 		resp, _, err := c.AccountAPI.AccountApiTokensCreate(cmd.Context()).APITokenCreate(body).Execute()
 		if err != nil {
 			return fmt.Errorf("creating API token: %w", err)

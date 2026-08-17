@@ -341,6 +341,182 @@ func TestServerCreateHonoursOutputFlag(t *testing.T) {
 	})
 }
 
+// TestAttachResultMessage pins what the operator is told about reachability.
+// A public address is written to the machine config and read by the guest OS
+// only at boot, so on a running server a bare "attached" describes a machine
+// that answers neither ping nor SSH on the new address.
+func TestAttachResultMessage(t *testing.T) {
+	for _, tc := range []struct {
+		name           string
+		rebootRequired bool
+		rebooted       bool
+		want           []string
+		absent         []string
+	}{
+		{
+			name:   "stopped server needs no restart",
+			want:   []string{"IPv4 203.0.113.7 attached to server 5."},
+			absent: []string{"Restart required", "restarted"},
+		},
+		{
+			name:           "running server is told a restart is owed",
+			rebootRequired: true,
+			want: []string{
+				"IPv4 203.0.113.7 attached to server 5.",
+				"Restart required",
+				"--reboot",
+				"phctl compute server power 5 --action reboot",
+			},
+		},
+		{
+			name:     "restart already issued",
+			rebooted: true,
+			want: []string{
+				"IPv4 203.0.113.7 attached to server 5.",
+				"restarted",
+			},
+			absent: []string{"Restart required"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := attachResultMessage("IPv4", "203.0.113.7", 5, tc.rebootRequired, tc.rebooted)
+			for _, want := range tc.want {
+				if !strings.Contains(got, want) {
+					t.Errorf("message %q missing %q", got, want)
+				}
+			}
+			for _, absent := range tc.absent {
+				if strings.Contains(got, absent) {
+					t.Errorf("message %q should not mention %q", got, absent)
+				}
+			}
+			if !strings.HasSuffix(got, "\n") {
+				t.Errorf("message %q should end in a newline", got)
+			}
+		})
+	}
+}
+
+// runAttach drives an attach subcommand against a stub API and returns the
+// decoded request body and stdout.
+func runAttach(t *testing.T, cmdObj *cobra.Command, flags map[string]string, respBody, format string) (map[string]interface{}, string, error) {
+	t.Helper()
+
+	var gotBody map[string]interface{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&gotBody)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(respBody))
+	}))
+	t.Cleanup(server.Close)
+
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("PIDGINHOST_API_TOKEN", "test-token")
+	t.Setenv("PIDGINHOST_API_URL", server.URL)
+
+	for name, value := range flags {
+		flag := cmdObj.Flags().Lookup(name)
+		if flag == nil {
+			t.Fatalf("missing flag --%s", name)
+		}
+		prev, prevChanged := flag.Value.String(), flag.Changed
+		t.Cleanup(func() { _ = flag.Value.Set(prev); flag.Changed = prevChanged })
+		if err := flag.Value.Set(value); err != nil {
+			t.Fatalf("set --%s: %v", name, err)
+		}
+		flag.Changed = true
+	}
+
+	child := newFakeRootChild(t, format)
+	var out bytes.Buffer
+	child.SetOut(&out)
+
+	err := cmdObj.RunE(child, []string{"5"})
+	return gotBody, out.String(), err
+}
+
+func TestServerAttachSendsRebootAndReportsRestart(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		cmdObj  *cobra.Command
+		flag    string
+		addr    string
+		bodyKey string
+	}{
+		{"ipv4", serverAttachIPv4Cmd, "ipv4", "203.0.113.7", "ipv4"},
+		{"ipv6", serverAttachIPv6Cmd, "ipv6", "2001:db8::10", "ipv6"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			body, out, err := runAttach(t, tc.cmdObj,
+				map[string]string{tc.flag: tc.addr, "reboot": "true"},
+				`{"attached":true,"reboot_required":false,"rebooted":true}`, "table")
+			if err != nil {
+				t.Fatalf("RunE: %v", err)
+			}
+			if got, ok := body["reboot"].(bool); !ok || !got {
+				t.Fatalf("reboot = %#v, want true", body["reboot"])
+			}
+			if got, ok := body[tc.bodyKey].(string); !ok || got != tc.addr {
+				t.Fatalf("%s = %#v, want %q", tc.bodyKey, body[tc.bodyKey], tc.addr)
+			}
+			if !strings.Contains(out, "restarted") {
+				t.Errorf("output %q should report the restart", out)
+			}
+		})
+	}
+}
+
+func TestServerAttachOmitsRebootWhenNotRequested(t *testing.T) {
+	body, out, err := runAttach(t, serverAttachIPv4Cmd,
+		map[string]string{"ipv4": "203.0.113.7"},
+		`{"attached":true,"reboot_required":true,"rebooted":false}`, "table")
+	if err != nil {
+		t.Fatalf("RunE: %v", err)
+	}
+	// The generated request type carries the schema default, so `reboot` is
+	// always present on the wire. What must never happen is it going out true
+	// without the operator asking -- that would restart a live server.
+	if got, ok := body["reboot"].(bool); !ok || got {
+		t.Fatalf("reboot = %#v, want false when --reboot is not passed", body["reboot"])
+	}
+	if !strings.Contains(out, "Restart required") {
+		t.Errorf("output %q must warn that the guest cannot see the address yet", out)
+	}
+}
+
+// TestServerAttachIPv6RejectsUnattached closes the gap where attach-ipv6
+// discarded the response entirely and reported success unconditionally.
+func TestServerAttachIPv6RejectsUnattached(t *testing.T) {
+	_, _, err := runAttach(t, serverAttachIPv6Cmd,
+		map[string]string{"ipv6": "2001:db8::10"},
+		`{"attached":false,"reboot_required":false,"rebooted":false}`, "table")
+	if err == nil {
+		t.Fatal("expected an error when the backend reports attached=false")
+	}
+	if !strings.Contains(err.Error(), "not attached") {
+		t.Fatalf("error = %q, want it to say the IPv6 was not attached", err)
+	}
+}
+
+func TestServerAttachHonoursOutputFlag(t *testing.T) {
+	_, out, err := runAttach(t, serverAttachIPv4Cmd,
+		map[string]string{"ipv4": "203.0.113.7"},
+		`{"attached":true,"reboot_required":true,"rebooted":false}`, "json")
+	if err != nil {
+		t.Fatalf("RunE: %v", err)
+	}
+	var decoded struct {
+		Attached       bool `json:"attached"`
+		RebootRequired bool `json:"reboot_required"`
+	}
+	if err := json.Unmarshal([]byte(out), &decoded); err != nil {
+		t.Fatalf("-o json output is not valid JSON (%v): %q", err, out)
+	}
+	if !decoded.Attached || !decoded.RebootRequired {
+		t.Fatalf("decoded = %#v, want attached and reboot_required true", decoded)
+	}
+}
+
 func TestPackageListTableIncludesAvailableGenerations(t *testing.T) {
 	var out bytes.Buffer
 	printPackageListTable(&out, []pidginhost.ServerProduct{
@@ -576,10 +752,14 @@ func newTestServerDetail(floatingIPs []pidginhost.FloatingIPSummary) *pidginhost
 		[]pidginhost.Volume{},
 		map[string]interface{}{},
 		floatingIPs,
-		pidginhost.STATUSA57ENUM_ACTIVE,
+		pidginhost.RESOURCESTATUSENUM_ACTIVE,
 		"root",
 		false,
 		true,
+		false,                              // customOs
+		false,                              // rescueMode
+		*pidginhost.NewNullableString(nil), // bootIso
+		false,                              // rescueSupported
 	)
 }
 

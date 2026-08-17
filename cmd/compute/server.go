@@ -308,7 +308,30 @@ var serverConsoleCmd = &cobra.Command{
 
 // --- Attach / Detach IP ---
 
-var serverAttachIPv4Slug string
+// attachResultMessage describes what the guest can actually reach.
+//
+// A public address is written to the machine config, and the guest OS only
+// reads it while booting. On a running server the address is therefore inert
+// until a restart, so reporting a bare "attached" describes a machine that
+// answers neither ping nor SSH on the address the operator just added. The
+// backend tells us whether a restart is still owed; say so.
+func attachResultMessage(version, addr string, id int32, rebootRequired, rebooted bool) string {
+	msg := fmt.Sprintf("%s %s attached to server %d.\n", version, addr, id)
+	switch {
+	case rebooted:
+		msg += "Server restarted so the guest picks up the address.\n"
+	case rebootRequired:
+		msg += fmt.Sprintf(
+			"Restart required: the guest reads the address at boot, so the server is not reachable on it yet.\n"+
+				"Re-run with --reboot, or restart it now: phctl compute server power %d --action reboot\n", id)
+	}
+	return msg
+}
+
+var (
+	serverAttachIPv4Slug   string
+	serverAttachIPv4Reboot bool
+)
 
 var serverAttachIPv4Cmd = &cobra.Command{
 	Use:   "attach-ipv4 <server-id>",
@@ -325,16 +348,20 @@ var serverAttachIPv4Cmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		body := *pidginhost.NewAttachIPv4(serverAttachIPv4Slug)
-		resp, _, err := c.CloudAPI.CloudServersAttachIpv4Create(cmd.Context(), id).AttachIPv4(body).Execute()
+		body := *pidginhost.NewAttachIPv4Request(serverAttachIPv4Slug)
+		body.Reboot = pidginhost.PtrBool(serverAttachIPv4Reboot)
+		resp, _, err := c.CloudAPI.CloudServersAttachIpv4Create(cmd.Context(), id).AttachIPv4Request(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("attaching IPv4", err)
 		}
-		if resp != nil && !resp.Attached {
+		if resp == nil {
+			return fmt.Errorf("attaching IPv4: backend returned no result")
+		}
+		if !resp.Attached {
 			return fmt.Errorf("attaching IPv4: backend reported the IPv4 was not attached")
 		}
-		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
-			"IPv4 %s attached to server %d.\n", serverAttachIPv4Slug, id)
+		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp, "%s",
+			attachResultMessage("IPv4", serverAttachIPv4Slug, id, resp.RebootRequired, resp.Rebooted))
 	},
 }
 
@@ -376,7 +403,10 @@ var serverDetachIPv4Cmd = &cobra.Command{
 	},
 }
 
-var serverAttachIPv6Slug string
+var (
+	serverAttachIPv6Slug   string
+	serverAttachIPv6Reboot bool
+)
 
 var serverAttachIPv6Cmd = &cobra.Command{
 	Use:   "attach-ipv6 <server-id>",
@@ -391,13 +421,20 @@ var serverAttachIPv6Cmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		body := *pidginhost.NewAttachIPv6(serverAttachIPv6Slug)
-		resp, _, err := c.CloudAPI.CloudServersAttachIpv6Create(cmd.Context(), id).AttachIPv6(body).Execute()
+		body := *pidginhost.NewAttachIPv6Request(serverAttachIPv6Slug)
+		body.Reboot = pidginhost.PtrBool(serverAttachIPv6Reboot)
+		resp, _, err := c.CloudAPI.CloudServersAttachIpv6Create(cmd.Context(), id).AttachIPv6Request(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("attaching IPv6", err)
 		}
-		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
-			"IPv6 %s attached to server %d.\n", serverAttachIPv6Slug, id)
+		if resp == nil {
+			return fmt.Errorf("attaching IPv6: backend returned no result")
+		}
+		if !resp.Attached {
+			return fmt.Errorf("attaching IPv6: backend reported the IPv6 was not attached")
+		}
+		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp, "%s",
+			attachResultMessage("IPv6", serverAttachIPv6Slug, id, resp.RebootRequired, resp.Rebooted))
 	},
 }
 
@@ -580,12 +617,16 @@ func init() {
 	serverPowerCmd.Flags().StringVar(&serverPowerAction, "action", "", "Power action: start, stop, shutdown, reboot")
 	serverPowerCmd.MarkFlagRequired("action")
 
-	serverAttachIPv4Cmd.Flags().StringVar(&serverAttachIPv4Slug, "ipv4", "", "IPv4 ID or slug (required)")
+	serverAttachIPv4Cmd.Flags().StringVar(&serverAttachIPv4Slug, "ipv4", "", "IPv4 ID or address (required)")
+	serverAttachIPv4Cmd.Flags().BoolVar(&serverAttachIPv4Reboot, "reboot", false,
+		"Restart the server so the guest OS picks up the address. Without this a running server keeps answering only on its old addresses until you restart it yourself.")
 	serverAttachIPv4Cmd.MarkFlagRequired("ipv4")
 
 	serverDetachIPv4Cmd.Flags().StringVar(&serverDetachIPv4Slug, "ipv4", "", "IPv4 ID or slug to detach. Required when the server has more than one IPv4; omit to detach the primary NIC's IPv4 on single-IPv4 servers.")
 
-	serverAttachIPv6Cmd.Flags().StringVar(&serverAttachIPv6Slug, "ipv6", "", "IPv6 ID or slug (required)")
+	serverAttachIPv6Cmd.Flags().StringVar(&serverAttachIPv6Slug, "ipv6", "", "IPv6 ID or address (required)")
+	serverAttachIPv6Cmd.Flags().BoolVar(&serverAttachIPv6Reboot, "reboot", false,
+		"Restart the server so the guest OS picks up the address. Without this a running server keeps answering only on its old addresses until you restart it yourself.")
 	serverAttachIPv6Cmd.MarkFlagRequired("ipv6")
 
 	serverProtectCmd.Flags().BoolVar(&serverProtectEnable, "enable", true, "Enable or disable (--enable=false) destroy protection")
