@@ -2,13 +2,75 @@ package kubernetes
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
+	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
+
+	"github.com/pidginhost/phctl/internal/client"
+	"github.com/pidginhost/phctl/internal/output"
 )
+
+func TestWaitForClusterNarratesOnlyOnStderr(t *testing.T) {
+	originalInterval := waitPollInterval
+	originalGetClusterStatus := getClusterStatus
+	waitPollInterval = 0
+	getClusterStatus = func(_ context.Context, clusterID string, cl *client.RawCluster) error {
+		if clusterID != "42" {
+			t.Fatalf("cluster ID = %q, want 42", clusterID)
+		}
+		cl.Status = "active"
+		return nil
+	}
+	t.Cleanup(func() {
+		waitPollInterval = originalInterval
+		getClusterStatus = originalGetClusterStatus
+	})
+
+	cmd := &cobra.Command{}
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+
+	if err := waitForCluster(context.Background(), "42", time.Second, cmd); err != nil {
+		t.Fatalf("waitForCluster: %v", err)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("wait narration leaked to stdout: %q", stdout.String())
+	}
+	if got, want := stderr.String(), "Cluster 42: active\n"; got != want {
+		t.Fatalf("stderr = %q, want %q", got, want)
+	}
+}
+
+func TestPrintWaitCompletionPreservesMachineReadableStdout(t *testing.T) {
+	for _, format := range []output.Format{output.FormatJSON, output.FormatYAML} {
+		t.Run(string(format), func(t *testing.T) {
+			cmd := &cobra.Command{}
+			var stdout bytes.Buffer
+			cmd.SetOut(&stdout)
+			printWaitCompletion(cmd, format, "Cluster %s is active.\n", "42")
+			if stdout.Len() != 0 {
+				t.Fatalf("completion leaked to %s stdout: %q", format, stdout.String())
+			}
+		})
+	}
+
+	t.Run("table", func(t *testing.T) {
+		cmd := &cobra.Command{}
+		var stdout bytes.Buffer
+		cmd.SetOut(&stdout)
+		printWaitCompletion(cmd, output.FormatTable, "Cluster %s is active.\n", "42")
+		if got, want := stdout.String(), "Cluster 42 is active.\n"; got != want {
+			t.Fatalf("stdout = %q, want %q", got, want)
+		}
+	})
+}
 
 func TestMergeNamedEntries(t *testing.T) {
 	existing := []map[string]interface{}{

@@ -128,9 +128,7 @@ var clusterCreateCmd = &cobra.Command{
 			}
 			// The payload is already on stdout under -o json/yaml; appending a
 			// sentence there would make it unparseable.
-			if format == output.FormatTable {
-				cmd.Printf("Cluster %s is active.\n", id)
-			}
+			printWaitCompletion(cmd, format, "Cluster %s is active.\n", id)
 		}
 		return nil
 	},
@@ -230,9 +228,7 @@ var clusterUpgradeKubeCmd = &cobra.Command{
 			if err := waitForCluster(cmd.Context(), args[0], upgradeKubeTimeout, cmd); err != nil {
 				return err
 			}
-			if format == output.FormatTable {
-				cmd.Printf("Cluster %s upgrade complete.\n", args[0])
-			}
+			printWaitCompletion(cmd, format, "Cluster %s upgrade complete.\n", args[0])
 		}
 		return nil
 	},
@@ -268,9 +264,7 @@ var clusterUpgradeTalosCmd = &cobra.Command{
 			if err := waitForCluster(cmd.Context(), args[0], upgradeTalosTimeout, cmd); err != nil {
 				return err
 			}
-			if format == output.FormatTable {
-				cmd.Printf("Cluster %s upgrade complete.\n", args[0])
-			}
+			printWaitCompletion(cmd, format, "Cluster %s upgrade complete.\n", args[0])
 		}
 		return nil
 	},
@@ -454,9 +448,7 @@ var poolCreateCmd = &cobra.Command{
 			if err := waitForCluster(cmd.Context(), args[0], poolCreateTimeout, cmd); err != nil {
 				return err
 			}
-			if format == output.FormatTable {
-				cmd.Printf("Cluster %s is active.\n", args[0])
-			}
+			printWaitCompletion(cmd, format, "Cluster %s is active.\n", args[0])
 		}
 		return nil
 	},

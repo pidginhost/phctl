@@ -13,6 +13,7 @@ import (
 
 	"github.com/pidginhost/phctl/internal/client"
 	"github.com/pidginhost/phctl/internal/cmdutil"
+	"github.com/pidginhost/phctl/internal/output"
 )
 
 // writeAtomic is a seam so tests can simulate atomic-write failures.
@@ -20,9 +21,13 @@ var writeAtomic = cmdutil.WriteAtomic
 
 var newClient = client.New
 
-const (
-	defaultWaitTimeout = 10 * time.Minute
-	waitPollInterval   = 15 * time.Second
+const defaultWaitTimeout = 10 * time.Minute
+
+var (
+	waitPollInterval = 15 * time.Second
+	getClusterStatus = func(ctx context.Context, clusterID string, cl *client.RawCluster) error {
+		return client.RawGet(ctx, fmt.Sprintf("/api/kubernetes/clusters/%s/", clusterID), cl)
+	}
 )
 
 // waitForCluster polls a cluster's status until it becomes "active" or a
@@ -50,7 +55,7 @@ func waitForCluster(ctx context.Context, clusterID string, timeout time.Duration
 		}
 
 		var cl client.RawCluster
-		if err := client.RawGet(ctx, fmt.Sprintf("/api/kubernetes/clusters/%s/", clusterID), &cl); err != nil {
+		if err := getClusterStatus(ctx, clusterID, &cl); err != nil {
 			return fmt.Errorf("polling cluster status: %w", err)
 		}
 
@@ -63,6 +68,12 @@ func waitForCluster(ctx context.Context, clusterID string, timeout time.Duration
 			return fmt.Errorf("cluster %s entered %q state", clusterID, cl.Status)
 		}
 		// provisioning, upgrading, etc. — keep polling
+	}
+}
+
+func printWaitCompletion(cmd *cobra.Command, format output.Format, msg string, args ...any) {
+	if format == output.FormatTable {
+		cmd.Printf(msg, args...)
 	}
 }
 

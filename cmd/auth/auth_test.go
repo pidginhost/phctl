@@ -160,6 +160,65 @@ func TestStatusCmdHonoursOutputFlag(t *testing.T) {
 	}
 }
 
+func TestStatusCmdNeverPrintsRawToken(t *testing.T) {
+	const token = "abcdefghijklmnop"
+
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("PIDGINHOST_API_TOKEN", token)
+	t.Setenv("PIDGINHOST_API_URL", "https://api.example.com")
+
+	for _, format := range []string{"table", "json", "yaml"} {
+		t.Run(format, func(t *testing.T) {
+			root := &cobra.Command{Use: "phctl"}
+			root.PersistentFlags().StringP("output", "o", format, "Output format")
+			child := &cobra.Command{Use: "child"}
+			root.AddCommand(child)
+
+			var out bytes.Buffer
+			child.SetOut(&out)
+			if err := statusCmd.RunE(child, nil); err != nil {
+				t.Fatalf("status RunE error: %v", err)
+			}
+			if strings.Contains(out.String(), token) {
+				t.Fatalf("raw auth token leaked into %s output: %q", format, out.String())
+			}
+			if !strings.Contains(out.String(), maskToken(token)) {
+				t.Fatalf("%s output does not contain masked token: %q", format, out.String())
+			}
+		})
+	}
+}
+
+func TestStatusCmdUnauthenticatedJSONOmitsCredentialFields(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("PIDGINHOST_API_TOKEN", "")
+	t.Setenv("PIDGINHOST_API_URL", "")
+
+	root := &cobra.Command{Use: "phctl"}
+	root.PersistentFlags().StringP("output", "o", "json", "Output format")
+	child := &cobra.Command{Use: "child"}
+	root.AddCommand(child)
+
+	var out bytes.Buffer
+	child.SetOut(&out)
+	if err := statusCmd.RunE(child, nil); err != nil {
+		t.Fatalf("status RunE error: %v", err)
+	}
+
+	var decoded map[string]any
+	if err := json.Unmarshal(out.Bytes(), &decoded); err != nil {
+		t.Fatalf("-o json output is not valid JSON (%v): %q", err, out.String())
+	}
+	if got, ok := decoded["authenticated"].(bool); !ok || got {
+		t.Fatalf("authenticated = %#v, want false", decoded["authenticated"])
+	}
+	for _, field := range []string{"token", "api_url"} {
+		if _, ok := decoded[field]; ok {
+			t.Errorf("unauthenticated status unexpectedly contains %q: %q", field, out.String())
+		}
+	}
+}
+
 func contains(s, substr string) bool {
 	for i := 0; i <= len(s)-len(substr); i++ {
 		if s[i:i+len(substr)] == substr {

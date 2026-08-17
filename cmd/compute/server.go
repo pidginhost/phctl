@@ -158,6 +158,17 @@ var serverCreateCmd = &cobra.Command{
 	Use:   "create",
 	Short: "Create a new server",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// Cobra validates mutually exclusive flag groups during Execute, but
+		// callers may invoke RunE directly (as tests and embedded users do).
+		// Keep the request invariant here as well so both fields can never be
+		// sent to the API together.
+		if serverCreateNewIPv4 && serverCreatePublicIP != "" {
+			return fmt.Errorf("--new-ipv4 and --public-ip are mutually exclusive")
+		}
+		if serverCreateNewIPv6 && serverCreatePublicIPv6 != "" {
+			return fmt.Errorf("--new-ipv6 and --public-ipv6 are mutually exclusive")
+		}
+
 		c, err := client.New()
 		if err != nil {
 			return err

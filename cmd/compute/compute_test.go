@@ -247,6 +247,48 @@ func TestServerCreateIPFlagsAreMutuallyExclusive(t *testing.T) {
 	}
 }
 
+func TestServerCreateRunERejectsMutuallyExclusiveIPFlags(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		flags   map[string]string
+		wantErr string
+	}{
+		{
+			name: "ipv4",
+			flags: map[string]string{
+				"new-ipv4":  "true",
+				"public-ip": "203.0.113.7",
+			},
+			wantErr: "--new-ipv4 and --public-ip are mutually exclusive",
+		},
+		{
+			name: "ipv6",
+			flags: map[string]string{
+				"new-ipv6":    "true",
+				"public-ipv6": "2001:db8::10",
+			},
+			wantErr: "--new-ipv6 and --public-ipv6 are mutually exclusive",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			restore := snapshotServerCreateState(t)
+			t.Cleanup(restore)
+
+			for name, value := range tc.flags {
+				setServerCreateFlag(t, name, value)
+			}
+
+			err := serverCreateCmd.RunE(&cobra.Command{}, nil)
+			if err == nil {
+				t.Fatal("expected mutually-exclusive flag error, got nil")
+			}
+			if err.Error() != tc.wantErr {
+				t.Fatalf("error = %q, want %q", err, tc.wantErr)
+			}
+		})
+	}
+}
+
 func TestServerCreateNoPublicIPv4AckSendsNoNetworkAcknowledged(t *testing.T) {
 	gotBody, out := runServerCreate(t, map[string]string{
 		"image":              "ubuntu-24.04",
@@ -260,7 +302,7 @@ func TestServerCreateNoPublicIPv4AckSendsNoNetworkAcknowledged(t *testing.T) {
 	if _, ok := gotBody["new_ipv4"]; ok {
 		t.Fatalf("new_ipv4 was sent even though --new-ipv4 was not set: %#v", gotBody["new_ipv4"])
 	}
-	if got, want := strings.TrimSpace(out), "Server created (ID: 123)"; got != want {
+	if got, want := out, "Server created (ID: 123)\n"; got != want {
 		t.Fatalf("output = %q, want %q", got, want)
 	}
 }
@@ -293,7 +335,7 @@ func TestServerCreateHonoursOutputFlag(t *testing.T) {
 			"package": "starter",
 		}, "table")
 
-		if got, want := strings.TrimSpace(out), "Server created (ID: 123)"; got != want {
+		if got, want := out, "Server created (ID: 123)\n"; got != want {
 			t.Fatalf("output = %q, want %q", got, want)
 		}
 	})
