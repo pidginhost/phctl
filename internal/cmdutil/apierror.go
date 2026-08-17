@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 
 	pidginhost "github.com/pidginhost/sdk-go"
@@ -45,13 +46,21 @@ func formatAPIBody(body []byte) string {
 func flattenAPIBody(prefix string, v any) []string {
 	switch t := v.(type) {
 	case map[string]any:
+		// Sorted, not map order: the same 400 must render identically on every
+		// run so the message is readable and scriptable.
+		keys := make([]string, 0, len(t))
+		for k := range t {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+
 		var out []string
-		for k, val := range t {
+		for _, k := range keys {
 			key := k
 			if prefix != "" {
 				key = prefix + "." + k
 			}
-			out = append(out, flattenAPIBody(key, val)...)
+			out = append(out, flattenAPIBody(key, t[k])...)
 		}
 		return out
 	case []any:

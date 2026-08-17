@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **`compute server create --public-ip`**: attach an IPv4 you already own (by ID or address) at create time, instead of only being able to allocate a new one. Mutually exclusive with `--new-ipv4`.
+- **`compute server create --new-ipv6` / `--public-ipv6`**: the IPv6 counterparts — allocate a new address, or attach one you already own. Mutually exclusive with each other.
+
+### Fixed
+
+- **`-o json` / `-o yaml` now work on commands that return a resource.** `compute server create` printed `Server created (ID: 123)` through `cmd.Printf` and ignored the global `--output` flag entirely, so `-o json` silently produced prose; roughly 35 other commands across compute, kubernetes, domain, billing, account, support, freedns, hosting and dedicated had the same bug. All of them now render through `internal/output`.
+
+  The rule is now explicit: anything reporting a resource returned by the API goes through `output.Print` / `output.Result`; side-effect acknowledgements (`delete`, `power`, snapshot queueing), interactive prompts, and progress narration keep plain text. An AST guard in `cmd/` fails the build if a command prints API response fields with `cmd.Print*` again.
+- **`auth status` honours `--output`** and never emits the raw API token — machine-readable output carries the same masked form the table view shows.
+- **`cmdutil.OutputFormat` no longer panics** with a nil dereference when a command is exercised outside the root command tree (as `RunE`-level unit tests do).
+- **API error messages are stable between runs.** Multi-field validation errors were flattened by ranging a Go map, so the same `400` rendered its fields in a different order each time; they are now sorted. This covers the newer `attach-ipv4` / `attach-ipv6` `400` bodies, e.g. `ipv4=This field is required.`
+
 ## v0.15.0
 
 ### Added

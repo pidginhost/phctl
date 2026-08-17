@@ -62,6 +62,13 @@ phctl <resource> <command> [flags]
 | `-o, --output` | Output format: `table` (default), `json`, `yaml` |
 | `-f, --force` | Skip confirmation prompts |
 
+`-o json` / `-o yaml` applies to every command that reports a resource — reads
+(`list`, `get`) and writes alike, so `compute server create -o json` emits the
+created object rather than a sentence. Commands whose only result is a side
+effect (`delete`, `power`, snapshot queueing), interactive prompts, and progress
+narration stay human-readable; progress goes to stderr, so stdout under
+`-o json` is safe to pipe.
+
 ### Resources
 
 | Command | Alias | Description |
@@ -87,8 +94,18 @@ phctl compute server list
 # Create a server
 phctl compute server create --image ubuntu-22 --package starter
 
+# Create a server with a brand-new public IPv4, or with one you already own
+phctl compute server create --image ubuntu-22 --package starter --new-ipv4
+phctl compute server create --image ubuntu-22 --package starter --public-ip 203.0.113.7
+
+# Same for IPv6 (--new-ipv6 allocates, --public-ipv6 attaches one you own)
+phctl compute server create --image ubuntu-22 --package starter --new-ipv6
+
 # Get server details as JSON
 phctl compute server get 123 -o json
+
+# Machine-readable create
+phctl compute server create --image ubuntu-22 --package starter -o json | jq .id
 
 # Manage Kubernetes clusters
 phctl k8s cluster list
