@@ -89,14 +89,18 @@ func TestServerDeleteAliases(t *testing.T) {
 }
 
 func TestServerCreateFlags(t *testing.T) {
-	for _, name := range []string{"image", "package", "hostname", "project", "ssh-key-id", "password", "new-ipv4", "no-public-ipv4-ack", "user-data", "user-data-file"} {
+	for _, name := range []string{"image", "package", "hostname", "project", "ssh-key-id", "password", "new-ipv4", "public-ip", "new-ipv6", "public-ipv6", "no-public-ipv4-ack", "user-data", "user-data-file"} {
 		if serverCreateCmd.Flags().Lookup(name) == nil {
 			t.Errorf("server create missing flag --%s", name)
 		}
 	}
 }
 
-func TestServerCreateNoPublicIPv4AckSendsNoNetworkAcknowledged(t *testing.T) {
+// runServerCreate drives serverCreateCmd against a stub API and returns the
+// decoded request body plus whatever the command wrote to stdout.
+func runServerCreate(t *testing.T, flags map[string]string) (map[string]interface{}, string) {
+	t.Helper()
+
 	restore := snapshotServerCreateState(t)
 	t.Cleanup(restore)
 
@@ -121,15 +125,15 @@ func TestServerCreateNoPublicIPv4AckSendsNoNetworkAcknowledged(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"id":123}`))
 	}))
-	defer server.Close()
+	t.Cleanup(server.Close)
 
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("PIDGINHOST_API_TOKEN", "test-token")
 	t.Setenv("PIDGINHOST_API_URL", server.URL)
 
-	setServerCreateFlag(t, "image", "ubuntu-24.04")
-	setServerCreateFlag(t, "package", "starter")
-	setServerCreateFlag(t, "no-public-ipv4-ack", "true")
+	for name, value := range flags {
+		setServerCreateFlag(t, name, value)
+	}
 
 	cmd := &cobra.Command{}
 	var out bytes.Buffer
@@ -141,13 +145,103 @@ func TestServerCreateNoPublicIPv4AckSendsNoNetworkAcknowledged(t *testing.T) {
 	if !requestSeen {
 		t.Fatal("server create did not call API")
 	}
+	return gotBody, out.String()
+}
+
+func TestServerCreatePublicIPSendsPublicIP(t *testing.T) {
+	body, _ := runServerCreate(t, map[string]string{
+		"image":     "ubuntu-24.04",
+		"package":   "starter",
+		"public-ip": "203.0.113.7",
+	})
+
+	if got, ok := body["public_ip"].(string); !ok || got != "203.0.113.7" {
+		t.Fatalf("public_ip = %#v, want %q", body["public_ip"], "203.0.113.7")
+	}
+	if _, ok := body["new_ipv4"]; ok {
+		t.Fatalf("new_ipv4 was sent alongside --public-ip: %#v", body["new_ipv4"])
+	}
+}
+
+func TestServerCreatePublicIPv6SendsPublicIPv6(t *testing.T) {
+	body, _ := runServerCreate(t, map[string]string{
+		"image":       "ubuntu-24.04",
+		"package":     "starter",
+		"public-ipv6": "2001:db8::10",
+	})
+
+	if got, ok := body["public_ipv6"].(string); !ok || got != "2001:db8::10" {
+		t.Fatalf("public_ipv6 = %#v, want %q", body["public_ipv6"], "2001:db8::10")
+	}
+	if _, ok := body["new_ipv6"]; ok {
+		t.Fatalf("new_ipv6 was sent alongside --public-ipv6: %#v", body["new_ipv6"])
+	}
+}
+
+func TestServerCreateNewIPv6SendsNewIPv6(t *testing.T) {
+	body, _ := runServerCreate(t, map[string]string{
+		"image":    "ubuntu-24.04",
+		"package":  "starter",
+		"new-ipv6": "true",
+	})
+
+	if got, ok := body["new_ipv6"].(bool); !ok || !got {
+		t.Fatalf("new_ipv6 = %#v, want true", body["new_ipv6"])
+	}
+	if _, ok := body["public_ipv6"]; ok {
+		t.Fatalf("public_ipv6 was sent even though --public-ipv6 was not set: %#v", body["public_ipv6"])
+	}
+}
+
+// TestServerCreateIPFlagsAreMutuallyExclusive drives the real cobra tree so the
+// flag-group validation actually runs; RunE-level tests bypass it entirely.
+func TestServerCreateIPFlagsAreMutuallyExclusive(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		args []string
+	}{
+		{"ipv4", []string{"server", "create", "--image", "ubuntu-24.04", "--package", "starter", "--public-ip", "203.0.113.7", "--new-ipv4"}},
+		{"ipv6", []string{"server", "create", "--image", "ubuntu-24.04", "--package", "starter", "--public-ipv6", "2001:db8::10", "--new-ipv6"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			restore := snapshotServerCreateState(t)
+			t.Cleanup(restore)
+
+			var out, errOut bytes.Buffer
+			Cmd.SetOut(&out)
+			Cmd.SetErr(&errOut)
+			Cmd.SetArgs(tc.args)
+			t.Cleanup(func() {
+				Cmd.SetArgs(nil)
+				Cmd.SetOut(nil)
+				Cmd.SetErr(nil)
+			})
+
+			err := Cmd.Execute()
+			if err == nil {
+				t.Fatal("expected mutually-exclusive flag error, got nil")
+			}
+			if !strings.Contains(err.Error(), "none of the others can be") {
+				t.Fatalf("error = %q, want a mutually-exclusive flag error", err.Error())
+			}
+		})
+	}
+}
+
+func TestServerCreateNoPublicIPv4AckSendsNoNetworkAcknowledged(t *testing.T) {
+	gotBody, out := runServerCreate(t, map[string]string{
+		"image":              "ubuntu-24.04",
+		"package":            "starter",
+		"no-public-ipv4-ack": "true",
+	})
+
 	if got, ok := gotBody["no_network_acknowledged"].(bool); !ok || !got {
 		t.Fatalf("no_network_acknowledged = %#v, want true", gotBody["no_network_acknowledged"])
 	}
 	if _, ok := gotBody["new_ipv4"]; ok {
 		t.Fatalf("new_ipv4 was sent even though --new-ipv4 was not set: %#v", gotBody["new_ipv4"])
 	}
-	if got, want := strings.TrimSpace(out.String()), "Server created (ID: 123)"; got != want {
+	if got, want := strings.TrimSpace(out), "Server created (ID: 123)"; got != want {
 		t.Fatalf("output = %q, want %q", got, want)
 	}
 }
@@ -447,6 +541,9 @@ func snapshotServerCreateState(t *testing.T) func() {
 		"ssh-key-id",
 		"password",
 		"new-ipv4",
+		"public-ip",
+		"new-ipv6",
+		"public-ipv6",
 		"no-public-ipv4-ack",
 		"private-network",
 		"private-address",
@@ -469,6 +566,9 @@ func snapshotServerCreateState(t *testing.T) func() {
 		sshKeyID       string
 		password       string
 		newIPv4        bool
+		publicIP       string
+		newIPv6        bool
+		publicIPv6     string
 		noPubIPv4Ack   bool
 		privateNetwork string
 		privateAddress string
@@ -483,6 +583,9 @@ func snapshotServerCreateState(t *testing.T) func() {
 		sshKeyID:       serverCreateSSHKeyID,
 		password:       serverCreatePassword,
 		newIPv4:        serverCreateNewIPv4,
+		publicIP:       serverCreatePublicIP,
+		newIPv6:        serverCreateNewIPv6,
+		publicIPv6:     serverCreatePublicIPv6,
 		noPubIPv4Ack:   serverCreateNoPubIPv4Ack,
 		privateNetwork: serverCreatePrivateNetwork,
 		privateAddress: serverCreatePrivateAddress,
@@ -507,6 +610,9 @@ func snapshotServerCreateState(t *testing.T) func() {
 		serverCreateSSHKeyID = state.sshKeyID
 		serverCreatePassword = state.password
 		serverCreateNewIPv4 = state.newIPv4
+		serverCreatePublicIP = state.publicIP
+		serverCreateNewIPv6 = state.newIPv6
+		serverCreatePublicIPv6 = state.publicIPv6
 		serverCreateNoPubIPv4Ack = state.noPubIPv4Ack
 		serverCreatePrivateNetwork = state.privateNetwork
 		serverCreatePrivateAddress = state.privateAddress

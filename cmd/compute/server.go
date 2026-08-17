@@ -144,6 +144,9 @@ var (
 	serverCreateSSHKeyID       string
 	serverCreatePassword       string
 	serverCreateNewIPv4        bool
+	serverCreatePublicIP       string
+	serverCreateNewIPv6        bool
+	serverCreatePublicIPv6     string
 	serverCreateNoPubIPv4Ack   bool
 	serverCreatePrivateNetwork string
 	serverCreatePrivateAddress string
@@ -183,6 +186,15 @@ var serverCreateCmd = &cobra.Command{
 		}
 		if serverCreateNewIPv4 {
 			body.NewIpv4 = pidginhost.PtrBool(true)
+		}
+		if serverCreatePublicIP != "" {
+			body.PublicIp = pidginhost.PtrString(serverCreatePublicIP)
+		}
+		if serverCreateNewIPv6 {
+			body.NewIpv6 = pidginhost.PtrBool(true)
+		}
+		if serverCreatePublicIPv6 != "" {
+			body.PublicIpv6 = pidginhost.PtrString(serverCreatePublicIPv6)
 		}
 		if serverCreateNoPubIPv4Ack {
 			body.NoNetworkAcknowledged = pidginhost.PtrBool(true)
@@ -540,7 +552,12 @@ func init() {
 	serverCreateCmd.Flags().StringVar(&serverCreateProject, "project", "", "Project name")
 	serverCreateCmd.Flags().StringVar(&serverCreateSSHKeyID, "ssh-key-id", "", "SSH key ID to inject")
 	serverCreateCmd.Flags().StringVar(&serverCreatePassword, "password", "", "Root password")
-	serverCreateCmd.Flags().BoolVar(&serverCreateNewIPv4, "new-ipv4", false, "Allocate a new public IPv4")
+	serverCreateCmd.Flags().BoolVar(&serverCreateNewIPv4, "new-ipv4", false, "Allocate a new public IPv4 and attach it before first boot")
+	serverCreateCmd.Flags().StringVar(&serverCreatePublicIP, "public-ip", "", "Attach an IPv4 you already own, by ID or address, before first boot. Mutually exclusive with --new-ipv4.")
+	serverCreateCmd.Flags().BoolVar(&serverCreateNewIPv6, "new-ipv6", false, "Allocate a new public IPv6 and attach it before first boot")
+	serverCreateCmd.Flags().StringVar(&serverCreatePublicIPv6, "public-ipv6", "", "Attach an IPv6 you already own, by ID or address, before first boot. Mutually exclusive with --new-ipv6.")
+	serverCreateCmd.MarkFlagsMutuallyExclusive("new-ipv4", "public-ip")
+	serverCreateCmd.MarkFlagsMutuallyExclusive("new-ipv6", "public-ipv6")
 	serverCreateCmd.Flags().BoolVar(&serverCreateNoPubIPv4Ack, "no-public-ipv4-ack", false, "Acknowledge creating the server without a public IPv4 or IPv6. Required when no public network is requested on packages where the backend would otherwise reject the create.")
 	serverCreateCmd.Flags().StringVar(&serverCreatePrivateNetwork, "private-network", "", "Attach to this private network at create time (ID or CIDR slug). Pair with --private-address for a specific IP.")
 	serverCreateCmd.Flags().StringVar(&serverCreatePrivateAddress, "private-address", "", "Static IPv4 inside --private-network. Leave empty for auto-assign.")
