@@ -10,7 +10,9 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 
+	"github.com/pidginhost/phctl/internal/cmdutil"
 	"github.com/pidginhost/phctl/internal/config"
+	"github.com/pidginhost/phctl/internal/output"
 )
 
 var Cmd = &cobra.Command{
@@ -76,6 +78,15 @@ Token is read from stdin to avoid leaking it via the process argument list
 	},
 }
 
+// authStatus is the machine-readable shape of `auth status`. The token is
+// always the masked form: the raw credential must never reach stdout, where it
+// would end up in shell history, logs, or a piped JSON document.
+type authStatus struct {
+	Authenticated bool   `json:"authenticated" yaml:"authenticated"`
+	Token         string `json:"token,omitempty" yaml:"token,omitempty"`
+	APIURL        string `json:"api_url,omitempty" yaml:"api_url,omitempty"`
+}
+
 var statusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Show authentication status",
@@ -84,14 +95,15 @@ var statusCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		format := cmdutil.OutputFormat(cmd)
 		if cfg.AuthToken == "" {
-			cmd.Println("Not authenticated. Run 'phctl auth init' to configure.")
-		} else {
-			masked := maskToken(cfg.AuthToken)
-			cmd.Printf("Authenticated (token: %s)\n", masked)
-			cmd.Printf("API URL: %s\n", cfg.APIURL)
+			return output.Result(cmd.OutOrStdout(), format, authStatus{},
+				"Not authenticated. Run 'phctl auth init' to configure.\n")
 		}
-		return nil
+		masked := maskToken(cfg.AuthToken)
+		return output.Result(cmd.OutOrStdout(), format,
+			authStatus{Authenticated: true, Token: masked, APIURL: cfg.APIURL},
+			"Authenticated (token: %s)\nAPI URL: %s\n", masked, cfg.APIURL)
 	},
 }
 

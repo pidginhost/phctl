@@ -58,6 +58,19 @@ func Print(out io.Writer, format Format, data any, tableFunc func(w io.Writer)) 
 	return nil
 }
 
+// Result reports the outcome of a command that returns data. Table mode writes
+// the human-readable message; json/yaml mode encodes data instead, so -o json
+// stays machine-parseable on commands that report a resource rather than
+// rendering a table.
+//
+// Usage: `return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd),
+// resp, "Server created (ID: %d)\n", resp.Id)`.
+func Result(out io.Writer, format Format, data any, msg string, args ...any) error {
+	return Print(out, format, data, func(w io.Writer) {
+		fmt.Fprintf(w, msg, args...)
+	})
+}
+
 func NewTabWriter(out io.Writer) *tabwriter.Writer {
 	return tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
 }

@@ -99,8 +99,8 @@ var httpRouteCreateCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("creating HTTP route: %w", err)
 		}
-		cmd.Printf("HTTP route created (ID: %d, Name: %s)\n", resp.Id, resp.Name)
-		return nil
+		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
+			"HTTP route created (ID: %d, Name: %s)\n", resp.Id, resp.Name)
 	},
 }
 
@@ -213,8 +213,8 @@ var tcpRouteCreateCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("creating TCP route: %w", err)
 		}
-		cmd.Printf("TCP route created (ID: %d, Name: %s)\n", resp.Id, resp.Name)
-		return nil
+		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
+			"TCP route created (ID: %d, Name: %s)\n", resp.Id, resp.Name)
 	},
 }
 
@@ -327,8 +327,8 @@ var udpRouteCreateCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("creating UDP route: %w", err)
 		}
-		cmd.Printf("UDP route created (ID: %d, Name: %s)\n", resp.Id, resp.Name)
-		return nil
+		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
+			"UDP route created (ID: %d, Name: %s)\n", resp.Id, resp.Name)
 	},
 }
 

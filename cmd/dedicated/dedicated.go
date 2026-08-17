@@ -89,8 +89,8 @@ var serverPowerCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("power management: %w", err)
 		}
-		cmd.Printf("Power action '%s': %s\n", serverPowerAction, resp.Message)
-		return nil
+		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
+			"Power action '%s': %s\n", serverPowerAction, resp.Message)
 	},
 }
 
@@ -137,8 +137,8 @@ var serverRDNSCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("setting rDNS: %w", err)
 		}
-		cmd.Printf("rDNS updated: %s\n", resp.Message)
-		return nil
+		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
+			"rDNS updated: %s\n", resp.Message)
 	},
 }
 

@@ -106,8 +106,8 @@ var networkCreateCmd = &cobra.Command{
 		if err != nil {
 			return cmdutil.APIError("creating network", err)
 		}
-		cmd.Printf("Private network created (ID: %d, Address: %s)\n", resp.Id, resp.Address)
-		return nil
+		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
+			"Private network created (ID: %d, Address: %s)\n", resp.Id, resp.Address)
 	},
 }
 
@@ -163,8 +163,8 @@ var networkAddServerCmd = &cobra.Command{
 		if err != nil {
 			return cmdutil.APIError("adding server to network", err)
 		}
-		cmd.Printf("Server added to network: %v\n", resp.Created)
-		return nil
+		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
+			"Server added to network: %v\n", resp.Created)
 	},
 }
 
@@ -188,8 +188,8 @@ var networkRemoveServerCmd = &cobra.Command{
 		if err != nil {
 			return cmdutil.APIError("removing server from network", err)
 		}
-		cmd.Printf("Server removed from network: %v\n", resp.Removed)
-		return nil
+		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
+			"Server removed from network: %v\n", resp.Removed)
 	},
 }
 

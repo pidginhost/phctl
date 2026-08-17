@@ -176,8 +176,8 @@ func runTicketCreate(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("creating ticket: %w", err)
 	}
-	cmd.Printf("Ticket created (ID: %d, Subject: %s)\n", resp.Id, resp.Subject)
-	return nil
+	return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
+		"Ticket created (ID: %d, Subject: %s)\n", resp.Id, resp.Subject)
 }
 
 func runTicketReply(cmd *cobra.Command, args []string) error {

@@ -71,8 +71,8 @@ var domainActivateCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("activating FreeDNS: %w", err)
 		}
-		cmd.Printf("FreeDNS activated: %s\n", resp.Message)
-		return nil
+		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
+			"FreeDNS activated: %s\n", resp.Message)
 	},
 }
 
@@ -95,8 +95,8 @@ var domainDeactivateCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("deactivating FreeDNS: %w", err)
 		}
-		cmd.Printf("FreeDNS deactivated: %s\n", resp.Message)
-		return nil
+		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
+			"FreeDNS deactivated: %s\n", resp.Message)
 	},
 }
 
@@ -170,8 +170,8 @@ var recordCreateCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("creating record: %w", err)
 		}
-		cmd.Printf("Record created: %s\n", resp.Message)
-		return nil
+		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
+			"Record created: %s\n", resp.Message)
 	},
 }
 
@@ -201,8 +201,8 @@ var recordDeleteCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("deleting record: %w", err)
 		}
-		cmd.Printf("Record deleted: %s\n", resp.Message)
-		return nil
+		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
+			"Record deleted: %s\n", resp.Message)
 	},
 }
 

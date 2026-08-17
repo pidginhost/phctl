@@ -17,8 +17,18 @@ func ParseInt32(s string) (int32, error) {
 	return int32(n), nil
 }
 
+// OutputFormat resolves the global -o/--output flag. Commands exercised
+// outside the real root (RunE-level unit tests build bare cobra commands) have
+// no such flag, so fall back to the default rather than dereferencing nil.
 func OutputFormat(cmd *cobra.Command) output.Format {
-	return output.ParseFormat(cmd.Root().Flag("output").Value.String())
+	if cmd == nil {
+		return output.FormatTable
+	}
+	flag := cmd.Root().Flag("output")
+	if flag == nil {
+		return output.FormatTable
+	}
+	return output.ParseFormat(flag.Value.String())
 }
 
 func Force(cmd *cobra.Command) bool {

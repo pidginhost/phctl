@@ -1,10 +1,14 @@
 package auth
 
 import (
+	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/spf13/cobra"
 )
 
 func TestMaskToken(t *testing.T) {
@@ -109,6 +113,50 @@ func TestStatusCmdWithToken(t *testing.T) {
 	err := statusCmd.RunE(statusCmd, nil)
 	if err != nil {
 		t.Fatalf("status RunE error: %v", err)
+	}
+}
+
+// TestStatusCmdHonoursOutputFlag pins the -o contract on a query command, and
+// guards that the raw token never reaches machine-readable output — only the
+// masked form the table view already shows.
+func TestStatusCmdHonoursOutputFlag(t *testing.T) {
+	const token = "abcdefghijklmnop"
+
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("PIDGINHOST_API_TOKEN", token)
+	t.Setenv("PIDGINHOST_API_URL", "https://api.example.com")
+
+	root := &cobra.Command{Use: "phctl"}
+	root.PersistentFlags().StringP("output", "o", "json", "Output format")
+	child := &cobra.Command{Use: "child"}
+	root.AddCommand(child)
+
+	var out bytes.Buffer
+	child.SetOut(&out)
+
+	if err := statusCmd.RunE(child, nil); err != nil {
+		t.Fatalf("status RunE error: %v", err)
+	}
+
+	var decoded struct {
+		Authenticated bool   `json:"authenticated"`
+		Token         string `json:"token"`
+		APIURL        string `json:"api_url"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &decoded); err != nil {
+		t.Fatalf("-o json output is not valid JSON (%v): %q", err, out.String())
+	}
+	if !decoded.Authenticated {
+		t.Error("authenticated = false, want true")
+	}
+	if decoded.APIURL != "https://api.example.com" {
+		t.Errorf("api_url = %q, want %q", decoded.APIURL, "https://api.example.com")
+	}
+	if strings.Contains(out.String(), token) {
+		t.Error("raw auth token leaked into -o json output")
+	}
+	if decoded.Token != maskToken(token) {
+		t.Errorf("token = %q, want masked %q", decoded.Token, maskToken(token))
 	}
 }
 

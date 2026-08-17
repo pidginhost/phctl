@@ -100,6 +100,13 @@ func TestServerCreateFlags(t *testing.T) {
 // decoded request body plus whatever the command wrote to stdout.
 func runServerCreate(t *testing.T, flags map[string]string) (map[string]interface{}, string) {
 	t.Helper()
+	return runServerCreateFormat(t, flags, "table")
+}
+
+// runServerCreateFormat is runServerCreate with the global -o/--output flag set,
+// so tests can assert what each format actually emits.
+func runServerCreateFormat(t *testing.T, flags map[string]string, format string) (map[string]interface{}, string) {
+	t.Helper()
 
 	restore := snapshotServerCreateState(t)
 	t.Cleanup(restore)
@@ -135,7 +142,7 @@ func runServerCreate(t *testing.T, flags map[string]string) (map[string]interfac
 		setServerCreateFlag(t, name, value)
 	}
 
-	cmd := &cobra.Command{}
+	cmd := newFakeRootChild(t, format)
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 
@@ -146,6 +153,18 @@ func runServerCreate(t *testing.T, flags map[string]string) (map[string]interfac
 		t.Fatal("server create did not call API")
 	}
 	return gotBody, out.String()
+}
+
+// newFakeRootChild returns a command wired under a throwaway root carrying the
+// global -o/--output flag, so cmdutil.OutputFormat resolves during RunE-level
+// tests the same way it does under the real root command.
+func newFakeRootChild(t *testing.T, format string) *cobra.Command {
+	t.Helper()
+	root := &cobra.Command{Use: "phctl"}
+	root.PersistentFlags().StringP("output", "o", format, "Output format")
+	child := &cobra.Command{Use: "child"}
+	root.AddCommand(child)
+	return child
 }
 
 func TestServerCreatePublicIPSendsPublicIP(t *testing.T) {
@@ -244,6 +263,40 @@ func TestServerCreateNoPublicIPv4AckSendsNoNetworkAcknowledged(t *testing.T) {
 	if got, want := strings.TrimSpace(out), "Server created (ID: 123)"; got != want {
 		t.Fatalf("output = %q, want %q", got, want)
 	}
+}
+
+// TestServerCreateHonoursOutputFlag pins the -o contract: a command that
+// returns a resource must emit that resource, not a human sentence, under
+// -o json/yaml. `server create` previously printed via cmd.Printf and ignored
+// the flag entirely.
+func TestServerCreateHonoursOutputFlag(t *testing.T) {
+	t.Run("json", func(t *testing.T) {
+		_, out := runServerCreateFormat(t, map[string]string{
+			"image":   "ubuntu-24.04",
+			"package": "starter",
+		}, "json")
+
+		var decoded struct {
+			ID int `json:"id"`
+		}
+		if err := json.Unmarshal([]byte(out), &decoded); err != nil {
+			t.Fatalf("-o json output is not valid JSON (%v): %q", err, out)
+		}
+		if decoded.ID != 123 {
+			t.Errorf("id = %d, want 123", decoded.ID)
+		}
+	})
+
+	t.Run("table still prints the sentence", func(t *testing.T) {
+		_, out := runServerCreateFormat(t, map[string]string{
+			"image":   "ubuntu-24.04",
+			"package": "starter",
+		}, "table")
+
+		if got, want := strings.TrimSpace(out), "Server created (ID: 123)"; got != want {
+			t.Fatalf("output = %q, want %q", got, want)
+		}
+	})
 }
 
 func TestPackageListTableIncludesAvailableGenerations(t *testing.T) {

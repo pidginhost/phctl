@@ -205,3 +205,51 @@ func TestPrintJSONIndented(t *testing.T) {
 		t.Errorf("JSON output should be indented, got: %q", out)
 	}
 }
+
+func TestResult(t *testing.T) {
+	type payload struct {
+		ID int `json:"id"`
+	}
+	data := payload{ID: 123}
+
+	t.Run("table mode writes the human message", func(t *testing.T) {
+		var buf bytes.Buffer
+		if err := Result(&buf, FormatTable, data, "Server created (ID: %d)\n", data.ID); err != nil {
+			t.Fatalf("Result: %v", err)
+		}
+		if got, want := buf.String(), "Server created (ID: 123)\n"; got != want {
+			t.Errorf("got %q, want %q", got, want)
+		}
+	})
+
+	t.Run("json mode encodes the payload", func(t *testing.T) {
+		var buf bytes.Buffer
+		if err := Result(&buf, FormatJSON, data, "Server created (ID: %d)\n", data.ID); err != nil {
+			t.Fatalf("Result: %v", err)
+		}
+		var decoded payload
+		if err := json.Unmarshal(buf.Bytes(), &decoded); err != nil {
+			t.Fatalf("output is not valid JSON (%v): %q", err, buf.String())
+		}
+		if decoded.ID != 123 {
+			t.Errorf("decoded ID = %d, want 123", decoded.ID)
+		}
+		if strings.Contains(buf.String(), "Server created") {
+			t.Errorf("human message leaked into JSON output: %q", buf.String())
+		}
+	})
+
+	t.Run("yaml mode encodes the payload", func(t *testing.T) {
+		var buf bytes.Buffer
+		if err := Result(&buf, FormatYAML, data, "Server created (ID: %d)\n", data.ID); err != nil {
+			t.Fatalf("Result: %v", err)
+		}
+		var decoded map[string]any
+		if err := yaml.Unmarshal(buf.Bytes(), &decoded); err != nil {
+			t.Fatalf("output is not valid YAML (%v): %q", err, buf.String())
+		}
+		if strings.Contains(buf.String(), "Server created") {
+			t.Errorf("human message leaked into YAML output: %q", buf.String())
+		}
+	})
+}

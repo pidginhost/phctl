@@ -142,8 +142,8 @@ var depositCreateCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("creating deposit: %w", err)
 		}
-		cmd.Printf("Deposit created (ID: %d, Amount: %.2f)\n", resp.Id, resp.Amount)
-		return nil
+		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
+			"Deposit created (ID: %d, Amount: %.2f)\n", resp.Id, resp.Amount)
 	},
 }
 
@@ -217,8 +217,8 @@ var invoicePayCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("paying invoice: %w", err)
 		}
-		cmd.Printf("Invoice paid: %s\n", resp.Message)
-		return nil
+		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
+			"Invoice paid: %s\n", resp.Message)
 	},
 }
 
@@ -291,8 +291,8 @@ var serviceCancelCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("cancelling service: %w", err)
 		}
-		cmd.Printf("Service cancelled: %s\n", resp.Message)
-		return nil
+		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
+			"Service cancelled: %s\n", resp.Message)
 	},
 }
 
@@ -313,8 +313,8 @@ var serviceAutoPayCmd = &cobra.Command{
 		if !resp.AutoPayment {
 			state = "disabled"
 		}
-		cmd.Printf("Auto-pay %s: %s\n", state, resp.Message)
-		return nil
+		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
+			"Auto-pay %s: %s\n", state, resp.Message)
 	},
 }
 

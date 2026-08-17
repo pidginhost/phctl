@@ -97,8 +97,8 @@ var domainCreateCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("registering domain: %w", err)
 		}
-		cmd.Printf("Domain registered: %s\n", resp.Domain)
-		return nil
+		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
+			"Domain registered: %s\n", resp.Domain)
 	},
 }
 
@@ -187,8 +187,8 @@ var domainTransferCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("transferring domain: %w", err)
 		}
-		cmd.Printf("Domain transfer initiated: %s\n", resp.Domain)
-		return nil
+		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
+			"Domain transfer initiated: %s\n", resp.Domain)
 	},
 }
 
@@ -266,8 +266,8 @@ var domainGlueSetCmd = &cobra.Command{
 		if err := client.RawPost(cmd.Context(), fmt.Sprintf("/api/domain/domain/%s/dns/", args[0]), body, &result); err != nil {
 			return fmt.Errorf("setting glue record: %w", err)
 		}
-		cmd.Printf("Glue record %s.%s set.\n", result.Name, args[0])
-		return nil
+		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), result,
+			"Glue record %s.%s set.\n", result.Name, args[0])
 	},
 }
 
@@ -419,8 +419,8 @@ var registrantCreateCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("creating registrant: %w", err)
 		}
-		cmd.Printf("Registrant created (ID: %d, %s %s)\n", resp.Id, resp.FirstName, resp.LastName)
-		return nil
+		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
+			"Registrant created (ID: %d, %s %s)\n", resp.Id, resp.FirstName, resp.LastName)
 	},
 }
 

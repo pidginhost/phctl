@@ -107,16 +107,16 @@ var floatingIPCreateCmd = &cobra.Command{
 			if err != nil {
 				return cmdutil.APIError("creating floating IPv6", err)
 			}
-			cmd.Printf("Floating IPv6 created (ID: %d, Address: %s)\n", resp.Id, resp.Address)
-			return nil
+			return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
+				"Floating IPv6 created (ID: %d, Address: %s)\n", resp.Id, resp.Address)
 		}
 		body := pidginhost.FloatingIPv4Create{Label: &label}
 		resp, _, err := c.CloudAPI.CloudFloatingIpv4Create(cmd.Context()).FloatingIPv4Create(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("creating floating IPv4", err)
 		}
-		cmd.Printf("Floating IPv4 created (ID: %d, Address: %s)\n", resp.Id, resp.Address)
-		return nil
+		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
+			"Floating IPv4 created (ID: %d, Address: %s)\n", resp.Id, resp.Address)
 	},
 }
 

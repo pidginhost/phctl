@@ -214,8 +214,7 @@ var serverCreateCmd = &cobra.Command{
 			return cmdutil.APIError("creating server", err)
 		}
 
-		cmd.Printf("Server created (ID: %d)\n", resp.Id)
-		return nil
+		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp, "Server created (ID: %d)\n", resp.Id)
 	},
 }
 
@@ -323,8 +322,8 @@ var serverAttachIPv4Cmd = &cobra.Command{
 		if resp != nil && !resp.Attached {
 			return fmt.Errorf("attaching IPv4: backend reported the IPv4 was not attached")
 		}
-		cmd.Printf("IPv4 %s attached to server %d.\n", serverAttachIPv4Slug, id)
-		return nil
+		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
+			"IPv4 %s attached to server %d.\n", serverAttachIPv4Slug, id)
 	},
 }
 
@@ -358,11 +357,11 @@ var serverDetachIPv4Cmd = &cobra.Command{
 			return fmt.Errorf("detaching IPv4: backend reported the IPv4 was not detached")
 		}
 		if serverDetachIPv4Slug != "" {
-			cmd.Printf("IPv4 %s detached from server %d.\n", serverDetachIPv4Slug, id)
-		} else {
-			cmd.Printf("Primary IPv4 detached from server %d.\n", id)
+			return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
+				"IPv4 %s detached from server %d.\n", serverDetachIPv4Slug, id)
 		}
-		return nil
+		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
+			"Primary IPv4 detached from server %d.\n", id)
 	},
 }
 
@@ -382,12 +381,12 @@ var serverAttachIPv6Cmd = &cobra.Command{
 			return err
 		}
 		body := *pidginhost.NewAttachIPv6(serverAttachIPv6Slug)
-		_, _, err = c.CloudAPI.CloudServersAttachIpv6Create(cmd.Context(), id).AttachIPv6(body).Execute()
+		resp, _, err := c.CloudAPI.CloudServersAttachIpv6Create(cmd.Context(), id).AttachIPv6(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("attaching IPv6", err)
 		}
-		cmd.Printf("IPv6 %s attached to server %d.\n", serverAttachIPv6Slug, id)
-		return nil
+		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
+			"IPv6 %s attached to server %d.\n", serverAttachIPv6Slug, id)
 	},
 }
 

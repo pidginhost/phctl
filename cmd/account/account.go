@@ -101,8 +101,8 @@ var sshKeyCreateCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("creating SSH key: %w", err)
 		}
-		cmd.Printf("SSH key created (ID: %d, Fingerprint: %s)\n", key.Id, key.Fingerprint)
-		return nil
+		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), key,
+			"SSH key created (ID: %d, Fingerprint: %s)\n", key.Id, key.Fingerprint)
 	},
 }
 
@@ -219,10 +219,9 @@ var apiTokenCreateCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("creating API token: %w", err)
 		}
-		cmd.Printf("API token created (Name: %s)\n", resp.Name)
-		cmd.Printf("Token: %s\n", resp.Key)
-		cmd.Println("Save this token — it will not be shown again.")
-		return nil
+		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
+			"API token created (Name: %s)\nToken: %s\nSave this token — it will not be shown again.\n",
+			resp.Name, resp.Key)
 	},
 }
 

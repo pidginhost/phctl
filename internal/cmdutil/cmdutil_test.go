@@ -62,6 +62,15 @@ func TestOutputFormat(t *testing.T) {
 	}
 }
 
+// TestOutputFormatWithoutRootFlag pins the fallback for commands that are not
+// wired under the real root: RunE-level unit tests construct bare cobra
+// commands, and looking up a flag that does not exist there must not panic.
+func TestOutputFormatWithoutRootFlag(t *testing.T) {
+	if got := OutputFormat(&cobra.Command{Use: "orphan"}); got != "table" {
+		t.Errorf("OutputFormat without --output = %q, want %q", got, "table")
+	}
+}
+
 func TestForce(t *testing.T) {
 	root := &cobra.Command{Use: "test"}
 	root.PersistentFlags().BoolP("force", "f", false, "Skip confirmation")

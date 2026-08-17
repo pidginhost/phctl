@@ -62,8 +62,8 @@ var ipv4CreateCmd = &cobra.Command{
 		if err != nil {
 			return cmdutil.APIError("creating IPv4", err)
 		}
-		cmd.Printf("IPv4 address created (ID: %d, Address: %s)\n", resp.Id, resp.Address)
-		return nil
+		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
+			"IPv4 address created (ID: %d, Address: %s)\n", resp.Id, resp.Address)
 	},
 }
 
@@ -110,8 +110,8 @@ var ipv4DetachCmd = &cobra.Command{
 		if err != nil {
 			return cmdutil.APIError("detaching IPv4", err)
 		}
-		cmd.Printf("IPv4 detached: %v\n", resp.Detached)
-		return nil
+		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
+			"IPv4 detached: %v\n", resp.Detached)
 	},
 }
 

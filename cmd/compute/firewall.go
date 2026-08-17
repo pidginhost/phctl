@@ -97,8 +97,8 @@ var firewallCreateCmd = &cobra.Command{
 		if err != nil {
 			return cmdutil.APIError("creating firewall", err)
 		}
-		cmd.Printf("Firewall rule set created (ID: %d, Name: %s)\n", resp.Id, resp.Name)
-		return nil
+		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
+			"Firewall rule set created (ID: %d, Name: %s)\n", resp.Id, resp.Name)
 	},
 }
 
@@ -206,8 +206,8 @@ var ruleCreateCmd = &cobra.Command{
 		if err != nil {
 			return cmdutil.APIError("creating rule", err)
 		}
-		cmd.Printf("Rule created (ID: %d, Direction: %s, Action: %s)\n", resp.Id, resp.Direction, resp.Action)
-		return nil
+		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
+			"Rule created (ID: %d, Direction: %s, Action: %s)\n", resp.Id, resp.Direction, resp.Action)
 	},
 }
 

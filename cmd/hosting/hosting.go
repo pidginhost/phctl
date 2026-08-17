@@ -86,8 +86,8 @@ var changePasswordCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("changing password: %w", err)
 		}
-		cmd.Printf("Password changed: %s\n", resp.Message)
-		return nil
+		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
+			"Password changed: %s\n", resp.Message)
 	},
 }
 

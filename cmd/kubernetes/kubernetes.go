@@ -116,14 +116,21 @@ var clusterCreateCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("creating cluster: %w", err)
 		}
-		cmd.Printf("Cluster created (ID: %d)\n", resp.Id)
+		format := cmdutil.OutputFormat(cmd)
+		if err := output.Result(cmd.OutOrStdout(), format, resp, "Cluster created (ID: %d)\n", resp.Id); err != nil {
+			return err
+		}
 
 		if clusterCreateWait {
 			id := fmt.Sprintf("%d", resp.Id)
 			if err := waitForCluster(cmd.Context(), id, clusterCreateTimeout, cmd); err != nil {
 				return err
 			}
-			cmd.Printf("Cluster %s is active.\n", id)
+			// The payload is already on stdout under -o json/yaml; appending a
+			// sentence there would make it unparseable.
+			if format == output.FormatTable {
+				cmd.Printf("Cluster %s is active.\n", id)
+			}
 		}
 		return nil
 	},
@@ -214,13 +221,18 @@ var clusterUpgradeKubeCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("upgrading kube version: %w", err)
 		}
-		cmd.Printf("Kubernetes upgrade initiated: %s\n", resp.Status)
+		format := cmdutil.OutputFormat(cmd)
+		if err := output.Result(cmd.OutOrStdout(), format, resp, "Kubernetes upgrade initiated: %s\n", resp.Status); err != nil {
+			return err
+		}
 
 		if upgradeKubeWait {
 			if err := waitForCluster(cmd.Context(), args[0], upgradeKubeTimeout, cmd); err != nil {
 				return err
 			}
-			cmd.Printf("Cluster %s upgrade complete.\n", args[0])
+			if format == output.FormatTable {
+				cmd.Printf("Cluster %s upgrade complete.\n", args[0])
+			}
 		}
 		return nil
 	},
@@ -247,13 +259,18 @@ var clusterUpgradeTalosCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("upgrading talos version: %w", err)
 		}
-		cmd.Printf("Talos upgrade initiated: %s\n", resp.Status)
+		format := cmdutil.OutputFormat(cmd)
+		if err := output.Result(cmd.OutOrStdout(), format, resp, "Talos upgrade initiated: %s\n", resp.Status); err != nil {
+			return err
+		}
 
 		if upgradeTalosWait {
 			if err := waitForCluster(cmd.Context(), args[0], upgradeTalosTimeout, cmd); err != nil {
 				return err
 			}
-			cmd.Printf("Cluster %s upgrade complete.\n", args[0])
+			if format == output.FormatTable {
+				cmd.Printf("Cluster %s upgrade complete.\n", args[0])
+			}
 		}
 		return nil
 	},
@@ -277,8 +294,8 @@ var clusterConnectVMCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("connecting VM: %w", err)
 		}
-		cmd.Printf("VM connected: %s - %s\n", resp.Status, resp.Message)
-		return nil
+		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
+			"VM connected: %s - %s\n", resp.Status, resp.Message)
 	},
 }
 
@@ -298,8 +315,8 @@ var clusterDisconnectVMCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("disconnecting VM: %w", err)
 		}
-		cmd.Printf("VM disconnected: %s - %s\n", resp.Status, resp.Message)
-		return nil
+		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
+			"VM disconnected: %s - %s\n", resp.Status, resp.Message)
 	},
 }
 
@@ -428,13 +445,18 @@ var poolCreateCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("creating pool: %w", err)
 		}
-		cmd.Printf("Resource pool created (ID: %d)\n", resp.Id)
+		format := cmdutil.OutputFormat(cmd)
+		if err := output.Result(cmd.OutOrStdout(), format, resp, "Resource pool created (ID: %d)\n", resp.Id); err != nil {
+			return err
+		}
 
 		if poolCreateWait {
 			if err := waitForCluster(cmd.Context(), args[0], poolCreateTimeout, cmd); err != nil {
 				return err
 			}
-			cmd.Printf("Cluster %s is active.\n", args[0])
+			if format == output.FormatTable {
+				cmd.Printf("Cluster %s is active.\n", args[0])
+			}
 		}
 		return nil
 	},

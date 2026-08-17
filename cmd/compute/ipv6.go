@@ -61,8 +61,8 @@ var ipv6CreateCmd = &cobra.Command{
 		if err != nil {
 			return cmdutil.APIError("creating IPv6", err)
 		}
-		cmd.Printf("IPv6 address created (ID: %d, Address: %s)\n", resp.Id, resp.Address)
-		return nil
+		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
+			"IPv6 address created (ID: %d, Address: %s)\n", resp.Id, resp.Address)
 	},
 }
 
@@ -109,8 +109,8 @@ var ipv6DetachCmd = &cobra.Command{
 		if err != nil {
 			return cmdutil.APIError("detaching IPv6", err)
 		}
-		cmd.Printf("IPv6 detached: %v\n", resp.Detached)
-		return nil
+		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
+			"IPv6 detached: %v\n", resp.Detached)
 	},
 }
 

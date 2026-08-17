@@ -143,8 +143,8 @@ var volumeDetachCmd = &cobra.Command{
 		if err != nil {
 			return cmdutil.APIError("detaching volume", err)
 		}
-		cmd.Printf("Volume detached: %v\n", resp.Detached)
-		return nil
+		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
+			"Volume detached: %v\n", resp.Detached)
 	},
 }
 
