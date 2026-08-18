@@ -56,7 +56,7 @@ test:
       # tree actually at 34.9% -- the gate had been sitting below its own
       # threshold all along without noticing.
       TOTAL=$(sh scripts/coverage-total.sh coverage.out)
-      THRESHOLD=34
+      THRESHOLD=40
       if awk "BEGIN{exit !($TOTAL < $THRESHOLD)}"; then
         echo "Coverage ${TOTAL}% is below threshold ${THRESHOLD}%"
         exit 1
