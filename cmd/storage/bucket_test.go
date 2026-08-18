@@ -3,8 +3,9 @@ package storage
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -25,32 +26,45 @@ type stub struct {
 	path   string
 	body   map[string]interface{}
 	called bool
+	calls  int
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) {
+	return f(r)
 }
 
 // run drives a command's RunE against a stub API. stdin feeds confirmation
 // prompts; format sets the global -o/--output; force sets the global -f.
 func run(t *testing.T, cmd *cobra.Command, args []string, respond func(*stub) (int, string),
-	format, stdin string, force bool) (*stub, string, string, error) {
+	format, stdin string, force bool, outputWriter ...io.Writer) (*stub, string, string, error) {
 	t.Helper()
 
 	st := &stub{}
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	oldTransport := http.DefaultClient.Transport
+	http.DefaultClient.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		st.called = true
+		st.calls++
 		st.method = r.Method
 		st.path = r.URL.Path
 		if r.Body != nil {
 			_ = json.NewDecoder(r.Body).Decode(&st.body)
 		}
 		code, payload := respond(st)
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(code)
-		_, _ = w.Write([]byte(payload))
-	}))
-	t.Cleanup(server.Close)
+		return &http.Response{
+			StatusCode: code,
+			Status:     fmt.Sprintf("%d %s", code, http.StatusText(code)),
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(payload)),
+			Request:    r,
+		}, nil
+	})
+	t.Cleanup(func() { http.DefaultClient.Transport = oldTransport })
 
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("PIDGINHOST_API_TOKEN", "test-token")
-	t.Setenv("PIDGINHOST_API_URL", server.URL)
+	t.Setenv("PIDGINHOST_API_URL", "https://api.test")
 
 	root := &cobra.Command{Use: "phctl"}
 	root.PersistentFlags().StringP("output", "o", format, "Output format")
@@ -59,7 +73,11 @@ func run(t *testing.T, cmd *cobra.Command, args []string, respond func(*stub) (i
 	root.AddCommand(child)
 
 	var out, errOut bytes.Buffer
-	child.SetOut(&out)
+	outWriter := io.Writer(&out)
+	if len(outputWriter) > 0 {
+		outWriter = outputWriter[0]
+	}
+	child.SetOut(outWriter)
 	child.SetErr(&errOut)
 	child.SetIn(strings.NewReader(stdin))
 
@@ -127,6 +145,13 @@ func TestBucketListRendersTable(t *testing.T) {
 	}
 }
 
+func TestBucketListRejectsNullResponse(t *testing.T) {
+	_, _, _, err := run(t, bucketListCmd, nil, ok(`null`), "table", "", false)
+	if err == nil {
+		t.Fatal("expected an error for a null bucket list")
+	}
+}
+
 func TestBucketGetRendersJSON(t *testing.T) {
 	_, out, _, err := run(t, bucketGetCmd, []string{"7"}, ok(bucketJSON), "json", "", false)
 	if err != nil {
@@ -141,14 +166,27 @@ func TestBucketGetRendersJSON(t *testing.T) {
 	}
 }
 
+func TestBucketGetRejectsNullResponseWithoutPanicking(t *testing.T) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			t.Errorf("null response caused a panic: %v", recovered)
+		}
+	}()
+	_, _, _, err := run(t, bucketGetCmd, []string{"7"}, ok(`null`), "table", "", false)
+	if err == nil {
+		t.Fatal("expected an error for a null bucket response")
+	}
+}
+
 // --- create (billable: confirms) ---
 
 func TestBucketCreateSendsWritableFields(t *testing.T) {
 	bucketCreateName, bucketCreateQuota, bucketCreatePublic = "assets", 50, true
 	t.Cleanup(func() { bucketCreateName, bucketCreateQuota, bucketCreatePublic = "", 0, false })
 
+	created := strings.Replace(bucketJSON, `"public_read":false`, `"public_read":true`, 1)
 	st, _, _, err := run(t, bucketCreateCmd, nil,
-		func(*stub) (int, string) { return http.StatusAccepted, bucketJSON }, "table", "", true)
+		func(*stub) (int, string) { return http.StatusAccepted, created }, "table", "", true)
 	if err != nil {
 		t.Fatalf("RunE: %v", err)
 	}
@@ -176,6 +214,33 @@ func TestBucketCreateAbortsWithoutConfirmation(t *testing.T) {
 	}
 	if st.called {
 		t.Error("declined create still called the API")
+	}
+}
+
+func TestBucketCreatePublicConfirmationWarnsAboutExposure(t *testing.T) {
+	bucketCreateName, bucketCreateQuota, bucketCreatePublic = "assets", 50, true
+	t.Cleanup(func() { bucketCreateName, bucketCreateQuota, bucketCreatePublic = "", 0, false })
+
+	st, _, errOut, err := run(t, bucketCreateCmd, nil, ok(bucketJSON), "table", "n\n", false)
+	if err != nil {
+		t.Fatalf("declining should not error: %v", err)
+	}
+	if st.called {
+		t.Error("declined create still called the API")
+	}
+	if !strings.Contains(errOut, "anyone on the internet") {
+		t.Errorf("public bucket prompt did not warn about exposure: %q", errOut)
+	}
+}
+
+func TestBucketCreateRejectsIgnoredRequestedFields(t *testing.T) {
+	bucketCreateName, bucketCreateQuota, bucketCreatePublic = "assets", 50, true
+	t.Cleanup(func() { bucketCreateName, bucketCreateQuota, bucketCreatePublic = "", 0, false })
+
+	_, _, _, err := run(t, bucketCreateCmd, nil,
+		func(*stub) (int, string) { return http.StatusAccepted, bucketJSON }, "table", "", true)
+	if err == nil {
+		t.Fatal("expected an error when the created bucket ignored public_read")
 	}
 }
 
@@ -207,14 +272,41 @@ func TestBucketDeleteReportsCancelling(t *testing.T) {
 	}
 }
 
+func TestBucketDeleteRejectsUnchangedStatus(t *testing.T) {
+	_, _, _, err := run(t, bucketDeleteCmd, []string{"7"},
+		func(*stub) (int, string) { return http.StatusAccepted, `{"id":7,"status":"active"}` },
+		"table", "", true)
+	if err == nil {
+		t.Fatal("expected an error when delete did not move the bucket to cancelling")
+	}
+}
+
 // --- resize ---
+
+func TestBucketResizeAbortsWithoutConfirmation(t *testing.T) {
+	bucketResizeQuota = 100
+	t.Cleanup(func() { bucketResizeQuota = 0 })
+
+	st, _, _, err := run(t, bucketResizeCmd, []string{"7"}, ok(bucketJSON), "table", "n\n", false)
+	if err != nil {
+		t.Fatalf("declining should not error: %v", err)
+	}
+	if st.called {
+		t.Error("declined resize still called the API")
+	}
+}
 
 func TestBucketResizeSendsQuota(t *testing.T) {
 	bucketResizeQuota = 100
 	t.Cleanup(func() { bucketResizeQuota = 0 })
 
 	resized := strings.Replace(bucketJSON, `"quota_gb":50`, `"quota_gb":100`, 1)
-	st, _, _, err := run(t, bucketResizeCmd, []string{"7"}, ok(resized), "table", "", true)
+	st, _, _, err := run(t, bucketResizeCmd, []string{"7"}, func(st *stub) (int, string) {
+		if st.method == http.MethodGet {
+			return http.StatusOK, bucketJSON
+		}
+		return http.StatusOK, resized
+	}, "table", "", true)
 	if err != nil {
 		t.Fatalf("RunE: %v", err)
 	}
@@ -223,6 +315,9 @@ func TestBucketResizeSendsQuota(t *testing.T) {
 	}
 	if st.body["quota_gb"] != float64(100) {
 		t.Errorf("quota_gb = %v", st.body["quota_gb"])
+	}
+	if st.calls != 2 {
+		t.Errorf("calls = %d, want current-state check plus resize", st.calls)
 	}
 }
 
@@ -241,6 +336,19 @@ func TestBucketResizeFailsWhenQuotaDidNotChange(t *testing.T) {
 	}
 }
 
+func TestBucketResizeRejectsQuotaItAlreadyHas(t *testing.T) {
+	bucketResizeQuota = 50
+	t.Cleanup(func() { bucketResizeQuota = 0 })
+
+	st, _, _, err := run(t, bucketResizeCmd, []string{"7"}, ok(bucketJSON), "table", "", true)
+	if err == nil {
+		t.Fatal("expected an error when the requested quota is already current")
+	}
+	if st.calls != 1 || st.method != http.MethodGet {
+		t.Errorf("no-op resize made mutation calls: calls=%d last_method=%s", st.calls, st.method)
+	}
+}
+
 // --- visibility ---
 
 func TestBucketVisibilityPublicSendsTrue(t *testing.T) {
@@ -248,7 +356,12 @@ func TestBucketVisibilityPublicSendsTrue(t *testing.T) {
 	t.Cleanup(func() { bucketVisibilityPublic = false })
 
 	pub := strings.Replace(bucketJSON, `"public_read":false`, `"public_read":true`, 1)
-	st, _, _, err := run(t, bucketVisibilityCmd, []string{"7"}, ok(pub), "table", "", true)
+	st, _, _, err := run(t, bucketVisibilityCmd, []string{"7"}, func(st *stub) (int, string) {
+		if st.method == http.MethodGet {
+			return http.StatusOK, bucketJSON
+		}
+		return http.StatusOK, pub
+	}, "table", "", true)
 	if err != nil {
 		t.Fatalf("RunE: %v", err)
 	}
@@ -257,6 +370,9 @@ func TestBucketVisibilityPublicSendsTrue(t *testing.T) {
 	}
 	if st.body["public_read"] != true {
 		t.Errorf("public_read = %v", st.body["public_read"])
+	}
+	if st.calls != 2 {
+		t.Errorf("calls = %d, want current-state check plus visibility change", st.calls)
 	}
 }
 
@@ -273,6 +389,25 @@ func TestBucketVisibilityGoingPublicConfirms(t *testing.T) {
 	}
 }
 
+func TestBucketVisibilityGoingPrivateDoesNotConfirm(t *testing.T) {
+	bucketVisibilityPrivate = true
+	t.Cleanup(func() { bucketVisibilityPrivate = false })
+
+	pub := strings.Replace(bucketJSON, `"public_read":false`, `"public_read":true`, 1)
+	st, _, _, err := run(t, bucketVisibilityCmd, []string{"7"}, func(st *stub) (int, string) {
+		if st.method == http.MethodGet {
+			return http.StatusOK, pub
+		}
+		return http.StatusOK, bucketJSON
+	}, "table", "n\n", false)
+	if err != nil {
+		t.Fatalf("going private should not ask for confirmation: %v", err)
+	}
+	if st.calls != 2 || st.method != http.MethodPost || st.body["public_read"] != false {
+		t.Errorf("private change was not sent: calls=%d method=%s body=%v", st.calls, st.method, st.body)
+	}
+}
+
 func TestBucketVisibilityFailsWhenFlagDidNotChange(t *testing.T) {
 	bucketVisibilityPublic = true
 	t.Cleanup(func() { bucketVisibilityPublic = false })
@@ -280,6 +415,20 @@ func TestBucketVisibilityFailsWhenFlagDidNotChange(t *testing.T) {
 	_, _, _, err := run(t, bucketVisibilityCmd, []string{"7"}, ok(bucketJSON), "table", "", true)
 	if err == nil {
 		t.Fatal("expected an error when the response still reports the old visibility")
+	}
+}
+
+func TestBucketVisibilityRejectsStateItAlreadyHas(t *testing.T) {
+	bucketVisibilityPublic = true
+	t.Cleanup(func() { bucketVisibilityPublic = false })
+
+	pub := strings.Replace(bucketJSON, `"public_read":false`, `"public_read":true`, 1)
+	st, _, _, err := run(t, bucketVisibilityCmd, []string{"7"}, ok(pub), "table", "", true)
+	if err == nil {
+		t.Fatal("expected an error when the requested visibility is already current")
+	}
+	if st.calls != 1 || st.method != http.MethodGet {
+		t.Errorf("no-op visibility change made mutation calls: calls=%d last_method=%s", st.calls, st.method)
 	}
 }
 
@@ -361,5 +510,93 @@ func TestCredentialsErrorsNeverCarryTheSecret(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestCredentialsRotateErrorExplainsSafeRecovery(t *testing.T) {
+	undecodable := `{"bucket":"c1-assets","endpoint":"https://s3.example","region":"eu-1",` +
+		`"access_key":12345,"secret_key":"` + testSecretKey + `"}`
+
+	_, _, _, err := run(t, bucketCredentialsRotateCmd, []string{"7"}, ok(undecodable), "table", "", true)
+	if err == nil {
+		t.Fatal("expected a decode error")
+	}
+	if !strings.Contains(err.Error(), "reveal 7") || !strings.Contains(err.Error(), "do not retry") {
+		t.Errorf("rotation failure lacks safe recovery instructions: %v", err)
+	}
+}
+
+func TestCredentialsRejectIncompleteResponses(t *testing.T) {
+	for name, cmd := range map[string]*cobra.Command{
+		"reveal": bucketCredentialsRevealCmd,
+		"rotate": bucketCredentialsRotateCmd,
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, _, _, err := run(t, cmd, []string{"7"}, ok(`{}`), "table", "", true)
+			if err == nil {
+				t.Fatal("expected an error for a response without credentials")
+			}
+		})
+	}
+}
+
+func TestCredentialsPrintKeysWhenMetadataIsEmpty(t *testing.T) {
+	payload := `{"bucket":"","endpoint":"","region":"",` +
+		`"access_key":"` + testAccessKey + `","secret_key":"` + testSecretKey + `"}`
+
+	for name, cmd := range map[string]*cobra.Command{
+		"reveal": bucketCredentialsRevealCmd,
+		"rotate": bucketCredentialsRotateCmd,
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, out, _, err := run(t, cmd, []string{"7"}, ok(payload), "table", "", true)
+			if err != nil {
+				t.Fatalf("metadata must not suppress recoverable credentials: %v", err)
+			}
+			if !strings.Contains(out, testAccessKey) || !strings.Contains(out, testSecretKey) {
+				t.Errorf("credential output missing keys: %q", out)
+			}
+		})
+	}
+}
+
+func TestCredentialsRejectNullResponsesWithoutPanicking(t *testing.T) {
+	for name, cmd := range map[string]*cobra.Command{
+		"reveal": bucketCredentialsRevealCmd,
+		"rotate": bucketCredentialsRotateCmd,
+	} {
+		t.Run(name, func(t *testing.T) {
+			defer func() {
+				if recovered := recover(); recovered != nil {
+					t.Errorf("null response caused a panic: %v", recovered)
+				}
+			}()
+			_, _, _, err := run(t, cmd, []string{"7"}, ok(`null`), "table", "", true)
+			if err == nil {
+				t.Fatal("expected an error for a null credentials response")
+			}
+		})
+	}
+}
+
+type echoingErrorWriter struct{}
+
+func (echoingErrorWriter) Write(p []byte) (int, error) {
+	return 0, fmt.Errorf("refused payload %s", p)
+}
+
+func TestCredentialsRotateOutputFailureDoesNotLeakOrInviteRetry(t *testing.T) {
+	_, out, errOut, err := run(t, bucketCredentialsRotateCmd, []string{"7"}, ok(credsJSON),
+		"json", "", true, echoingErrorWriter{})
+	if err == nil {
+		t.Fatal("expected output failure")
+	}
+	for _, sink := range []string{err.Error(), out, errOut} {
+		if strings.Contains(sink, testAccessKey) || strings.Contains(sink, testSecretKey) {
+			t.Errorf("credential leaked after output failure: %s", sink)
+		}
+	}
+	if !strings.Contains(err.Error(), "reveal 7") || !strings.Contains(err.Error(), "do not retry") {
+		t.Errorf("rotation failure lacks safe recovery instructions: %v", err)
 	}
 }

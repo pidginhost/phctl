@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/pidginhost/phctl/internal/testutil/httptest"
 	"github.com/spf13/cobra"
 )
 

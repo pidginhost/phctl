@@ -36,17 +36,34 @@ func APIError(op string, err error) error {
 // itself a secret: the bucket credential routes answer 200 with an access key
 // and secret, so a body that fails to decode would put live credentials into an
 // error string, the terminal, any log that captures it, and any bug report it
-// gets pasted into. The status line and the error chain are preserved, and the
-// message says a body was withheld rather than pretending there was none.
+// gets pasted into. SDK errors are deliberately removed from the unwrap chain
+// too; otherwise errors.As could hand untrusted credential-route details to an
+// outer reporter. Only a recognizable numeric HTTP status is retained, and the
+// message says when a body was withheld rather than pretending there was none.
 func APIErrorRedacted(op string, err error) error {
 	if err == nil {
 		return nil
 	}
 	var apiErr *pidginhost.GenericOpenAPIError
-	if errors.As(err, &apiErr) && len(apiErr.Body()) > 0 {
-		return fmt.Errorf("%s: %w: response body withheld (it carries credentials)", op, err)
+	if errors.As(err, &apiErr) {
+		status := redactedAPIStatus(apiErr.Error())
+		if len(apiErr.Body()) > 0 {
+			return fmt.Errorf("%s: %s: response body withheld (it carries credentials)", op, status)
+		}
+		return fmt.Errorf("%s: %s", op, status)
 	}
 	return fmt.Errorf("%s: %w", op, err)
+}
+
+func redactedAPIStatus(message string) string {
+	fields := strings.Fields(message)
+	if len(fields) > 0 && len(fields[0]) == 3 &&
+		fields[0][0] >= '1' && fields[0][0] <= '5' &&
+		fields[0][1] >= '0' && fields[0][1] <= '9' &&
+		fields[0][2] >= '0' && fields[0][2] <= '9' {
+		return "HTTP " + fields[0]
+	}
+	return "credential endpoint response failed"
 }
 
 func formatAPIBody(body []byte) string {

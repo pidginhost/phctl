@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 
+	"github.com/pidginhost/phctl/internal/testutil/httptest"
 	pidginhost "github.com/pidginhost/sdk-go"
 	"github.com/spf13/cobra"
 )

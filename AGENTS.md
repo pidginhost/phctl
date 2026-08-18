@@ -64,7 +64,10 @@ never lets the body through. Use it *only* where the body is itself a secret —
 today that is the two bucket credential routes, which answer `200` with an
 access key and secret, so a body that fails to decode would put live
 credentials into an error string, a log, and any bug report it is pasted into.
-Everywhere else the body is the whole point, so reach for `APIError`.
+The wrapper drops SDK errors from its unwrap chain and retains only a
+recognizable numeric HTTP status, so neither `errors.As` nor an untrusted reason
+phrase can recover the secret. Everywhere else the body is the whole point, so
+reach for `APIError`.
 
 ## Command conventions
 

@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"context"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/pidginhost/phctl/internal/testutil/httptest"
 	"github.com/spf13/cobra"
 
 	pidginhost "github.com/pidginhost/sdk-go"

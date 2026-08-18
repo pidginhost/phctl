@@ -1,6 +1,8 @@
 package storage
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
 	"io"
 
@@ -34,6 +36,9 @@ var bucketListCmd = &cobra.Command{
 		if err != nil {
 			return cmdutil.APIError("listing buckets", err)
 		}
+		if resp == nil {
+			return fmt.Errorf("listing buckets: server returned no bucket list")
+		}
 		return output.Print(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID", "NAME", "FULL NAME", "QUOTA GB", "USED", "OBJECTS", "PUBLIC", "STATUS", "REGION")
@@ -62,6 +67,12 @@ var bucketGetCmd = &cobra.Command{
 		b, _, err := c.CloudAPI.CloudBucketsRetrieve(cmd.Context(), id).Execute()
 		if err != nil {
 			return cmdutil.APIError("getting bucket", err)
+		}
+		if b == nil {
+			return fmt.Errorf("getting bucket %d: server returned no bucket", id)
+		}
+		if b.Id != id {
+			return fmt.Errorf("getting bucket %d: server returned bucket %d", id, b.Id)
 		}
 		return output.Print(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), b, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
@@ -93,9 +104,13 @@ var bucketCreateCmd = &cobra.Command{
 	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// A bucket is billed on usage, so creating one costs money.
+		prompt := fmt.Sprintf("Create bucket %q with a %d GB quota? This is a paid resource.",
+			bucketCreateName, bucketCreateQuota)
+		if bucketCreatePublic {
+			prompt += " Uploaded objects will be readable by anyone on the internet."
+		}
 		if !cmdutil.Force(cmd) && !confirm.Action(cmd.InOrStdin(), cmd.ErrOrStderr(),
-			fmt.Sprintf("Create bucket %q with a %d GB quota? This is a paid resource.",
-				bucketCreateName, bucketCreateQuota)) {
+			prompt) {
 			return nil
 		}
 		c, err := client.New()
@@ -107,6 +122,13 @@ var bucketCreateCmd = &cobra.Command{
 		b, _, err := c.CloudAPI.CloudBucketsCreate(cmd.Context()).BucketCreate(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("creating bucket", err)
+		}
+		if b == nil {
+			return fmt.Errorf("creating bucket: server returned no bucket")
+		}
+		if b.Name != bucketCreateName || b.QuotaGb != bucketCreateQuota || b.PublicRead != bucketCreatePublic {
+			return fmt.Errorf("creating bucket: requested name=%q quota_gb=%d public_read=%t, server returned name=%q quota_gb=%d public_read=%t",
+				bucketCreateName, bucketCreateQuota, bucketCreatePublic, b.Name, b.QuotaGb, b.PublicRead)
 		}
 		return output.Print(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), b, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
@@ -146,8 +168,14 @@ var bucketDeleteCmd = &cobra.Command{
 		if err != nil {
 			return cmdutil.APIError("deleting bucket", err)
 		}
-		if resp.Status == "" {
-			return fmt.Errorf("deleting bucket %d: server did not report a status", id)
+		if resp == nil {
+			return fmt.Errorf("deleting bucket %d: server returned no cancellation result", id)
+		}
+		if resp.Id != id {
+			return fmt.Errorf("deleting bucket %d: server reported cancellation for bucket %d", id, resp.Id)
+		}
+		if resp.Status != "cancelling" {
+			return fmt.Errorf("deleting bucket %d: server reported status %q instead of cancelling", id, resp.Status)
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"Bucket %d %s.\n", resp.Id, resp.Status)
@@ -174,10 +202,30 @@ var bucketResizeCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		current, _, err := c.CloudAPI.CloudBucketsRetrieve(cmd.Context(), id).Execute()
+		if err != nil {
+			return cmdutil.APIError("checking current bucket quota", err)
+		}
+		if current == nil {
+			return fmt.Errorf("checking current bucket quota: server returned no bucket")
+		}
+		if current.Id != id {
+			return fmt.Errorf("checking current bucket quota: asked for bucket %d, server returned bucket %d",
+				id, current.Id)
+		}
+		if current.QuotaGb == bucketResizeQuota {
+			return fmt.Errorf("resizing bucket %d: quota is already %d GB", id, bucketResizeQuota)
+		}
 		body := *pidginhost.NewBucketResize(bucketResizeQuota)
 		b, _, err := c.CloudAPI.CloudBucketsResizeCreate(cmd.Context(), id).BucketResize(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("resizing bucket", err)
+		}
+		if b == nil {
+			return fmt.Errorf("resizing bucket %d: server returned no bucket", id)
+		}
+		if b.Id != id {
+			return fmt.Errorf("resizing bucket %d: server returned bucket %d", id, b.Id)
 		}
 		// A 200 still carrying the old quota means nothing changed.
 		if b.QuotaGb != bucketResizeQuota {
@@ -217,10 +265,30 @@ var bucketVisibilityCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		current, _, err := c.CloudAPI.CloudBucketsRetrieve(cmd.Context(), id).Execute()
+		if err != nil {
+			return cmdutil.APIError("checking current bucket visibility", err)
+		}
+		if current == nil {
+			return fmt.Errorf("checking current bucket visibility: server returned no bucket")
+		}
+		if current.Id != id {
+			return fmt.Errorf("checking current bucket visibility: asked for bucket %d, server returned bucket %d",
+				id, current.Id)
+		}
+		if current.PublicRead == public {
+			return fmt.Errorf("changing bucket %d visibility: bucket is already public_read=%t", id, public)
+		}
 		body := *pidginhost.NewBucketVisibility(public)
 		b, _, err := c.CloudAPI.CloudBucketsVisibilityCreate(cmd.Context(), id).BucketVisibility(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("changing bucket visibility", err)
+		}
+		if b == nil {
+			return fmt.Errorf("changing bucket %d visibility: server returned no bucket", id)
+		}
+		if b.Id != id {
+			return fmt.Errorf("changing bucket %d visibility: server returned bucket %d", id, b.Id)
 		}
 		// Saying "now public" when the bucket is still private is worse than
 		// an error: the operator stops checking.
@@ -244,18 +312,45 @@ var bucketCredentialsCmd = &cobra.Command{
 	Args:    cobra.NoArgs,
 }
 
-// printCredentials renders a credentials payload. Everything it touches goes to
-// the command's own writer -- never a log, never an error.
+var errCredentialOutput = errors.New("credential output failed")
+
+func validateCredentials(creds *pidginhost.BucketCredentials) error {
+	// After rotation the new pair is the irreplaceable part of the response.
+	// Empty display metadata must not suppress keys that the operator can still
+	// use and may not be able to retrieve from this one-time response again.
+	if creds == nil || creds.AccessKey == "" || creds.SecretKey == "" {
+		return errors.New("server returned incomplete bucket credentials")
+	}
+	return nil
+}
+
+// printCredentials renders in memory before touching the destination. If the
+// writer fails, its error is not propagated because a writer that echoes its
+// payload in the error would copy the secret to stderr when Cobra reports it.
 func printCredentials(cmd *cobra.Command, creds *pidginhost.BucketCredentials) error {
-	return output.Print(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), creds, func(w io.Writer) {
+	var rendered bytes.Buffer
+	if err := output.Print(&rendered, cmdutil.OutputFormat(cmd), creds, func(w io.Writer) {
 		tw := output.NewTabWriter(w)
 		output.PrintRow(tw, "Bucket:", creds.Bucket)
 		output.PrintRow(tw, "Endpoint:", creds.Endpoint)
 		output.PrintRow(tw, "Region:", creds.Region)
 		output.PrintRow(tw, "Access key:", creds.AccessKey)
 		output.PrintRow(tw, "Secret key:", creds.SecretKey)
-		tw.Flush()
-	})
+		_ = tw.Flush()
+	}); err != nil {
+		return errCredentialOutput
+	}
+	payload := rendered.Bytes()
+	n, err := cmd.OutOrStdout().Write(payload)
+	if err != nil || n != len(payload) {
+		return errCredentialOutput
+	}
+	return nil
+}
+
+func rotationFailure(id int32, cause error) error {
+	return fmt.Errorf("%w; the previous pair may already be invalid; run %q to retrieve the current pair; do not retry rotation",
+		cause, fmt.Sprintf("phctl storage bucket credentials reveal %d", id))
 }
 
 var bucketCredentialsRevealCmd = &cobra.Command{
@@ -285,7 +380,13 @@ var bucketCredentialsRevealCmd = &cobra.Command{
 			// The response body is the credentials; it must not reach an error.
 			return cmdutil.APIErrorRedacted("revealing bucket credentials", err)
 		}
-		return printCredentials(cmd, creds)
+		if err := validateCredentials(creds); err != nil {
+			return fmt.Errorf("revealing bucket credentials: %w", err)
+		}
+		if err := printCredentials(cmd, creds); err != nil {
+			return fmt.Errorf("revealing bucket credentials: %w", err)
+		}
+		return nil
 	},
 }
 
@@ -310,9 +411,15 @@ var bucketCredentialsRotateCmd = &cobra.Command{
 		if err != nil {
 			// The keys are already rotated by the time this can fail, so the
 			// message must not be the place the new secret shows up.
-			return cmdutil.APIErrorRedacted("rotating bucket credentials", err)
+			return rotationFailure(id, cmdutil.APIErrorRedacted("rotating bucket credentials", err))
 		}
-		return printCredentials(cmd, creds)
+		if err := validateCredentials(creds); err != nil {
+			return rotationFailure(id, fmt.Errorf("rotating bucket credentials: %w", err))
+		}
+		if err := printCredentials(cmd, creds); err != nil {
+			return rotationFailure(id, fmt.Errorf("rotating bucket credentials: %w", err))
+		}
+		return nil
 	},
 }
 
