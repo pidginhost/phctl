@@ -13,8 +13,8 @@ import (
 )
 
 const (
-	fakeAccessKey = "AKIAEXAMPLEACCESSKEY"
-	fakeSecretKey = "s3cr3tEXAMPLEsecretkeyvalue"
+	fakeAccessKey = "example-access-key-not-a-credential"
+	fakeSecretKey = "example-secret-key-not-a-credential"
 )
 
 type credentialRoundTripFunc func(*http.Request) (*http.Response, error)

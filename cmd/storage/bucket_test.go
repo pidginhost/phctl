@@ -12,9 +12,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// Deliberately not AWS-shaped. "AKIA" followed by 16 characters is the real
+// access-key-ID format, and GitHub's push protection rejects it on sight --
+// it blocked the whole v0.17.0 mirror push over this fixture.
 const (
-	testAccessKey = "AKIAEXAMPLEACCESSKEY"
-	testSecretKey = "s3cr3tEXAMPLEsecretkeyvalue"
+	testAccessKey = "example-access-key-not-a-credential"
+	testSecretKey = "example-secret-key-not-a-credential"
 )
 
 const bucketJSON = `{"id":7,"name":"assets","full_name":"c1-assets","quota_gb":50,` +
