@@ -1,5 +1,7 @@
 # Run tag pipelines (full: check+build+deploy+release) or branch pipelines (check only).
-# GitLab deduplicates: if a tag and branch push share a SHA, only the tag pipeline runs.
+# A tag and a branch push that share a SHA still produce two independent pipelines
+# (pushing the branch and the tag are separate events), so any job that touches a
+# shared external resource must be serialised with resource_group -- see `e2e`.
 workflow:
   rules:
     - if: $CI_COMMIT_TAG
@@ -56,9 +58,15 @@ test:
     paths:
       - coverage.out
 
+# Talks to the live API with a real account, and the lifecycle test provisions a
+# billable VM. The account has a per-type resource quota, so two of these running
+# concurrently (tag pipeline + branch pipeline on the same commit) makes one of
+# them fail `create` with "You have reached the limit of resources for this type".
+# resource_group serialises the job across every pipeline in this project.
 e2e:
   stage: check
   image: golang:1.26.2
+  resource_group: e2e-live-api
   rules:
     - if: $PIDGINHOST_API_TOKEN
   script:
