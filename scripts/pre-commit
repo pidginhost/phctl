@@ -33,7 +33,12 @@ echo "  go build..."
 go build ./...
 
 # Tests
+#
+# ./e2e is excluded deliberately. Those tests talk to the live API with a real
+# account, and TestE2E_ComputeServerLifecycle provisions a billable VM. A
+# developer who happens to have PIDGINHOST_API_TOKEN exported would hit the
+# real API on every single commit. Run them on purpose: go test ./e2e/...
 echo "  go test..."
-go test ./...
+go test $(go list ./... | grep -v /e2e)
 
 echo "All checks passed."

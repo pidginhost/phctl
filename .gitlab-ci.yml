@@ -42,10 +42,20 @@ test:
     - go install gotest.tools/gotestsum@latest
   script:
     - gotestsum --junitfile report.xml -- -race -coverprofile=coverage.out $(go list ./... | grep -v /e2e)
-    - go tool cover -func=coverage.out | tail -1
+    - go tool cover -func=coverage.out | tail -20
     - |
-      TOTAL=$(go tool cover -func=coverage.out | tail -1 | awk '{print $3}' | tr -d '%')
-      THRESHOLD=40
+      # Measured from the profile, not from `go tool cover -func`, which only
+      # sees named functions -- it cannot see a RunE closure, which is where
+      # nearly all of this CLI lives. See scripts/coverage-total.sh.
+      #
+      # THRESHOLD is a ratchet: raise it as coverage improves, never lower it.
+      # Real coverage is ~35%; 34 leaves one point of headroom so an honest
+      # feature commit is not blocked by rounding. The 40 that stood here
+      # before was measured against the -func number, which read 78.4% for a
+      # tree actually at 34.9% -- the gate had been sitting below its own
+      # threshold all along without noticing.
+      TOTAL=$(sh scripts/coverage-total.sh coverage.out)
+      THRESHOLD=34
       if awk "BEGIN{exit !($TOTAL < $THRESHOLD)}"; then
         echo "Coverage ${TOTAL}% is below threshold ${THRESHOLD}%"
         exit 1
@@ -171,6 +181,10 @@ build:checksums:
 deploy:github:
   stage: deploy
   image: alpine:latest
+  # Force-pushes a rewritten mirror. Two of these interleaving would race on
+  # the same GitHub ref, and a tag push plus a played manual job on main can
+  # overlap. Same reasoning as `e2e` above: serialise, don't hope.
+  resource_group: github-mirror
   rules:
     - if: $CI_COMMIT_TAG
       when: on_success
