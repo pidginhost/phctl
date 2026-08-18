@@ -29,7 +29,7 @@ var profileCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var profile client.RawProfile
 		if err := client.RawGet(cmd.Context(), "/api/account/profile", &profile); err != nil {
-			return fmt.Errorf("getting profile: %w", err)
+			return cmdutil.APIError("getting profile", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, profile, func(w io.Writer) {
@@ -68,7 +68,7 @@ var sshKeyListCmd = &cobra.Command{
 			return resp.Results, resp.Next.Get() != nil, nil
 		})
 		if err != nil {
-			return fmt.Errorf("listing SSH keys: %w", err)
+			return cmdutil.APIError("listing SSH keys", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, keys, func(w io.Writer) {
@@ -101,7 +101,7 @@ var sshKeyCreateCmd = &cobra.Command{
 		}
 		key, _, err := c.AccountAPI.AccountSshKeysCreate(cmd.Context()).SSHKey(body).Execute()
 		if err != nil {
-			return fmt.Errorf("creating SSH key: %w", err)
+			return cmdutil.APIError("creating SSH key", err)
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), key,
 			"SSH key created (ID: %d, Fingerprint: %s)\n", key.Id, key.Fingerprint)
@@ -123,7 +123,7 @@ var sshKeyDeleteCmd = &cobra.Command{
 		}
 		_, err = c.AccountAPI.AccountSshKeysDestroy(cmd.Context(), args[0]).Execute()
 		if err != nil {
-			return fmt.Errorf("deleting SSH key: %w", err)
+			return cmdutil.APIError("deleting SSH key", err)
 		}
 		cmd.Printf("SSH key %s deleted.\n", args[0])
 		return nil
@@ -154,7 +154,7 @@ var companyListCmd = &cobra.Command{
 			return resp.Results, resp.Next.Get() != nil, nil
 		})
 		if err != nil {
-			return fmt.Errorf("listing companies: %w", err)
+			return cmdutil.APIError("listing companies", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, companies, func(w io.Writer) {
@@ -231,7 +231,7 @@ var apiTokenListCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		wireTokens, err := client.RawFetchAll[tolerantAPITokenList](cmd.Context(), "/api/account/api-tokens/")
 		if err != nil {
-			return fmt.Errorf("listing API tokens: %w", err)
+			return cmdutil.APIError("listing API tokens", err)
 		}
 		tokens := make([]pidginhost.APITokenList, len(wireTokens))
 		for i := range wireTokens {
@@ -265,7 +265,7 @@ var apiTokenCreateCmd = &cobra.Command{
 		)
 		var wireResp tolerantAPITokenCreate
 		if err := client.RawPost(cmd.Context(), "/api/account/api-tokens/", body, &wireResp, http.StatusCreated); err != nil {
-			return fmt.Errorf("creating API token: %w", err)
+			return cmdutil.APIError("creating API token", err)
 		}
 		resp := pidginhost.APITokenCreate(wireResp)
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), &resp,
@@ -289,7 +289,7 @@ var apiTokenDeleteCmd = &cobra.Command{
 		}
 		_, err = c.AccountAPI.AccountApiTokensDestroy(cmd.Context(), args[0]).Execute()
 		if err != nil {
-			return fmt.Errorf("deleting API token: %w", err)
+			return cmdutil.APIError("deleting API token", err)
 		}
 		cmd.Printf("API token %s deleted.\n", args[0])
 		return nil
@@ -320,7 +320,7 @@ var emailListCmd = &cobra.Command{
 			return resp.Results, resp.Next.Get() != nil, nil
 		})
 		if err != nil {
-			return fmt.Errorf("listing emails: %w", err)
+			return cmdutil.APIError("listing emails", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, emails, func(w io.Writer) {

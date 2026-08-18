@@ -29,7 +29,7 @@ var domainListCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		domains, err := client.RawFetchAll[client.RawDomain](cmd.Context(), "/api/domain/domain/")
 		if err != nil {
-			return fmt.Errorf("listing domains: %w", err)
+			return cmdutil.APIError("listing domains", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, domains, func(w io.Writer) {
@@ -50,7 +50,7 @@ var domainGetCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var d client.RawDomain
 		if err := client.RawGet(cmd.Context(), fmt.Sprintf("/api/domain/domain/%s/", args[0]), &d); err != nil {
-			return fmt.Errorf("getting domain: %w", err)
+			return cmdutil.APIError("getting domain", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, d, func(w io.Writer) {
@@ -95,7 +95,7 @@ var domainCreateCmd = &cobra.Command{
 		}
 		resp, _, err := c.DomainAPI.DomainDomainCreate(cmd.Context()).DomainCreate(body).Execute()
 		if err != nil {
-			return fmt.Errorf("registering domain: %w", err)
+			return cmdutil.APIError("registering domain", err)
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"Domain registered: %s\n", resp.Domain)
@@ -114,7 +114,7 @@ var domainCheckCmd = &cobra.Command{
 		body := *pidginhost.NewCheckAvailability(args[0])
 		resp, _, err := c.DomainAPI.DomainDomainCheckAvailabilityCreate(cmd.Context()).CheckAvailability(body).Execute()
 		if err != nil {
-			return fmt.Errorf("checking availability: %w", err)
+			return cmdutil.APIError("checking availability", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, resp, func(w io.Writer) {
@@ -140,7 +140,7 @@ var domainRenewCmd = &cobra.Command{
 		body := *pidginhost.NewRenewDomain(domainRenewYears)
 		_, _, err = c.DomainAPI.DomainDomainRenewCreate(cmd.Context(), args[0]).RenewDomain(body).Execute()
 		if err != nil {
-			return fmt.Errorf("renewing domain: %w", err)
+			return cmdutil.APIError("renewing domain", err)
 		}
 		cmd.Printf("Domain %s renewed for %d year(s).\n", args[0], domainRenewYears)
 		return nil
@@ -161,7 +161,7 @@ var domainCancelCmd = &cobra.Command{
 		}
 		_, _, err = c.DomainAPI.DomainDomainCancelCreate(cmd.Context(), args[0]).Execute()
 		if err != nil {
-			return fmt.Errorf("cancelling domain: %w", err)
+			return cmdutil.APIError("cancelling domain", err)
 		}
 		cmd.Printf("Domain %s cancelled.\n", args[0])
 		return nil
@@ -185,7 +185,7 @@ var domainTransferCmd = &cobra.Command{
 		body := *pidginhost.NewTransferRoDomain(args[0], transferAuthCode)
 		resp, _, err := c.DomainAPI.DomainDomainTransferRoDomainCreate(cmd.Context()).TransferRoDomain(body).Execute()
 		if err != nil {
-			return fmt.Errorf("transferring domain: %w", err)
+			return cmdutil.APIError("transferring domain", err)
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"Domain transfer initiated: %s\n", resp.Domain)
@@ -206,7 +206,7 @@ var domainNameserversCmd = &cobra.Command{
 		body := *pidginhost.NewNameserversUpdate(strings.Split(nameserversValue, ","))
 		_, _, err = c.DomainAPI.DomainDomainNameserversCreate(cmd.Context(), args[0]).NameserversUpdate(body).Execute()
 		if err != nil {
-			return fmt.Errorf("updating nameservers: %w", err)
+			return cmdutil.APIError("updating nameservers", err)
 		}
 		cmd.Printf("Nameservers updated for %s.\n", args[0])
 		return nil
@@ -235,7 +235,7 @@ var domainGlueListCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		glue, err := client.RawFetchAll[client.RawGlue](cmd.Context(), fmt.Sprintf("/api/domain/domain/%s/dns/", args[0]))
 		if err != nil {
-			return fmt.Errorf("listing glue records: %w", err)
+			return cmdutil.APIError("listing glue records", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, glue, func(w io.Writer) {
@@ -264,7 +264,7 @@ var domainGlueSetCmd = &cobra.Command{
 		body := client.RawGlue{Name: glueName, Ip: glueIP, Ip2: glueIP2}
 		var result client.RawGlue
 		if err := client.RawPost(cmd.Context(), fmt.Sprintf("/api/domain/domain/%s/dns/", args[0]), body, &result); err != nil {
-			return fmt.Errorf("setting glue record: %w", err)
+			return cmdutil.APIError("setting glue record", err)
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), result,
 			"Glue record %s.%s set.\n", result.Name, args[0])
@@ -301,7 +301,7 @@ var tldListCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		tlds, err := client.RawFetchAll[client.RawTLD](cmd.Context(), "/api/domain/tld/")
 		if err != nil {
-			return fmt.Errorf("listing TLDs: %w", err)
+			return cmdutil.APIError("listing TLDs", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, tlds, func(w io.Writer) {
@@ -339,7 +339,7 @@ var registrantListCmd = &cobra.Command{
 			return resp.Results, resp.Next.Get() != nil, nil
 		})
 		if err != nil {
-			return fmt.Errorf("listing registrants: %w", err)
+			return cmdutil.APIError("listing registrants", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, registrants, func(w io.Writer) {
@@ -364,7 +364,7 @@ var registrantGetCmd = &cobra.Command{
 		}
 		r, _, err := c.DomainAPI.DomainRegistrantsRetrieve(cmd.Context(), args[0]).Execute()
 		if err != nil {
-			return fmt.Errorf("getting registrant: %w", err)
+			return cmdutil.APIError("getting registrant", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, r, func(w io.Writer) {
@@ -417,7 +417,7 @@ var registrantCreateCmd = &cobra.Command{
 		)
 		resp, _, err := c.DomainAPI.DomainRegistrantsCreate(cmd.Context()).DomainRegistrant(body).Execute()
 		if err != nil {
-			return fmt.Errorf("creating registrant: %w", err)
+			return cmdutil.APIError("creating registrant", err)
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"Registrant created (ID: %d, %s %s)\n", resp.Id, resp.FirstName, resp.LastName)
@@ -439,7 +439,7 @@ var registrantDeleteCmd = &cobra.Command{
 		}
 		_, err = c.DomainAPI.DomainRegistrantsDestroy(cmd.Context(), args[0]).Execute()
 		if err != nil {
-			return fmt.Errorf("deleting registrant: %w", err)
+			return cmdutil.APIError("deleting registrant", err)
 		}
 		cmd.Printf("Registrant %s deleted.\n", args[0])
 		return nil

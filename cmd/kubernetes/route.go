@@ -36,7 +36,7 @@ var httpRouteListCmd = &cobra.Command{
 		}
 		httpResp, err := c.KubernetesAPI.KubernetesClustersHttproutesRetrieve(cmd.Context(), id).Execute()
 		if err != nil {
-			return fmt.Errorf("listing HTTP routes: %w", err)
+			return cmdutil.APIError("listing HTTP routes", err)
 		}
 		defer httpResp.Body.Close()
 
@@ -97,7 +97,7 @@ var httpRouteCreateCmd = &cobra.Command{
 
 		resp, _, err := c.KubernetesAPI.KubernetesClustersHttproutesCreate(cmd.Context(), id).HTTPRoute(body).Execute()
 		if err != nil {
-			return fmt.Errorf("creating HTTP route: %w", err)
+			return cmdutil.APIError("creating HTTP route", err)
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"HTTP route created (ID: %d, Name: %s)\n", resp.Id, resp.Name)
@@ -126,7 +126,7 @@ var httpRouteDeleteCmd = &cobra.Command{
 		}
 		_, err = c.KubernetesAPI.KubernetesClustersHttproutesDestroy(cmd.Context(), id, args[1]).Execute()
 		if err != nil {
-			return fmt.Errorf("deleting HTTP route: %w", err)
+			return cmdutil.APIError("deleting HTTP route", err)
 		}
 		cmd.Printf("HTTP route %s deleted.\n", args[1])
 		return nil
@@ -156,7 +156,7 @@ var tcpRouteListCmd = &cobra.Command{
 		}
 		httpResp, err := c.KubernetesAPI.KubernetesClustersTcproutesRetrieve(cmd.Context(), id).Execute()
 		if err != nil {
-			return fmt.Errorf("listing TCP routes: %w", err)
+			return cmdutil.APIError("listing TCP routes", err)
 		}
 		defer httpResp.Body.Close()
 
@@ -211,7 +211,7 @@ var tcpRouteCreateCmd = &cobra.Command{
 
 		resp, _, err := c.KubernetesAPI.KubernetesClustersTcproutesCreate(cmd.Context(), id).TCPRoute(body).Execute()
 		if err != nil {
-			return fmt.Errorf("creating TCP route: %w", err)
+			return cmdutil.APIError("creating TCP route", err)
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"TCP route created (ID: %d, Name: %s)\n", resp.Id, resp.Name)
@@ -240,7 +240,7 @@ var tcpRouteDeleteCmd = &cobra.Command{
 		}
 		_, err = c.KubernetesAPI.KubernetesClustersTcproutesDestroy(cmd.Context(), id, args[1]).Execute()
 		if err != nil {
-			return fmt.Errorf("deleting TCP route: %w", err)
+			return cmdutil.APIError("deleting TCP route", err)
 		}
 		cmd.Printf("TCP route %s deleted.\n", args[1])
 		return nil
@@ -270,7 +270,7 @@ var udpRouteListCmd = &cobra.Command{
 		}
 		httpResp, err := c.KubernetesAPI.KubernetesClustersUdproutesRetrieve(cmd.Context(), id).Execute()
 		if err != nil {
-			return fmt.Errorf("listing UDP routes: %w", err)
+			return cmdutil.APIError("listing UDP routes", err)
 		}
 		defer httpResp.Body.Close()
 
@@ -325,7 +325,7 @@ var udpRouteCreateCmd = &cobra.Command{
 
 		resp, _, err := c.KubernetesAPI.KubernetesClustersUdproutesCreate(cmd.Context(), id).UDPRoute(body).Execute()
 		if err != nil {
-			return fmt.Errorf("creating UDP route: %w", err)
+			return cmdutil.APIError("creating UDP route", err)
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"UDP route created (ID: %d, Name: %s)\n", resp.Id, resp.Name)
@@ -354,7 +354,7 @@ var udpRouteDeleteCmd = &cobra.Command{
 		}
 		_, err = c.KubernetesAPI.KubernetesClustersUdproutesDestroy(cmd.Context(), id, args[1]).Execute()
 		if err != nil {
-			return fmt.Errorf("deleting UDP route: %w", err)
+			return cmdutil.APIError("deleting UDP route", err)
 		}
 		cmd.Printf("UDP route %s deleted.\n", args[1])
 		return nil

@@ -33,7 +33,7 @@ var serverListCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		servers, err := client.RawFetchAll[client.RawDedicatedServer](cmd.Context(), "/api/dedicated/servers/")
 		if err != nil {
-			return fmt.Errorf("listing dedicated servers: %w", err)
+			return cmdutil.APIError("listing dedicated servers", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, servers, func(w io.Writer) {
@@ -54,7 +54,7 @@ var serverGetCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var s client.RawDedicatedServer
 		if err := client.RawGet(cmd.Context(), fmt.Sprintf("/api/dedicated/servers/%s/", args[0]), &s); err != nil {
-			return fmt.Errorf("getting dedicated server: %w", err)
+			return cmdutil.APIError("getting dedicated server", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, s, func(w io.Writer) {
@@ -87,7 +87,7 @@ var serverPowerCmd = &cobra.Command{
 		body := *pidginhost.NewPowerAction(pidginhost.PowerActionActionEnum(serverPowerAction))
 		resp, _, err := c.DedicatedAPI.DedicatedServersPowerCreate(cmd.Context(), args[0]).PowerAction(body).Execute()
 		if err != nil {
-			return fmt.Errorf("power management: %w", err)
+			return cmdutil.APIError("power management", err)
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"Power action '%s': %s\n", serverPowerAction, resp.Message)
@@ -111,7 +111,7 @@ var serverReinstallCmd = &cobra.Command{
 		body := *pidginhost.NewReinstall(reinstallOSID)
 		_, _, err = c.DedicatedAPI.DedicatedServersReinstallCreate(cmd.Context(), args[0]).Reinstall(body).Execute()
 		if err != nil {
-			return fmt.Errorf("reinstalling: %w", err)
+			return cmdutil.APIError("reinstalling", err)
 		}
 		cmd.Printf("OS reinstall queued for dedicated server %s.\n", args[0])
 		return nil
@@ -135,7 +135,7 @@ var serverRDNSCmd = &cobra.Command{
 		body := *pidginhost.NewDedicatedRDNS(rdnsIPID, rdnsHostname)
 		resp, _, err := c.DedicatedAPI.DedicatedServersRdnsCreate(cmd.Context(), args[0]).DedicatedRDNS(body).Execute()
 		if err != nil {
-			return fmt.Errorf("setting rDNS: %w", err)
+			return cmdutil.APIError("setting rDNS", err)
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"rDNS updated: %s\n", resp.Message)

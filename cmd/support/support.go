@@ -99,7 +99,7 @@ func runDepartmentList(cmd *cobra.Command, args []string) error {
 	}
 	depts, _, err := c.SupportAPI.SupportDepartmentsList(cmd.Context()).Execute()
 	if err != nil {
-		return fmt.Errorf("listing departments: %w", err)
+		return cmdutil.APIError("listing departments", err)
 	}
 	format := cmdutil.OutputFormat(cmd)
 	return output.Print(cmd.OutOrStdout(), format, depts, func(w io.Writer) {
@@ -125,7 +125,7 @@ func runTicketList(cmd *cobra.Command, args []string) error {
 		return resp.Results, resp.Next.Get() != nil, nil
 	})
 	if err != nil {
-		return fmt.Errorf("listing tickets: %w", err)
+		return cmdutil.APIError("listing tickets", err)
 	}
 	format := cmdutil.OutputFormat(cmd)
 	return output.Print(cmd.OutOrStdout(), format, tickets, func(w io.Writer) {
@@ -163,7 +163,7 @@ func runTicketGet(cmd *cobra.Command, args []string) error {
 	}
 	t, _, err := c.SupportAPI.SupportTicketsRetrieve(cmd.Context(), args[0]).Execute()
 	if err != nil {
-		return fmt.Errorf("getting ticket: %w", err)
+		return cmdutil.APIError("getting ticket", err)
 	}
 	format := cmdutil.OutputFormat(cmd)
 	return output.Print(cmd.OutOrStdout(), format, t, func(w io.Writer) {
@@ -188,7 +188,7 @@ func runTicketCreate(cmd *cobra.Command, args []string) error {
 	body := *pidginhost.NewTicketCreate(ticketCreateSubject, ticketCreateDept, ticketCreateMessage)
 	resp, _, err := c.SupportAPI.SupportTicketsCreate(cmd.Context()).TicketCreate(body).Execute()
 	if err != nil {
-		return fmt.Errorf("creating ticket: %w", err)
+		return cmdutil.APIError("creating ticket", err)
 	}
 	return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 		"Ticket created (ID: %d, Subject: %s)\n", resp.Id, resp.Subject)
@@ -202,7 +202,7 @@ func runTicketReply(cmd *cobra.Command, args []string) error {
 	body := *pidginhost.NewTicketReply(ticketReplyMessage)
 	_, _, err = c.SupportAPI.SupportTicketsReplyCreate(cmd.Context(), args[0]).TicketReply(body).Execute()
 	if err != nil {
-		return fmt.Errorf("replying to ticket: %w", err)
+		return cmdutil.APIError("replying to ticket", err)
 	}
 	cmd.Printf("Reply sent to ticket %s.\n", args[0])
 	return nil
@@ -215,7 +215,7 @@ func runTicketClose(cmd *cobra.Command, args []string) error {
 	}
 	_, _, err = c.SupportAPI.SupportTicketsCloseCreate(cmd.Context(), args[0]).Execute()
 	if err != nil {
-		return fmt.Errorf("closing ticket: %w", err)
+		return cmdutil.APIError("closing ticket", err)
 	}
 	cmd.Printf("Ticket %s closed.\n", args[0])
 	return nil
@@ -228,7 +228,7 @@ func runTicketReopen(cmd *cobra.Command, args []string) error {
 	}
 	_, _, err = c.SupportAPI.SupportTicketsReopenCreate(cmd.Context(), args[0]).Execute()
 	if err != nil {
-		return fmt.Errorf("reopening ticket: %w", err)
+		return cmdutil.APIError("reopening ticket", err)
 	}
 	cmd.Printf("Ticket %s reopened.\n", args[0])
 	return nil

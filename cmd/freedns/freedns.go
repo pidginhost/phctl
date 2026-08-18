@@ -38,7 +38,7 @@ var domainListCmd = &cobra.Command{
 		}
 		domains, _, err := c.FreednsAPI.FreednsDnsList(cmd.Context()).Execute()
 		if err != nil {
-			return fmt.Errorf("listing FreeDNS domains: %w", err)
+			return cmdutil.APIError("listing FreeDNS domains", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, domains, func(w io.Writer) {
@@ -69,7 +69,7 @@ var domainActivateCmd = &cobra.Command{
 		body := *pidginhost.NewActivateFreeDNS(args[0], pidginhost.SourceEnum(activateSource), activateIP)
 		resp, _, err := c.FreednsAPI.FreednsDnsActivateCreate(cmd.Context()).ActivateFreeDNS(body).Execute()
 		if err != nil {
-			return fmt.Errorf("activating FreeDNS: %w", err)
+			return cmdutil.APIError("activating FreeDNS", err)
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"FreeDNS activated: %s\n", resp.Message)
@@ -93,7 +93,7 @@ var domainDeactivateCmd = &cobra.Command{
 		body := *pidginhost.NewDeactivateFreeDNS(args[0], pidginhost.SourceEnum(deactivateSource))
 		resp, _, err := c.FreednsAPI.FreednsDnsDeactivateCreate(cmd.Context()).DeactivateFreeDNS(body).Execute()
 		if err != nil {
-			return fmt.Errorf("deactivating FreeDNS: %w", err)
+			return cmdutil.APIError("deactivating FreeDNS", err)
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"FreeDNS deactivated: %s\n", resp.Message)
@@ -127,7 +127,7 @@ var recordListCmd = &cobra.Command{
 		}
 		records, _, err := req.Execute()
 		if err != nil {
-			return fmt.Errorf("listing records: %w", err)
+			return cmdutil.APIError("listing records", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, records, func(w io.Writer) {
@@ -168,7 +168,7 @@ var recordCreateCmd = &cobra.Command{
 		}
 		resp, _, err := req.Execute()
 		if err != nil {
-			return fmt.Errorf("creating record: %w", err)
+			return cmdutil.APIError("creating record", err)
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"Record created: %s\n", resp.Message)
@@ -199,7 +199,7 @@ var recordDeleteCmd = &cobra.Command{
 		}
 		resp, _, err := req.Execute()
 		if err != nil {
-			return fmt.Errorf("deleting record: %w", err)
+			return cmdutil.APIError("deleting record", err)
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"Record deleted: %s\n", resp.Message)

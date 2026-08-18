@@ -34,7 +34,7 @@ var fundsBalanceCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var balance client.RawFundsBalance
 		if err := client.RawGet(cmd.Context(), "/api/billing/funds/", &balance); err != nil {
-			return fmt.Errorf("getting balance: %w", err)
+			return cmdutil.APIError("getting balance", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, balance, func(w io.Writer) {
@@ -62,7 +62,7 @@ var fundsLogCmd = &cobra.Command{
 			return resp.Results, resp.Next.Get() != nil, nil
 		})
 		if err != nil {
-			return fmt.Errorf("listing funds log: %w", err)
+			return cmdutil.APIError("listing funds log", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, logs, func(w io.Writer) {
@@ -90,7 +90,7 @@ var depositListCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		deposits, err := client.RawFetchAll[client.RawDeposit](cmd.Context(), "/api/billing/deposits/")
 		if err != nil {
-			return fmt.Errorf("listing deposits: %w", err)
+			return cmdutil.APIError("listing deposits", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, deposits, func(w io.Writer) {
@@ -111,7 +111,7 @@ var depositGetCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var d client.RawDeposit
 		if err := client.RawGet(cmd.Context(), fmt.Sprintf("/api/billing/deposits/%s/", args[0]), &d); err != nil {
-			return fmt.Errorf("getting deposit: %w", err)
+			return cmdutil.APIError("getting deposit", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, d, func(w io.Writer) {
@@ -140,7 +140,7 @@ var depositCreateCmd = &cobra.Command{
 		body := *pidginhost.NewDepositCreate(depositCreateAmount)
 		resp, _, err := c.BillingAPI.BillingDepositsCreate(cmd.Context()).DepositCreate(body).Execute()
 		if err != nil {
-			return fmt.Errorf("creating deposit: %w", err)
+			return cmdutil.APIError("creating deposit", err)
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"Deposit created (ID: %d, Amount: %.2f)\n", resp.Id, resp.Amount)
@@ -161,7 +161,7 @@ var invoiceListCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		invoices, err := client.RawFetchAll[client.RawInvoiceList](cmd.Context(), "/api/billing/invoices/")
 		if err != nil {
-			return fmt.Errorf("listing invoices: %w", err)
+			return cmdutil.APIError("listing invoices", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, invoices, func(w io.Writer) {
@@ -182,7 +182,7 @@ var invoiceGetCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var inv client.RawInvoiceList
 		if err := client.RawGet(cmd.Context(), fmt.Sprintf("/api/billing/invoices/%s/", args[0]), &inv); err != nil {
-			return fmt.Errorf("getting invoice: %w", err)
+			return cmdutil.APIError("getting invoice", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, inv, func(w io.Writer) {
@@ -215,7 +215,7 @@ var invoicePayCmd = &cobra.Command{
 		}
 		resp, _, err := c.BillingAPI.BillingInvoicesPayWithFundsCreate(cmd.Context(), args[0]).Execute()
 		if err != nil {
-			return fmt.Errorf("paying invoice: %w", err)
+			return cmdutil.APIError("paying invoice", err)
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"Invoice paid: %s\n", resp.Message)
@@ -236,7 +236,7 @@ var serviceListCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		services, err := client.RawFetchAll[client.RawServiceList](cmd.Context(), "/api/billing/services/")
 		if err != nil {
-			return fmt.Errorf("listing services: %w", err)
+			return cmdutil.APIError("listing services", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, services, func(w io.Writer) {
@@ -257,7 +257,7 @@ var serviceGetCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var s client.RawServiceList
 		if err := client.RawGet(cmd.Context(), fmt.Sprintf("/api/billing/services/%s/", args[0]), &s); err != nil {
-			return fmt.Errorf("getting service: %w", err)
+			return cmdutil.APIError("getting service", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, s, func(w io.Writer) {
@@ -289,7 +289,7 @@ var serviceCancelCmd = &cobra.Command{
 		}
 		resp, _, err := c.BillingAPI.BillingServicesCancelCreate(cmd.Context(), args[0]).Execute()
 		if err != nil {
-			return fmt.Errorf("cancelling service: %w", err)
+			return cmdutil.APIError("cancelling service", err)
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"Service cancelled: %s\n", resp.Message)
@@ -307,7 +307,7 @@ var serviceAutoPayCmd = &cobra.Command{
 		}
 		resp, _, err := c.BillingAPI.BillingServicesToggleAutoPaymentCreate(cmd.Context(), args[0]).Execute()
 		if err != nil {
-			return fmt.Errorf("toggling auto-pay: %w", err)
+			return cmdutil.APIError("toggling auto-pay", err)
 		}
 		state := "enabled"
 		if !resp.AutoPayment {
@@ -332,7 +332,7 @@ var subscriptionListCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		subs, err := client.RawFetchAll[client.RawSubscription](cmd.Context(), "/api/billing/subscriptions/")
 		if err != nil {
-			return fmt.Errorf("listing subscriptions: %w", err)
+			return cmdutil.APIError("listing subscriptions", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, subs, func(w io.Writer) {
@@ -353,7 +353,7 @@ var subscriptionGetCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var s client.RawSubscription
 		if err := client.RawGet(cmd.Context(), fmt.Sprintf("/api/billing/subscriptions/%s/", args[0]), &s); err != nil {
-			return fmt.Errorf("getting subscription: %w", err)
+			return cmdutil.APIError("getting subscription", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, s, func(w io.Writer) {

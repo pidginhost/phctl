@@ -35,7 +35,7 @@ var clusterListCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		clusters, err := client.RawFetchAll[client.RawCluster](cmd.Context(), "/api/kubernetes/clusters/")
 		if err != nil {
-			return fmt.Errorf("listing clusters: %w", err)
+			return cmdutil.APIError("listing clusters", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, clusters, func(w io.Writer) {
@@ -56,7 +56,7 @@ var clusterGetCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var cl client.RawCluster
 		if err := client.RawGet(cmd.Context(), fmt.Sprintf("/api/kubernetes/clusters/%s/", args[0]), &cl); err != nil {
-			return fmt.Errorf("getting cluster: %w", err)
+			return cmdutil.APIError("getting cluster", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, cl, func(w io.Writer) {
@@ -114,7 +114,7 @@ var clusterCreateCmd = &cobra.Command{
 
 		resp, _, err := c.KubernetesAPI.KubernetesClustersCreate(cmd.Context()).ClusterAdd(body).Execute()
 		if err != nil {
-			return fmt.Errorf("creating cluster: %w", err)
+			return cmdutil.APIError("creating cluster", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
 		if err := output.Result(cmd.OutOrStdout(), format, resp, "Cluster created (ID: %d)\n", resp.Id); err != nil {
@@ -152,7 +152,7 @@ var clusterDeleteCmd = &cobra.Command{
 		}
 		_, err = c.KubernetesAPI.KubernetesClustersDestroy(cmd.Context(), args[0]).Execute()
 		if err != nil {
-			return fmt.Errorf("deleting cluster: %w", err)
+			return cmdutil.APIError("deleting cluster", err)
 		}
 		cmd.Printf("Cluster %s deleted.\n", args[0])
 		return nil
@@ -180,7 +180,7 @@ With --merge, the kubeconfig is merged into your existing kubeconfig file
 		}
 		resp, _, err := c.KubernetesAPI.KubernetesClustersKubeconfigRetrieve(cmd.Context(), args[0]).Execute()
 		if err != nil {
-			return fmt.Errorf("getting kubeconfig: %w", err)
+			return cmdutil.APIError("getting kubeconfig", err)
 		}
 
 		if kubeconfigMerge {
@@ -217,7 +217,7 @@ var clusterUpgradeKubeCmd = &cobra.Command{
 		}
 		resp, _, err := c.KubernetesAPI.KubernetesClustersKubeVersionUpgradeCreate(cmd.Context(), args[0]).Execute()
 		if err != nil {
-			return fmt.Errorf("upgrading kube version: %w", err)
+			return cmdutil.APIError("upgrading kube version", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
 		if err := output.Result(cmd.OutOrStdout(), format, resp, "Kubernetes upgrade initiated: %s\n", resp.Status); err != nil {
@@ -253,7 +253,7 @@ var clusterUpgradeTalosCmd = &cobra.Command{
 		}
 		resp, _, err := c.KubernetesAPI.KubernetesClustersTalosVersionUpgradeCreate(cmd.Context(), args[0]).Execute()
 		if err != nil {
-			return fmt.Errorf("upgrading talos version: %w", err)
+			return cmdutil.APIError("upgrading talos version", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
 		if err := output.Result(cmd.OutOrStdout(), format, resp, "Talos upgrade initiated: %s\n", resp.Status); err != nil {
@@ -286,7 +286,7 @@ var clusterConnectVMCmd = &cobra.Command{
 		body := *pidginhost.NewConnectVMRequest(connectVMServer)
 		resp, _, err := c.KubernetesAPI.KubernetesClustersConnectVmCreate(cmd.Context(), args[0]).ConnectVMRequest(body).Execute()
 		if err != nil {
-			return fmt.Errorf("connecting VM: %w", err)
+			return cmdutil.APIError("connecting VM", err)
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"VM connected: %s - %s\n", resp.Status, resp.Message)
@@ -307,7 +307,7 @@ var clusterDisconnectVMCmd = &cobra.Command{
 		body := *pidginhost.NewDisconnectVMRequest(disconnectVMServer)
 		resp, _, err := c.KubernetesAPI.KubernetesClustersDisconnectVmCreate(cmd.Context(), args[0]).DisconnectVMRequest(body).Execute()
 		if err != nil {
-			return fmt.Errorf("disconnecting VM: %w", err)
+			return cmdutil.APIError("disconnecting VM", err)
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"VM disconnected: %s - %s\n", resp.Status, resp.Message)
@@ -325,7 +325,7 @@ var clusterConnectedVMsCmd = &cobra.Command{
 		}
 		resp, _, err := c.KubernetesAPI.KubernetesClustersConnectedVmsRetrieve(cmd.Context(), args[0]).Execute()
 		if err != nil {
-			return fmt.Errorf("listing connected VMs: %w", err)
+			return cmdutil.APIError("listing connected VMs", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, resp.Vms, func(w io.Writer) {
@@ -357,7 +357,7 @@ var clusterTypesCmd = &cobra.Command{
 			return resp.Results, resp.Next.Get() != nil, nil
 		})
 		if err != nil {
-			return fmt.Errorf("listing cluster types: %w", err)
+			return cmdutil.APIError("listing cluster types", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, types, func(w io.Writer) {
@@ -400,7 +400,7 @@ var poolListCmd = &cobra.Command{
 			return resp.Results, resp.Next.Get() != nil, nil
 		})
 		if err != nil {
-			return fmt.Errorf("listing pools: %w", err)
+			return cmdutil.APIError("listing pools", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, pools, func(w io.Writer) {
@@ -437,7 +437,7 @@ var poolCreateCmd = &cobra.Command{
 		body := *pidginhost.NewResourcePoolAdd(poolCreatePkg, poolCreateSize)
 		resp, _, err := c.KubernetesAPI.KubernetesClustersResourcePoolsCreate(cmd.Context(), id).ResourcePoolAdd(body).Execute()
 		if err != nil {
-			return fmt.Errorf("creating pool: %w", err)
+			return cmdutil.APIError("creating pool", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
 		if err := output.Result(cmd.OutOrStdout(), format, resp, "Resource pool created (ID: %d)\n", resp.Id); err != nil {
@@ -476,7 +476,7 @@ var poolDeleteCmd = &cobra.Command{
 		}
 		_, err = c.KubernetesAPI.KubernetesClustersResourcePoolsDestroy(cmd.Context(), clusterId, args[1]).Execute()
 		if err != nil {
-			return fmt.Errorf("deleting pool: %w", err)
+			return cmdutil.APIError("deleting pool", err)
 		}
 		cmd.Printf("Resource pool %s deleted.\n", args[1])
 		return nil
@@ -516,7 +516,7 @@ var nodeListCmd = &cobra.Command{
 			return resp.Results, resp.Next.Get() != nil, nil
 		})
 		if err != nil {
-			return fmt.Errorf("listing nodes: %w", err)
+			return cmdutil.APIError("listing nodes", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, nodes, func(w io.Writer) {
@@ -556,7 +556,7 @@ var nodeDeleteCmd = &cobra.Command{
 		}
 		_, err = c.KubernetesAPI.KubernetesClustersResourcePoolsNodesDestroy(cmd.Context(), clusterId, args[2], poolId).Execute()
 		if err != nil {
-			return fmt.Errorf("deleting node: %w", err)
+			return cmdutil.APIError("deleting node", err)
 		}
 		cmd.Printf("Node %s deleted.\n", args[2])
 		return nil

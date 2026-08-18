@@ -31,7 +31,7 @@ var serviceListCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		services, err := client.RawFetchAll[client.RawHostingService](cmd.Context(), "/api/hosting/hosting/")
 		if err != nil {
-			return fmt.Errorf("listing hosting services: %w", err)
+			return cmdutil.APIError("listing hosting services", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, services, func(w io.Writer) {
@@ -52,7 +52,7 @@ var serviceGetCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var s client.RawHostingService
 		if err := client.RawGet(cmd.Context(), fmt.Sprintf("/api/hosting/hosting/%s/", args[0]), &s); err != nil {
-			return fmt.Errorf("getting hosting service: %w", err)
+			return cmdutil.APIError("getting hosting service", err)
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, s, func(w io.Writer) {
@@ -84,7 +84,7 @@ var changePasswordCmd = &cobra.Command{
 		body := *pidginhost.NewChangePassword(changePasswordNew)
 		resp, _, err := c.HostingAPI.HostingHostingChangePasswordCreate(cmd.Context(), args[0]).ChangePassword(body).Execute()
 		if err != nil {
-			return fmt.Errorf("changing password: %w", err)
+			return cmdutil.APIError("changing password", err)
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"Password changed: %s\n", resp.Message)

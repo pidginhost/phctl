@@ -2,7 +2,13 @@ package support
 
 import (
 	"bytes"
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
+
+	"github.com/spf13/cobra"
 
 	pidginhost "github.com/pidginhost/sdk-go"
 )
@@ -100,5 +106,36 @@ func TestPrintTicketMessagesRendersThreadAndAttachment(t *testing.T) {
 		"Attachment: diagnostic.txt\n"
 	if got := out.String(); got != want {
 		t.Fatalf("output = %q, want %q", got, want)
+	}
+}
+
+// A 400 from the API carries the reason in its body. Wrapping the SDK error
+// with fmt.Errorf drops that body, leaving the user with a bare status line
+// and nothing to act on, so assert the detail actually reaches them.
+func TestTicketCreateSurfacesAPIErrorBody(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"department":["This field is required."]}`))
+	}))
+	t.Cleanup(server.Close)
+
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("PIDGINHOST_API_TOKEN", "test-token")
+	t.Setenv("PIDGINHOST_API_URL", server.URL)
+
+	cmd := &cobra.Command{}
+	cmd.SetContext(context.Background())
+	cmd.SetOut(&bytes.Buffer{})
+
+	err := ticketCreateCmd.RunE(cmd, nil)
+	if err == nil {
+		t.Fatal("expected an error from a 400 response")
+	}
+	got := err.Error()
+	for _, want := range []string{"creating ticket", "400", "department", "This field is required."} {
+		if !strings.Contains(got, want) {
+			t.Errorf("error %q does not mention %q", got, want)
+		}
 	}
 }
