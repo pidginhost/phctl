@@ -6,7 +6,7 @@
 
 - **`compute server` operations**: `usage`, `activity`, `boot-isos`, `rescue enter` / `rescue exit`, `retry-provision`, and `public-interface get` / `set` / `delete`. `rescue enter` and `rescue exit` reboot the server, so they confirm first; `public-interface delete` costs the server its public connectivity, so it does too.
 
-  `rescue`, `rescue exit` and `retry-provision` answer `200` with `{"queued": false}` or `{"retry": false}` when they decline the work, so each checks the flag rather than the status code. `boot-isos` is scoped to a server rather than listed globally because compatibility depends on that server's disk and RAM, and it pages through `cmdutil.FetchAll`; its `min_ram` is a decimal the API sends as a string, rendered as one.
+  `rescue enter`, `rescue exit` and `retry-provision` answer `200` with `{"queued": false}` or `{"retry": false}` when they decline the work, so each checks the flag rather than the status code. `boot-isos` is scoped to a server rather than listed globally because compatibility depends on that server's disk and RAM, and it pages through `cmdutil.FetchAll`; its `min_ram` is a decimal the API sends as a string, rendered as one.
 
   `public-interface set` is a POST that the SDK calls `Create`, but it updates firewall settings on an interface that already exists — the addresses and interface name are read-only server-side. Only `--firewall`, `--policy-in` and `--policy-out` are writable, an unknown policy is rejected before the request rather than silently ignored, and calling it with no flags is an error rather than a no-op round trip.
 - **`compute ipv6 reverse-dns`**: the IPv4 equivalent already existed; IPv6 PTR records could only be read or set from the panel.

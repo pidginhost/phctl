@@ -150,6 +150,9 @@ var ipv6ReverseDNSCmd = &cobra.Command{
 				return cmdutil.APIError("fetching reverse DNS", err)
 			}
 		}
+		if resp == nil {
+			return fmt.Errorf("reverse DNS for IPv6 %d: server returned no result", id)
+		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, resp, func(w io.Writer) {
 			tw := output.NewTabWriter(w)

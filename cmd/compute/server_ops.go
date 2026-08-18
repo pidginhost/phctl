@@ -22,8 +22,6 @@ var serverRescueCmd = &cobra.Command{
 	Args:  cobra.NoArgs,
 }
 
-var serverRescueISO = ""
-
 var serverRescueEnterCmd = &cobra.Command{
 	Use:   "enter <id>",
 	Short: "Reboot a server into rescue media",
@@ -37,9 +35,17 @@ var serverRescueEnterCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		iso, err := cmd.Flags().GetString("iso")
+		if err != nil {
+			return err
+		}
+		isoSet := cmd.Flags().Changed("iso")
+		if isoSet && iso == "" {
+			return fmt.Errorf("--iso requires a non-empty slug")
+		}
 		target := "the default rescue image"
-		if serverRescueISO != "" {
-			target = fmt.Sprintf("%q", serverRescueISO)
+		if isoSet {
+			target = fmt.Sprintf("%q", iso)
 		}
 		if !cmdutil.Force(cmd) && !confirm.Action(cmd.InOrStdin(), cmd.ErrOrStderr(),
 			fmt.Sprintf("Reboot server %d into %s? It stops serving until it leaves rescue.", id, target)) {
@@ -52,12 +58,15 @@ var serverRescueEnterCmd = &cobra.Command{
 		body := pidginhost.NewIsoBootRequest()
 		// Omit the field entirely so the server picks its default; sending an
 		// empty slug is a different request.
-		if serverRescueISO != "" {
-			body.SetIso(serverRescueISO)
+		if isoSet {
+			body.SetIso(iso)
 		}
 		resp, _, err := c.CloudAPI.CloudServersRescueEnterCreate(cmd.Context(), id).IsoBootRequest(*body).Execute()
 		if err != nil {
 			return cmdutil.APIError("entering rescue mode", err)
+		}
+		if resp == nil {
+			return fmt.Errorf("entering rescue mode on server %d: server returned no result", id)
 		}
 		if !resp.Queued {
 			return fmt.Errorf("entering rescue mode on server %d: server did not queue the reboot", id)
@@ -87,6 +96,9 @@ var serverRescueExitCmd = &cobra.Command{
 		resp, _, err := c.CloudAPI.CloudServersRescueExitCreate(cmd.Context(), id).Execute()
 		if err != nil {
 			return cmdutil.APIError("exiting rescue mode", err)
+		}
+		if resp == nil {
+			return fmt.Errorf("exiting rescue mode on server %d: server returned no result", id)
 		}
 		if !resp.Queued {
 			return fmt.Errorf("exiting rescue mode on server %d: server did not queue the reboot", id)
@@ -118,6 +130,9 @@ var serverBootISOsCmd = &cobra.Command{
 			resp, _, err := c.CloudAPI.CloudServersBootIsosList(cmd.Context(), id).Page(page).Execute()
 			if err != nil {
 				return nil, false, err
+			}
+			if resp == nil {
+				return nil, false, fmt.Errorf("server returned no boot ISO page")
 			}
 			return resp.Results, resp.Next.Get() != nil, nil
 		})
@@ -160,6 +175,9 @@ var serverUsageCmd = &cobra.Command{
 		resp, _, err := c.CloudAPI.CloudServersUsageRetrieve(cmd.Context(), id).Execute()
 		if err != nil {
 			return cmdutil.APIError("getting server usage", err)
+		}
+		if resp == nil {
+			return fmt.Errorf("getting server usage: server returned no result")
 		}
 		return output.Print(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
@@ -221,6 +239,9 @@ var serverActivityCmd = &cobra.Command{
 		if err != nil {
 			return cmdutil.APIError("getting server activity", err)
 		}
+		if resp == nil {
+			return fmt.Errorf("getting server activity: server returned no result")
+		}
 		return output.Print(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "DATE", "MESSAGE")
@@ -251,6 +272,9 @@ var serverRetryProvisionCmd = &cobra.Command{
 		if err != nil {
 			return cmdutil.APIError("retrying provision", err)
 		}
+		if resp == nil {
+			return fmt.Errorf("retrying provision on server %d: server returned no result", id)
+		}
 		if !resp.Retry {
 			return fmt.Errorf("retrying provision on server %d: server did not accept the retry", id)
 		}
@@ -269,12 +293,15 @@ var serverPublicInterfaceCmd = &cobra.Command{
 }
 
 func printPublicInterface(cmd *cobra.Command, pi *pidginhost.PublicInterface) error {
+	if pi == nil {
+		return fmt.Errorf("server returned no public interface")
+	}
 	return output.Print(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), pi, func(w io.Writer) {
 		tw := output.NewTabWriter(w)
 		output.PrintRow(tw, "Interface:", pi.Interface)
 		output.PrintRow(tw, "IPv4:", pi.Ipv4)
 		output.PrintRow(tw, "IPv6:", pi.Ipv6)
-		output.PrintRow(tw, "Firewall set:", pi.FwRulesSet.Get())
+		output.PrintRow(tw, "Firewall set:", output.Pstr(pi.FwRulesSet.Get()))
 		if pi.FwPolicyIn != nil {
 			output.PrintRow(tw, "Policy in:", string(*pi.FwPolicyIn))
 		}
@@ -398,7 +425,7 @@ var serverPublicInterfaceDeleteCmd = &cobra.Command{
 }
 
 func init() {
-	serverRescueEnterCmd.Flags().StringVar(&serverRescueISO, "iso", "",
+	serverRescueEnterCmd.Flags().String("iso", "",
 		"Boot ISO slug from `boot-isos` (omit for the default rescue image)")
 
 	serverRescueCmd.AddCommand(serverRescueEnterCmd)

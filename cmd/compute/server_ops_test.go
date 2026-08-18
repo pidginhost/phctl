@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	pidginhost "github.com/pidginhost/sdk-go"
 	"github.com/spf13/cobra"
 )
 
@@ -17,6 +18,25 @@ type opStub struct {
 	query  string
 	body   map[string]interface{}
 	calls  int
+}
+
+func parentOpCommand(t *testing.T, cmd *cobra.Command, format string, force bool) {
+	t.Helper()
+
+	root := &cobra.Command{Use: "phctl"}
+	root.PersistentFlags().StringP("output", "o", format, "Output format")
+	root.PersistentFlags().BoolP("force", "f", force, "Skip confirmation prompts")
+	originalParent := cmd.Parent()
+	if originalParent != nil {
+		originalParent.RemoveCommand(cmd)
+	}
+	root.AddCommand(cmd)
+	t.Cleanup(func() {
+		root.RemoveCommand(cmd)
+		if originalParent != nil {
+			originalParent.AddCommand(cmd)
+		}
+	})
 }
 
 // runOp drives a command's RunE against a stub API. respond receives the stub
@@ -49,10 +69,7 @@ func runOp(t *testing.T, cmd *cobra.Command, args []string,
 	// Parent the real command under a throwaway root carrying the global
 	// flags. Passing a stand-in child instead would hide the command's own
 	// flags from its RunE, which is where several of these read their input.
-	root := &cobra.Command{Use: "phctl"}
-	root.PersistentFlags().StringP("output", "o", format, "Output format")
-	root.PersistentFlags().BoolP("force", "f", force, "Skip confirmation prompts")
-	root.AddCommand(cmd)
+	parentOpCommand(t, cmd, format, force)
 
 	var out bytes.Buffer
 	cmd.SetOut(&out)
@@ -93,6 +110,48 @@ func TestServerHasPhase2Subcommands(t *testing.T) {
 	}
 }
 
+func TestRunOpRestoresCommandParent(t *testing.T) {
+	originalParent := serverUsageCmd.Parent()
+	t.Run("invoke", func(t *testing.T) {
+		_, _, err := runOp(t, serverUsageCmd, []string{"42"},
+			okOp(`{"status":"running","uptime":0,"uptime_text":"0 seconds","cpu":{},"memory":{}}`),
+			"table", "", false)
+		if err != nil {
+			t.Fatalf("RunE: %v", err)
+		}
+	})
+
+	if got := serverUsageCmd.Parent(); got != originalParent {
+		t.Fatalf("command parent = %q, want %q", got.Name(), originalParent.Name())
+	}
+}
+
+func TestServerOperationCommandsRejectNullResponses(t *testing.T) {
+	tests := []struct {
+		name  string
+		cmd   *cobra.Command
+		force bool
+	}{
+		{name: "rescue enter", cmd: serverRescueEnterCmd, force: true},
+		{name: "rescue exit", cmd: serverRescueExitCmd, force: true},
+		{name: "boot ISOs", cmd: serverBootISOsCmd},
+		{name: "usage", cmd: serverUsageCmd},
+		{name: "activity", cmd: serverActivityCmd},
+		{name: "retry provision", cmd: serverRetryProvisionCmd},
+		{name: "public interface", cmd: serverPublicInterfaceGetCmd},
+		{name: "IPv6 reverse DNS", cmd: ipv6ReverseDNSCmd},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, _, err := runOp(t, tt.cmd, []string{"42"}, okOp(`null`), "table", "", tt.force)
+			if err == nil {
+				t.Fatal("a null API response must return an error")
+			}
+		})
+	}
+}
+
 // --- rescue: {"queued": bool} is the lying-success shape ---
 
 func TestRescueEnterConfirmsBeforeRebooting(t *testing.T) {
@@ -106,8 +165,16 @@ func TestRescueEnterConfirmsBeforeRebooting(t *testing.T) {
 }
 
 func TestRescueEnterSendsISOSlug(t *testing.T) {
-	serverRescueISO = "systemrescue"
-	t.Cleanup(func() { serverRescueISO = "" })
+	flag := serverRescueEnterCmd.Flags().Lookup("iso")
+	originalValue, originalChanged := flag.Value.String(), flag.Changed
+	t.Cleanup(func() {
+		_ = flag.Value.Set(originalValue)
+		flag.Changed = originalChanged
+	})
+	if err := flag.Value.Set("systemrescue"); err != nil {
+		t.Fatalf("set iso flag: %v", err)
+	}
+	flag.Changed = true
 
 	st, _, err := runOp(t, serverRescueEnterCmd, []string{"42"}, okOp(`{"queued":true}`), "table", "", true)
 	if err != nil {
@@ -128,6 +195,28 @@ func TestRescueEnterOmitsISOWhenNotSet(t *testing.T) {
 	}
 	if _, present := st.body["iso"]; present {
 		t.Errorf("iso should be omitted so the server picks its default, got %v", st.body)
+	}
+}
+
+func TestRescueEnterRejectsExplicitEmptyISO(t *testing.T) {
+	flag := serverRescueEnterCmd.Flags().Lookup("iso")
+	originalValue, originalChanged := flag.Value.String(), flag.Changed
+	t.Cleanup(func() {
+		_ = flag.Value.Set(originalValue)
+		flag.Changed = originalChanged
+	})
+	if err := flag.Value.Set(""); err != nil {
+		t.Fatalf("set iso flag: %v", err)
+	}
+	flag.Changed = true
+
+	parentOpCommand(t, serverRescueEnterCmd, "table", true)
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("PIDGINHOST_API_TOKEN", "")
+
+	err := serverRescueEnterCmd.RunE(serverRescueEnterCmd, []string{"42"})
+	if err == nil || err.Error() != "--iso requires a non-empty slug" {
+		t.Fatalf("error = %v, want explicit empty --iso rejected", err)
 	}
 }
 
@@ -250,6 +339,27 @@ func TestActivityRendersEntries(t *testing.T) {
 const publicIfaceJSON = `{"interface":"eth0","ipv4":"203.0.113.7","ipv6":"2001:db8::1",` +
 	`"fw_rules_set":"web","fw_policy_in":"DROP","fw_policy_out":"ACCEPT"}`
 
+func TestPrintPublicInterfaceRendersFirewallName(t *testing.T) {
+	pi := pidginhost.NewPublicInterface("eth0", "203.0.113.7", "2001:db8::1")
+	pi.SetFwRulesSet("web")
+	var out bytes.Buffer
+	cmd := &cobra.Command{}
+	cmd.SetOut(&out)
+
+	if err := printPublicInterface(cmd, pi); err != nil {
+		t.Fatalf("printPublicInterface: %v", err)
+	}
+	if !strings.Contains(out.String(), "web") {
+		t.Fatalf("output should contain the firewall set name, got %q", out.String())
+	}
+}
+
+func TestPrintPublicInterfaceRejectsNilResponse(t *testing.T) {
+	if err := printPublicInterface(&cobra.Command{}, nil); err == nil {
+		t.Fatal("a null public interface must return an error")
+	}
+}
+
 func TestPublicInterfaceGetRenders(t *testing.T) {
 	st, out, err := runOp(t, serverPublicInterfaceGetCmd, []string{"42"}, okOp(publicIfaceJSON), "table", "", false)
 	if err != nil {
@@ -258,14 +368,14 @@ func TestPublicInterfaceGetRenders(t *testing.T) {
 	if st.method != http.MethodGet || st.path != "/api/cloud/servers/42/public-interface/" {
 		t.Errorf("method=%s path=%q", st.method, st.path)
 	}
-	for _, want := range []string{"eth0", "203.0.113.7", "DROP"} {
+	for _, want := range []string{"eth0", "203.0.113.7", "web", "DROP"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("output missing %q: %s", want, out)
 		}
 	}
 }
 
-func TestPublicInterfaceSetSendsOnlyWritableFields(t *testing.T) {
+func TestPublicInterfaceSetSendsOnlyRequestedValues(t *testing.T) {
 	serverPublicInterfaceFirewall, serverPublicInterfacePolicyIn = "web", "DROP"
 	t.Cleanup(func() { serverPublicInterfaceFirewall, serverPublicInterfacePolicyIn = "", "" })
 
@@ -281,6 +391,14 @@ func TestPublicInterfaceSetSendsOnlyWritableFields(t *testing.T) {
 	}
 	if st.body["fw_policy_in"] != "DROP" {
 		t.Errorf("fw_policy_in = %v", st.body["fw_policy_in"])
+	}
+	for _, readOnly := range []string{"interface", "ipv4", "ipv6"} {
+		if st.body[readOnly] != "" {
+			t.Errorf("required read-only field %s = %v, want inert empty value", readOnly, st.body[readOnly])
+		}
+	}
+	if _, present := st.body["fw_policy_out"]; present {
+		t.Errorf("unchanged fw_policy_out should be omitted, got %v", st.body["fw_policy_out"])
 	}
 }
 
