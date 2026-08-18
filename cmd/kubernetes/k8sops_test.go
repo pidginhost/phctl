@@ -221,7 +221,7 @@ func TestNodePhase3Subcommands(t *testing.T) {
 	for _, c := range nodeCmd.Commands() {
 		names[c.Name()] = true
 	}
-	for _, want := range []string{"get", "rrd"} {
+	for _, want := range []string{"get", "metrics", "rrd"} {
 		if !names[want] {
 			t.Errorf("node is missing subcommand %q", want)
 		}
@@ -855,12 +855,17 @@ func TestNodeRRDRejectsEmptyBodyWithoutPanicking(t *testing.T) {
 
 // --- cluster update ---
 
+// The wire shape the API really sends. price_per_month is a DecimalField and
+// stays a string; price_per_hour is derived and arrives as a number, and the
+// four fields after it are a bool or an integer. The schema used to declare all
+// five as strings, which is why this fixture was wrong and the command could
+// not have decoded a real cluster.
 const clusterDetailJSON = `{"id":42,"status":"active","name":"prod","generation":"gen2",` +
-	`"cluster_type":"ha","kube_version":"1.32","price_per_month":"120.5000","price_per_hour":"0.1650",` +
+	`"cluster_type":"ha","kube_version":"1.32","price_per_month":"120.5000","price_per_hour":0.165,` +
 	`"features":["cert-manager"],"features_ready":true,"kubeconfig_valid_until":"2027-01-01T00:00:00Z",` +
-	`"ipv4_address":"203.0.113.10","ipv6_address":"","dual_stack":"false","protected":true,` +
-	`"talos_version":"1.9.0","talos_upgrade_available":"false","talos_next_version":"",` +
-	`"storage_quota_gb":"100","last_pool_used_bytes":"0","last_storage_sync_at":""}`
+	`"ipv4_address":"203.0.113.10","ipv6_address":"","dual_stack":false,"protected":true,` +
+	`"talos_version":"1.9.0","talos_upgrade_available":false,"talos_next_version":"",` +
+	`"storage_quota_gb":100,"last_pool_used_bytes":0,"last_storage_sync_at":""}`
 
 func TestClusterUpdateIsRegistered(t *testing.T) {
 	names := map[string]bool{}

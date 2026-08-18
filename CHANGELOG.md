@@ -13,25 +13,27 @@
 - **`phctl kubernetes cluster kubeconfig --regenerate`**: issue a fresh kubeconfig. It confirms first, because every copy of the previous one stops working. The command also now rejects an empty or whitespace-only response instead of writing out a file that looks like a kubeconfig but configures nothing — including through `--merge`.
 - **`phctl kubernetes pool get`** and **`pool resize`**: pool details with its nodes, and a node-count change. `resize` confirms because growing a pool provisions billable VMs and shrinking one destroys them, and it requires `--size` — the API treats a body without `new_size` as a no-op and still answers `200`. The work is asynchronous, so the command reports the size the pool still has rather than claiming the new one.
 - **`phctl kubernetes node get`** and **`node rrd`**: a single node's details, and its recorded metric series. `rrd` renders every field the API sends, disk I/O included, and prints the numbers as digits — JSON numbers decode to `float64`, which `%v` would have shown as `1.7555e+09` for a Unix timestamp.
-- **`phctl kubernetes {http,tcp,udp}-route get`** and **`update`**: route details and replacement. `get` decodes the response itself, as `list` already did — those routes carry no response schema (see *Known gaps*). `update` is a PUT and requires every field: the server rebuilds the route manifest from the request body, so a partial body has nothing to rebuild from and the PATCH variants are unusable. Because it replaces, it always sends the namespaces rather than letting the server re-derive them, and it reads the whole route back to confirm what landed.
+- **`phctl kubernetes {http,tcp,udp}-route get`** and **`update`**: route details, and a partial update. `update` is a PATCH that sends only the flags you pass, so an omitted field keeps its current value, and it reads each one back out of the response. It deliberately builds the body from the zero value rather than `NewPatched*Route()`: that constructor seeds the schema defaults for `backend_namespace`, `path_prefix` and `enable_tls`, which a PATCH would then send as though the caller had asked for them.
 - **`--backend-namespace` on `{http,tcp,udp}-route create` and `update`**: the backend service's namespace could not be set from the CLI, so a backend outside `default` was unreachable.
+- **`phctl kubernetes port-forward`**: `list`, `get`, `create`, `update`, `delete`. A port forward publishes an address inside the cluster on the load balancer's public IP; `phctl kubernetes lb-firewall` governs what may reach it. `update` is a PATCH that sends only what you pass and confirms the change landed, `--protocol` is validated against the schema enum before the request, and `delete` confirms because traffic reaching the service through it stops.
+- **`phctl kubernetes node metrics`**: current CPU, memory, disk and network counters for a node.
+- **`phctl kubernetes node rrd --timeframe`**: select the window (`hour`, `day`, `week`, `month`, `year`). An unknown value is rejected rather than passed on, because the API silently falls back to `hour` instead of erroring.
 
 ### Fixed
 
+- **`{http,tcp,udp}-route list` works at all.** These endpoints paginate, but the commands decoded a bare JSON array, so every call failed against the real API. The schema did not describe the response, and the commands had only structural tests, so nothing caught it. They now page through `cmdutil.FetchAll` against the generated `Paginated*List` models.
 - **`{http,tcp,udp}-route create` no longer panics on an empty response body.** A `201` with no body decodes to a nil route, which the success message then dereferenced.
 
-### Known gaps
+### Changed
 
-These are API schema problems, not phctl ones. Each needs a `phclient` change and a
-new `sdk-go` release before a command can be written against it.
+- **Requires `sdk-go` v0.13.0.** Every gap this section previously listed was an API schema defect, now fixed in `phclient` and regenerated:
 
-- **`kubernetes/clusters/{id}/port-forwards/` — all six operations are unusable.** The schema documents no request body and no response schema for `GET`, `POST`, `PUT`, `PATCH` and `DELETE`, so `sdk-go` generates `POST` and `PUT` methods that take no body at all and there is no `K8sPortForward` model to decode into.
+  - **Port forwards are reachable.** All six routes had no request body and no response schema, so the SDK generated `POST`/`PUT` methods that send nothing and no model to decode into. `ClusterBackendMixin.cluster` read `self.kwargs["cluster_id"]`, which drf-spectacular cannot supply, and the `KeyError` made it abandon the whole viewset. The three Gateway route viewsets lost their `GET` schemas the same way.
+  - **`node metrics` can be decoded.** `NodeMetricsResponse` declared its byte counters as bare `IntegerField`, which generates as `int32`; a node with 2 GiB of RAM reports one past that. They are `int64` now, and `disk`/`maxdisk` are documented — the endpoint always returned them.
+  - **`ClusterDetail` carries the types it sends.** `dual_stack` and `talos_upgrade_available` are booleans, `storage_quota_gb` and `last_pool_used_bytes` integers, `price_per_hour` a number. All five were declared as strings, which made the whole cluster object undecodable — so `cluster update` could not have worked against a real cluster.
+  - **The RRD `timeframe` parameter is declared**, so a window other than the default is reachable.
 
-  Cause: `K8sPortForwardViewSet.get_serializer` injects `self.cluster`, which reads `self.kwargs["cluster_id"]`. drf-spectacular introspects with a view that has no URL kwargs, so the lookup raises and it emits no schema. The three Gateway route viewsets override `get_serializer` the same way and lose their `GET` schemas for the same reason; they keep working schemas on the write methods only because those carry an explicit `@extend_schema`. Those four viewsets are the only ones in the API that override `get_serializer`, and they are exactly the ones affected.
-
-- **`.../nodes/{id}/metrics/` cannot be decoded.** `NodeMetricsResponse` declares `mem`, `maxmem`, `netin` and `netout` as bare `serializers.IntegerField()`, which the schema emits as `type: integer` with no format and `sdk-go` generates as `int32`. A node with 2 GiB of RAM reports `2147483648`, one past `int32`, so the response fails to decode on essentially every real node. Either the serializer should declare int64, or the generator should map a formatless `integer` to `int64` — an unformatted OpenAPI `integer` is unbounded.
-
-- **`.../nodes/{id}/rrd/` accepts a `timeframe` query parameter that is not documented.** The view reads `?timeframe=hour|day|week|month|year`, but no `@extend_schema(parameters=...)` declares it, so the SDK cannot send one and `phctl kubernetes node rrd` only ever returns the server's default window.
+  The regeneration also removed the `...Retrieve2` operations, which existed only because the list and detail reads collided on one operation id while the schema was incomplete. The reads are now `...List` and `...Retrieve`.
 
 ## v0.17.0
 

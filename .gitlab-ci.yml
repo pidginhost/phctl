@@ -50,13 +50,13 @@ test:
       # nearly all of this CLI lives. See scripts/coverage-total.sh.
       #
       # THRESHOLD is a ratchet: raise it as coverage improves, never lower it.
-      # Real coverage is ~48%; 47 leaves one point of headroom so an honest
+      # Real coverage is ~51%; 50 leaves one point of headroom so an honest
       # feature commit is not blocked by rounding. An earlier 40 here was
       # measured against the -func number, which read 78.4% for a tree actually
       # at 34.9% -- the gate had been sitting below its own threshold all along
       # without noticing.
       TOTAL=$(sh scripts/coverage-total.sh coverage.out)
-      THRESHOLD=47
+      THRESHOLD=50
       if awk "BEGIN{exit !($TOTAL < $THRESHOLD)}"; then
         echo "Coverage ${TOTAL}% is below threshold ${THRESHOLD}%"
         exit 1

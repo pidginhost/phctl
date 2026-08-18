@@ -395,12 +395,62 @@ var nodeGetCmd = &cobra.Command{
 	},
 }
 
+var nodeMetricsCmd = &cobra.Command{
+	Use:   "metrics <cluster-id> <pool-id> <node-id>",
+	Short: "Show current metrics for a node",
+	Args:  cobra.ExactArgs(3),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		clusterID, poolID, nodeID, err := parseNodeArgs(args)
+		if err != nil {
+			return err
+		}
+		c, err := newClient()
+		if err != nil {
+			return err
+		}
+		m, _, err := c.KubernetesAPI.KubernetesClustersResourcePoolsNodesMetricsRetrieve(cmd.Context(), clusterID, args[2], poolID).Execute()
+		if err != nil {
+			return cmdutil.APIError("getting node metrics", err)
+		}
+		if m == nil {
+			return fmt.Errorf("getting metrics for node %d: server returned no metrics", nodeID)
+		}
+		return output.Print(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), m, func(w io.Writer) {
+			tw := output.NewTabWriter(w)
+			output.PrintRow(tw, "Status:", m.Status)
+			output.PrintRow(tw, "CPU:", fmt.Sprintf("%v (%.1f%%)", m.Cpu, m.Cpu*100))
+			output.PrintRow(tw, "Memory (bytes):", m.Mem)
+			output.PrintRow(tw, "Max memory (bytes):", m.Maxmem)
+			output.PrintRow(tw, "Disk (bytes):", m.Disk)
+			output.PrintRow(tw, "Max disk (bytes):", m.Maxdisk)
+			output.PrintRow(tw, "Uptime (seconds):", m.Uptime)
+			output.PrintRow(tw, "Net in (bytes):", m.Netin)
+			output.PrintRow(tw, "Net out (bytes):", m.Netout)
+			tw.Flush()
+		})
+	},
+}
+
+// The windows the API accepts. It silently falls back to the first one for
+// anything else, so reject an unknown value rather than quietly changing it.
+var rrdTimeframes = []string{"hour", "day", "week", "month", "year"}
+
+func validRRDTimeframe(v string) bool {
+	for _, t := range rrdTimeframes {
+		if t == v {
+			return true
+		}
+	}
+	return false
+}
+
+var nodeRRDTimeframe string
+
 var nodeRRDCmd = &cobra.Command{
 	Use:   "rrd <cluster-id> <pool-id> <node-id>",
 	Short: "Show historical metrics for a node",
 	Long: "Show the node's recorded metric series.\n\n" +
-		"The API accepts a timeframe but does not document it, so the SDK cannot\n" +
-		"send one and this command always returns the server's default window.",
+		"--timeframe selects the window: hour, day, week, month or year.",
 	Args: cobra.ExactArgs(3),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		clusterID, poolID, nodeID, err := parseNodeArgs(args)
@@ -411,7 +461,15 @@ var nodeRRDCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		resp, _, err := c.KubernetesAPI.KubernetesClustersResourcePoolsNodesRrdRetrieve(cmd.Context(), clusterID, args[2], poolID).Execute()
+		req := c.KubernetesAPI.KubernetesClustersResourcePoolsNodesRrdRetrieve(cmd.Context(), clusterID, args[2], poolID)
+		if nodeRRDTimeframe != "" {
+			if !validRRDTimeframe(nodeRRDTimeframe) {
+				return fmt.Errorf("invalid --timeframe %q: must be one of %s",
+					nodeRRDTimeframe, strings.Join(rrdTimeframes, ", "))
+			}
+			req = req.Timeframe(nodeRRDTimeframe)
+		}
+		resp, _, err := req.Execute()
 		if err != nil {
 			return cmdutil.APIError("getting node RRD data", err)
 		}
@@ -495,6 +553,10 @@ func init() {
 	poolCmd.AddCommand(poolGetCmd)
 	poolCmd.AddCommand(poolResizeCmd)
 
+	nodeRRDCmd.Flags().StringVar(&nodeRRDTimeframe, "timeframe", "",
+		"Window of recorded data: hour, day, week, month or year (default hour)")
+
 	nodeCmd.AddCommand(nodeGetCmd)
+	nodeCmd.AddCommand(nodeMetricsCmd)
 	nodeCmd.AddCommand(nodeRRDCmd)
 }

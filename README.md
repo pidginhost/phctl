@@ -77,7 +77,7 @@ narration stay human-readable; progress goes to stderr, so stdout under
 | `phctl account` | | Profile, SSH keys, companies, API tokens, email history |
 | `phctl compute` | `c` | Servers, volumes, firewalls, IPs, networks, snapshots |
 | `phctl domain` | `dns` | Domains, TLDs, registrants, nameservers, transfers |
-| `phctl kubernetes` | `k8s` | Clusters, pools, nodes, LB firewall, HTTP/TCP/UDP routes |
+| `phctl kubernetes` | `k8s` | Clusters, pools, nodes, LB firewall, port forwards, HTTP/TCP/UDP routes |
 | `phctl storage` | | S3 buckets: quota, visibility, credentials |
 | `phctl billing` | `bill` | Funds, deposits, invoices, services, subscriptions |
 | `phctl dedicated` | `ded` | Dedicated servers |
@@ -137,7 +137,14 @@ phctl k8s cluster eligible-vms 42              # empty while VM access is off
 phctl k8s pool get 42 3
 phctl k8s pool resize 42 3 --size 4            # provisions or destroys billable VMs
 phctl k8s node get 42 3 11
-phctl k8s node rrd 42 3 11
+phctl k8s node metrics 42 3 11
+phctl k8s node rrd 42 3 11 --timeframe week
+
+# Load balancer port forwards (lb-firewall governs who may reach them)
+phctl k8s port-forward list 42
+phctl k8s port-forward create 42 --internal-ip 10.0.0.50 --port 8080 --protocol tcp
+phctl k8s port-forward update 42 9 --port 9090   # sends only the flags you pass
+phctl k8s port-forward delete 42 9
 
 # Load balancer firewall
 phctl k8s lb-firewall list 42
@@ -147,8 +154,7 @@ phctl k8s lb-firewall delete 42 5
 
 # Gateway routes
 phctl k8s http-route get 42 4
-phctl k8s http-route update 42 4 --name web --hostname example.com \
-  --backend web-svc --port 8080                # replaces the route, so pass every field
+phctl k8s http-route update 42 4 --path-prefix /api   # partial: omitted fields keep their value
 phctl k8s tcp-route create 42 --name pg --port 5432 \
   --backend pg-svc --backend-port 5432 --backend-namespace database
 

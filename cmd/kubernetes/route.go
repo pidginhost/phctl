@@ -1,7 +1,6 @@
 package kubernetes
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 
@@ -34,15 +33,18 @@ var httpRouteListCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		httpResp, err := c.KubernetesAPI.KubernetesClustersHttproutesRetrieve(cmd.Context(), id).Execute()
+		routes, err := cmdutil.FetchAll(func(page int32) ([]pidginhost.HTTPRoute, bool, error) {
+			resp, _, err := c.KubernetesAPI.KubernetesClustersHttproutesList(cmd.Context(), id).Page(page).Execute()
+			if err != nil {
+				return nil, false, err
+			}
+			if resp == nil {
+				return nil, false, fmt.Errorf("server returned no route list")
+			}
+			return resp.Results, resp.Next.Get() != nil, nil
+		})
 		if err != nil {
 			return cmdutil.APIError("listing HTTP routes", err)
-		}
-		defer httpResp.Body.Close()
-
-		var routes []pidginhost.HTTPRoute
-		if err := json.NewDecoder(httpResp.Body).Decode(&routes); err != nil {
-			return fmt.Errorf("decoding routes: %w", err)
 		}
 
 		format := cmdutil.OutputFormat(cmd)
@@ -161,15 +163,18 @@ var tcpRouteListCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		httpResp, err := c.KubernetesAPI.KubernetesClustersTcproutesRetrieve(cmd.Context(), id).Execute()
+		routes, err := cmdutil.FetchAll(func(page int32) ([]pidginhost.TCPRoute, bool, error) {
+			resp, _, err := c.KubernetesAPI.KubernetesClustersTcproutesList(cmd.Context(), id).Page(page).Execute()
+			if err != nil {
+				return nil, false, err
+			}
+			if resp == nil {
+				return nil, false, fmt.Errorf("server returned no route list")
+			}
+			return resp.Results, resp.Next.Get() != nil, nil
+		})
 		if err != nil {
 			return cmdutil.APIError("listing TCP routes", err)
-		}
-		defer httpResp.Body.Close()
-
-		var routes []pidginhost.TCPRoute
-		if err := json.NewDecoder(httpResp.Body).Decode(&routes); err != nil {
-			return fmt.Errorf("decoding routes: %w", err)
 		}
 
 		format := cmdutil.OutputFormat(cmd)
@@ -282,15 +287,18 @@ var udpRouteListCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		httpResp, err := c.KubernetesAPI.KubernetesClustersUdproutesRetrieve(cmd.Context(), id).Execute()
+		routes, err := cmdutil.FetchAll(func(page int32) ([]pidginhost.UDPRoute, bool, error) {
+			resp, _, err := c.KubernetesAPI.KubernetesClustersUdproutesList(cmd.Context(), id).Page(page).Execute()
+			if err != nil {
+				return nil, false, err
+			}
+			if resp == nil {
+				return nil, false, fmt.Errorf("server returned no route list")
+			}
+			return resp.Results, resp.Next.Get() != nil, nil
+		})
 		if err != nil {
 			return cmdutil.APIError("listing UDP routes", err)
-		}
-		defer httpResp.Body.Close()
-
-		var routes []pidginhost.UDPRoute
-		if err := json.NewDecoder(httpResp.Body).Decode(&routes); err != nil {
-			return fmt.Errorf("decoding routes: %w", err)
 		}
 
 		format := cmdutil.OutputFormat(cmd)

@@ -1,10 +1,8 @@
 package kubernetes
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
 
 	pidginhost "github.com/pidginhost/sdk-go"
 	"github.com/spf13/cobra"
@@ -13,31 +11,12 @@ import (
 	"github.com/pidginhost/phctl/internal/output"
 )
 
-// Gateway route detail (get) and replace (update).
+// Gateway route detail (get) and update.
 //
-// The detail routes carry no response schema -- the viewsets override
-// get_serializer to inject the cluster, which drf-spectacular cannot do, so
-// only the write methods (which declare their serializer explicitly) are typed.
-// list already decodes the body by hand for the same reason; get follows it.
-//
-// update is PUT rather than PATCH on purpose: the server rebuilds the route
-// manifest from the request body, so a partial body has nothing to rebuild
-// from. Every field is therefore required, and the command replaces the route.
-
-// decodeRouteDetail reads an untyped detail response into dst.
-func decodeRouteDetail(httpResp *http.Response, err error, op string, dst any) error {
-	if err != nil {
-		return cmdutil.APIError(op, err)
-	}
-	if httpResp == nil || httpResp.Body == nil {
-		return fmt.Errorf("%s: server returned no response body", op)
-	}
-	defer httpResp.Body.Close()
-	if err := json.NewDecoder(httpResp.Body).Decode(dst); err != nil {
-		return fmt.Errorf("%s: decoding response: %w", op, err)
-	}
-	return nil
-}
+// These reads had no response schema until the API declared one, so get and
+// list decoded the body by hand and update had to be a PUT that replaced the
+// whole route. Both now use the generated models, and update is a PATCH that
+// sends only the fields the caller passed.
 
 func printHTTPRoute(w io.Writer, r *pidginhost.HTTPRoute) {
 	tw := output.NewTabWriter(w)
@@ -91,16 +70,18 @@ var httpRouteGetCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		var route pidginhost.HTTPRoute
-		httpResp, err := c.KubernetesAPI.KubernetesClustersHttproutesRetrieve2(cmd.Context(), clusterID, args[1]).Execute()
-		if err := decodeRouteDetail(httpResp, err, "getting HTTP route", &route); err != nil {
-			return err
+		route, _, err := c.KubernetesAPI.KubernetesClustersHttproutesRetrieve(cmd.Context(), clusterID, args[1]).Execute()
+		if err != nil {
+			return cmdutil.APIError("getting HTTP route", err)
+		}
+		if route == nil {
+			return fmt.Errorf("getting HTTP route %d: server returned no route", routeID)
 		}
 		if route.Id != routeID {
 			return fmt.Errorf("getting HTTP route %d: server returned route %d", routeID, route.Id)
 		}
 		return output.Print(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), route, func(w io.Writer) {
-			printHTTPRoute(w, &route)
+			printHTTPRoute(w, route)
 		})
 	},
 }
@@ -118,10 +99,12 @@ var tcpRouteGetCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		var route pidginhost.TCPRoute
-		httpResp, err := c.KubernetesAPI.KubernetesClustersTcproutesRetrieve2(cmd.Context(), clusterID, args[1]).Execute()
-		if err := decodeRouteDetail(httpResp, err, "getting TCP route", &route); err != nil {
-			return err
+		route, _, err := c.KubernetesAPI.KubernetesClustersTcproutesRetrieve(cmd.Context(), clusterID, args[1]).Execute()
+		if err != nil {
+			return cmdutil.APIError("getting TCP route", err)
+		}
+		if route == nil {
+			return fmt.Errorf("getting TCP route %d: server returned no route", routeID)
 		}
 		if route.Id != routeID {
 			return fmt.Errorf("getting TCP route %d: server returned route %d", routeID, route.Id)
@@ -147,10 +130,12 @@ var udpRouteGetCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		var route pidginhost.UDPRoute
-		httpResp, err := c.KubernetesAPI.KubernetesClustersUdproutesRetrieve2(cmd.Context(), clusterID, args[1]).Execute()
-		if err := decodeRouteDetail(httpResp, err, "getting UDP route", &route); err != nil {
-			return err
+		route, _, err := c.KubernetesAPI.KubernetesClustersUdproutesRetrieve(cmd.Context(), clusterID, args[1]).Execute()
+		if err != nil {
+			return cmdutil.APIError("getting UDP route", err)
+		}
+		if route == nil {
+			return fmt.Errorf("getting UDP route %d: server returned no route", routeID)
 		}
 		if route.Id != routeID {
 			return fmt.Errorf("getting UDP route %d: server returned route %d", routeID, route.Id)
@@ -165,62 +150,109 @@ var udpRouteGetCmd = &cobra.Command{
 
 // --- update ---
 
-var (
-	httpRouteUpdateName      string
-	httpRouteUpdateHostnames []string
-	httpRouteUpdateBackend   string
-	httpRouteUpdatePort      int32
-	httpRouteUpdateNamespace string
-	httpRouteUpdateBackendNS string
-	httpRouteUpdatePrefix    string
-	httpRouteUpdateTLS       bool
-)
+// --- update ---
+//
+// PATCH, not PUT: the server rebuilds the route from its current field values
+// merged with the change, so omitting a field keeps it. Sending a full body
+// would silently reset anything the caller did not restate.
 
-const routeUpdateLong = "The server rebuilds the route from the request body, so this replaces the\n" +
-	"route rather than patching it: pass every field you want the route to have.\n" +
+const routeUpdateLong = "Only the fields you pass are sent; everything else keeps its current value.\n" +
 	"Updating re-applies the route to the cluster."
+
+// httpRouteFields holds the writable fields of an HTTP route for update.
+type httpRouteFields struct {
+	owner *cobra.Command
+
+	name      string
+	hostnames []string
+	backend   string
+	port      int32
+	namespace string
+	backendNS string
+	prefix    string
+	tls       bool
+}
+
+var httpRouteUpdateFieldFlags = []string{
+	"name", "hostname", "backend", "port", "namespace", "backend-namespace", "path-prefix", "tls",
+}
+
+func (f *httpRouteFields) register(cmd *cobra.Command) {
+	f.owner = cmd
+	cmd.Flags().StringVar(&f.name, "name", "", "Route name")
+	cmd.Flags().StringArrayVar(&f.hostnames, "hostname", nil, "Hostname to route (repeatable; replaces the current list)")
+	cmd.Flags().StringVar(&f.backend, "backend", "", "Backend service name")
+	cmd.Flags().Int32Var(&f.port, "port", 0, "Backend service port")
+	cmd.Flags().StringVar(&f.namespace, "namespace", "", "Kubernetes namespace")
+	cmd.Flags().StringVar(&f.backendNS, "backend-namespace", "", "Backend service namespace")
+	cmd.Flags().StringVar(&f.prefix, "path-prefix", "", "Path prefix to match")
+	cmd.Flags().BoolVar(&f.tls, "tls", true, "Enable TLS termination")
+}
+
+func (f *httpRouteFields) isSet(name string) bool {
+	return f.owner != nil && f.owner.Flags().Changed(name)
+}
+
+func (f *httpRouteFields) anySet() bool {
+	for _, name := range httpRouteUpdateFieldFlags {
+		if f.isSet(name) {
+			return true
+		}
+	}
+	return false
+}
+
+var httpRouteUpdateFields httpRouteFields
 
 var httpRouteUpdateCmd = &cobra.Command{
 	Use:   "update <cluster-id> <route-id>",
-	Short: "Replace an HTTP route",
-	Long:  "Replace an HTTP route.\n\n" + routeUpdateLong,
+	Short: "Update an HTTP route",
+	Long:  "Update an HTTP route.\n\n" + routeUpdateLong,
 	Args:  cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		clusterID, routeID, err := parseRouteArgs(args)
 		if err != nil {
 			return err
 		}
-		if httpRouteUpdateName == "" {
-			return fmt.Errorf("--name is required")
+		f := &httpRouteUpdateFields
+		if !f.anySet() {
+			return fmt.Errorf("nothing to update: pass at least one of --%s", joinFlags(httpRouteUpdateFieldFlags))
 		}
-		if len(httpRouteUpdateHostnames) == 0 {
-			return fmt.Errorf("--hostname is required (repeat it for several hostnames)")
+		// Not NewPatchedHTTPRoute(): that constructor seeds the schema defaults for
+		// backend_namespace, path_prefix and enable_tls, which a PATCH would then
+		// send as if the caller had asked for them.
+		var body pidginhost.PatchedHTTPRoute
+		if f.isSet("name") {
+			body.Name = pidginhost.PtrString(f.name)
 		}
-		if httpRouteUpdateBackend == "" {
-			return fmt.Errorf("--backend is required")
+		if f.isSet("hostname") {
+			body.Hostnames = f.hostnames
 		}
-		if httpRouteUpdatePort == 0 {
-			return fmt.Errorf("--port is required")
+		if f.isSet("backend") {
+			body.BackendServiceName = pidginhost.PtrString(f.backend)
 		}
+		if f.isSet("port") {
+			body.BackendServicePort = pidginhost.PtrInt32(f.port)
+		}
+		if f.isSet("namespace") {
+			body.Namespace = pidginhost.PtrString(f.namespace)
+		}
+		if f.isSet("backend-namespace") {
+			body.BackendNamespace = pidginhost.PtrString(f.backendNS)
+		}
+		if f.isSet("path-prefix") {
+			body.PathPrefix = pidginhost.PtrString(f.prefix)
+		}
+		if f.isSet("tls") {
+			body.EnableTls = pidginhost.PtrBool(f.tls)
+		}
+
 		c, err := newClient()
 		if err != nil {
 			return err
 		}
-		body := *pidginhost.NewHTTPRoute(
-			routeID, httpRouteUpdateName, httpRouteUpdateHostnames,
-			httpRouteUpdateBackend, httpRouteUpdatePort,
-			*pidginhost.NewNullableBool(nil),
-			"", "", "",
-		)
-		body.Namespace = pidginhost.PtrString(httpRouteUpdateNamespace)
-		body.BackendNamespace = pidginhost.PtrString(httpRouteUpdateBackendNS)
-		if httpRouteUpdatePrefix != "" {
-			body.PathPrefix = pidginhost.PtrString(httpRouteUpdatePrefix)
-		}
-		body.EnableTls = pidginhost.PtrBool(httpRouteUpdateTLS)
-
-		route, _, err := c.KubernetesAPI.KubernetesClustersHttproutesUpdate(cmd.Context(), clusterID, args[1]).
-			HTTPRoute(body).Execute()
+		route, _, err := c.KubernetesAPI.KubernetesClustersHttproutesPartialUpdate(cmd.Context(), clusterID, args[1]).
+			PatchedHTTPRoute(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("updating HTTP route", err)
 		}
@@ -230,7 +262,7 @@ var httpRouteUpdateCmd = &cobra.Command{
 		if route.Id != routeID {
 			return fmt.Errorf("updating HTTP route %d: server returned route %d", routeID, route.Id)
 		}
-		if err := verifyHTTPRouteUpdate(routeID, route, &body); err != nil {
+		if err := f.verifyApplied(routeID, route); err != nil {
 			return err
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), route,
@@ -238,8 +270,43 @@ var httpRouteUpdateCmd = &cobra.Command{
 	},
 }
 
+// The route answers 200 whether or not it applied anything, so read each field
+// the caller asked for back out of the response.
+func (f *httpRouteFields) verifyApplied(routeID int32, route *pidginhost.HTTPRoute) error {
+	mismatch := func(field string, want, got any) error {
+		return fmt.Errorf("updating HTTP route %d: asked for %s=%v, route still reports %v", routeID, field, want, got)
+	}
+	if f.isSet("name") && route.Name != f.name {
+		return mismatch("name", f.name, route.Name)
+	}
+	if f.isSet("hostname") && !sameStrings(route.Hostnames, f.hostnames) {
+		return mismatch("hostname", f.hostnames, route.Hostnames)
+	}
+	if f.isSet("backend") && route.BackendServiceName != f.backend {
+		return mismatch("backend", f.backend, route.BackendServiceName)
+	}
+	if f.isSet("port") && route.BackendServicePort != f.port {
+		return mismatch("port", f.port, route.BackendServicePort)
+	}
+	if f.isSet("namespace") && output.Pstr(route.Namespace) != f.namespace {
+		return mismatch("namespace", f.namespace, output.Pstr(route.Namespace))
+	}
+	if f.isSet("backend-namespace") && output.Pstr(route.BackendNamespace) != f.backendNS {
+		return mismatch("backend-namespace", f.backendNS, output.Pstr(route.BackendNamespace))
+	}
+	if f.isSet("path-prefix") && output.Pstr(route.PathPrefix) != f.prefix {
+		return mismatch("path-prefix", f.prefix, output.Pstr(route.PathPrefix))
+	}
+	if f.isSet("tls") && (route.EnableTls == nil || *route.EnableTls != f.tls) {
+		return mismatch("tls", f.tls, output.Pstr(route.EnableTls))
+	}
+	return nil
+}
+
 // portRouteFields are the writable fields TCP and UDP routes share.
 type portRouteFields struct {
+	owner *cobra.Command
+
 	name        string
 	port        int32
 	backend     string
@@ -248,27 +315,55 @@ type portRouteFields struct {
 	backendNS   string
 }
 
+var portRouteUpdateFieldFlags = []string{"name", "port", "backend", "backend-port", "namespace", "backend-namespace"}
+
 func (f *portRouteFields) register(cmd *cobra.Command) {
-	cmd.Flags().StringVar(&f.name, "name", "", "Route name (required)")
-	cmd.Flags().Int32Var(&f.port, "port", 0, "External port to expose (required)")
-	cmd.Flags().StringVar(&f.backend, "backend", "", "Backend service name (required)")
-	cmd.Flags().Int32Var(&f.backendPort, "backend-port", 0, "Backend service port (required)")
-	cmd.Flags().StringVar(&f.namespace, "namespace", "default", "Kubernetes namespace")
-	cmd.Flags().StringVar(&f.backendNS, "backend-namespace", "default", "Backend service namespace")
+	f.owner = cmd
+	cmd.Flags().StringVar(&f.name, "name", "", "Route name")
+	cmd.Flags().Int32Var(&f.port, "port", 0, "External port to expose")
+	cmd.Flags().StringVar(&f.backend, "backend", "", "Backend service name")
+	cmd.Flags().Int32Var(&f.backendPort, "backend-port", 0, "Backend service port")
+	cmd.Flags().StringVar(&f.namespace, "namespace", "", "Kubernetes namespace")
+	cmd.Flags().StringVar(&f.backendNS, "backend-namespace", "", "Backend service namespace")
 }
 
-func (f *portRouteFields) validate() error {
-	if f.name == "" {
-		return fmt.Errorf("--name is required")
+func (f *portRouteFields) isSet(name string) bool {
+	return f.owner != nil && f.owner.Flags().Changed(name)
+}
+
+func (f *portRouteFields) anySet() bool {
+	for _, name := range portRouteUpdateFieldFlags {
+		if f.isSet(name) {
+			return true
+		}
 	}
-	if f.port == 0 {
-		return fmt.Errorf("--port is required")
+	return false
+}
+
+// verifyApplied reads back the fields the caller asked to change.
+func (f *portRouteFields) verifyApplied(kind string, routeID int32, name string, namespace *string,
+	port int32, backend string, backendPort int32, backendNS *string) error {
+	mismatch := func(field string, want, got any) error {
+		return fmt.Errorf("updating %s route %d: asked for %s=%v, route still reports %v",
+			kind, routeID, field, want, got)
 	}
-	if f.backend == "" {
-		return fmt.Errorf("--backend is required")
+	if f.isSet("name") && name != f.name {
+		return mismatch("name", f.name, name)
 	}
-	if f.backendPort == 0 {
-		return fmt.Errorf("--backend-port is required")
+	if f.isSet("port") && port != f.port {
+		return mismatch("port", f.port, port)
+	}
+	if f.isSet("backend") && backend != f.backend {
+		return mismatch("backend", f.backend, backend)
+	}
+	if f.isSet("backend-port") && backendPort != f.backendPort {
+		return mismatch("backend-port", f.backendPort, backendPort)
+	}
+	if f.isSet("namespace") && output.Pstr(namespace) != f.namespace {
+		return mismatch("namespace", f.namespace, output.Pstr(namespace))
+	}
+	if f.isSet("backend-namespace") && output.Pstr(backendNS) != f.backendNS {
+		return mismatch("backend-namespace", f.backendNS, output.Pstr(backendNS))
 	}
 	return nil
 }
@@ -280,8 +375,8 @@ var (
 
 var tcpRouteUpdateCmd = &cobra.Command{
 	Use:   "update <cluster-id> <route-id>",
-	Short: "Replace a TCP route",
-	Long:  "Replace a TCP route.\n\n" + routeUpdateLong,
+	Short: "Update a TCP route",
+	Long:  "Update a TCP route.\n\n" + routeUpdateLong,
 	Args:  cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		clusterID, routeID, err := parseRouteArgs(args)
@@ -289,22 +384,36 @@ var tcpRouteUpdateCmd = &cobra.Command{
 			return err
 		}
 		f := &tcpRouteUpdateFields
-		if err := f.validate(); err != nil {
-			return err
+		if !f.anySet() {
+			return fmt.Errorf("nothing to update: pass at least one of --%s", joinFlags(portRouteUpdateFieldFlags))
 		}
+		// Zero value, not the constructor: it seeds backend_namespace.
+		var body pidginhost.PatchedTCPRoute
+		if f.isSet("name") {
+			body.Name = pidginhost.PtrString(f.name)
+		}
+		if f.isSet("port") {
+			body.Port = pidginhost.PtrInt32(f.port)
+		}
+		if f.isSet("backend") {
+			body.BackendServiceName = pidginhost.PtrString(f.backend)
+		}
+		if f.isSet("backend-port") {
+			body.BackendServicePort = pidginhost.PtrInt32(f.backendPort)
+		}
+		if f.isSet("namespace") {
+			body.Namespace = pidginhost.PtrString(f.namespace)
+		}
+		if f.isSet("backend-namespace") {
+			body.BackendNamespace = pidginhost.PtrString(f.backendNS)
+		}
+
 		c, err := newClient()
 		if err != nil {
 			return err
 		}
-		body := *pidginhost.NewTCPRoute(
-			routeID, f.name, f.port, f.backend, f.backendPort,
-			*pidginhost.NewNullableBool(nil),
-			"", "", "",
-		)
-		body.Namespace = pidginhost.PtrString(f.namespace)
-		body.BackendNamespace = pidginhost.PtrString(f.backendNS)
-		route, _, err := c.KubernetesAPI.KubernetesClustersTcproutesUpdate(cmd.Context(), clusterID, args[1]).
-			TCPRoute(body).Execute()
+		route, _, err := c.KubernetesAPI.KubernetesClustersTcproutesPartialUpdate(cmd.Context(), clusterID, args[1]).
+			PatchedTCPRoute(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("updating TCP route", err)
 		}
@@ -314,8 +423,8 @@ var tcpRouteUpdateCmd = &cobra.Command{
 		if route.Id != routeID {
 			return fmt.Errorf("updating TCP route %d: server returned route %d", routeID, route.Id)
 		}
-		if err := verifyPortRouteUpdate("TCP", routeID, route.Name, route.Namespace, route.Port,
-			route.BackendServiceName, route.BackendServicePort, route.BackendNamespace, f); err != nil {
+		if err := f.verifyApplied("TCP", routeID, route.Name, route.Namespace, route.Port,
+			route.BackendServiceName, route.BackendServicePort, route.BackendNamespace); err != nil {
 			return err
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), route,
@@ -325,8 +434,8 @@ var tcpRouteUpdateCmd = &cobra.Command{
 
 var udpRouteUpdateCmd = &cobra.Command{
 	Use:   "update <cluster-id> <route-id>",
-	Short: "Replace a UDP route",
-	Long:  "Replace a UDP route.\n\n" + routeUpdateLong,
+	Short: "Update a UDP route",
+	Long:  "Update a UDP route.\n\n" + routeUpdateLong,
 	Args:  cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		clusterID, routeID, err := parseRouteArgs(args)
@@ -334,22 +443,36 @@ var udpRouteUpdateCmd = &cobra.Command{
 			return err
 		}
 		f := &udpRouteUpdateFields
-		if err := f.validate(); err != nil {
-			return err
+		if !f.anySet() {
+			return fmt.Errorf("nothing to update: pass at least one of --%s", joinFlags(portRouteUpdateFieldFlags))
 		}
+		// Zero value, not the constructor: it seeds backend_namespace.
+		var body pidginhost.PatchedUDPRoute
+		if f.isSet("name") {
+			body.Name = pidginhost.PtrString(f.name)
+		}
+		if f.isSet("port") {
+			body.Port = pidginhost.PtrInt32(f.port)
+		}
+		if f.isSet("backend") {
+			body.BackendServiceName = pidginhost.PtrString(f.backend)
+		}
+		if f.isSet("backend-port") {
+			body.BackendServicePort = pidginhost.PtrInt32(f.backendPort)
+		}
+		if f.isSet("namespace") {
+			body.Namespace = pidginhost.PtrString(f.namespace)
+		}
+		if f.isSet("backend-namespace") {
+			body.BackendNamespace = pidginhost.PtrString(f.backendNS)
+		}
+
 		c, err := newClient()
 		if err != nil {
 			return err
 		}
-		body := *pidginhost.NewUDPRoute(
-			routeID, f.name, f.port, f.backend, f.backendPort,
-			*pidginhost.NewNullableBool(nil),
-			"", "", "",
-		)
-		body.Namespace = pidginhost.PtrString(f.namespace)
-		body.BackendNamespace = pidginhost.PtrString(f.backendNS)
-		route, _, err := c.KubernetesAPI.KubernetesClustersUdproutesUpdate(cmd.Context(), clusterID, args[1]).
-			UDPRoute(body).Execute()
+		route, _, err := c.KubernetesAPI.KubernetesClustersUdproutesPartialUpdate(cmd.Context(), clusterID, args[1]).
+			PatchedUDPRoute(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("updating UDP route", err)
 		}
@@ -359,76 +482,13 @@ var udpRouteUpdateCmd = &cobra.Command{
 		if route.Id != routeID {
 			return fmt.Errorf("updating UDP route %d: server returned route %d", routeID, route.Id)
 		}
-		if err := verifyPortRouteUpdate("UDP", routeID, route.Name, route.Namespace, route.Port,
-			route.BackendServiceName, route.BackendServicePort, route.BackendNamespace, f); err != nil {
+		if err := f.verifyApplied("UDP", routeID, route.Name, route.Namespace, route.Port,
+			route.BackendServiceName, route.BackendServicePort, route.BackendNamespace); err != nil {
 			return err
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), route,
 			"UDP route %d updated (Name: %s).\n", route.Id, route.Name)
 	},
-}
-
-func verifyHTTPRouteUpdate(routeID int32, got, want *pidginhost.HTTPRoute) error {
-	mismatch := func(field string, wantValue, gotValue any) error {
-		return fmt.Errorf("updating HTTP route %d: asked for %s=%v, route still reports %v",
-			routeID, field, wantValue, gotValue)
-	}
-	if got.Name != want.Name {
-		return mismatch("name", want.Name, got.Name)
-	}
-	if !sameStrings(got.Hostnames, want.Hostnames) {
-		return mismatch("hostnames", want.Hostnames, got.Hostnames)
-	}
-	if !samePointer(got.Namespace, want.Namespace) {
-		return mismatch("namespace", output.Pstr(want.Namespace), output.Pstr(got.Namespace))
-	}
-	if got.BackendServiceName != want.BackendServiceName {
-		return mismatch("backend_service_name", want.BackendServiceName, got.BackendServiceName)
-	}
-	if got.BackendServicePort != want.BackendServicePort {
-		return mismatch("backend_service_port", want.BackendServicePort, got.BackendServicePort)
-	}
-	if !samePointer(got.BackendNamespace, want.BackendNamespace) {
-		return mismatch("backend_namespace", output.Pstr(want.BackendNamespace), output.Pstr(got.BackendNamespace))
-	}
-	if !samePointer(got.PathPrefix, want.PathPrefix) {
-		return mismatch("path_prefix", output.Pstr(want.PathPrefix), output.Pstr(got.PathPrefix))
-	}
-	if !samePointer(got.EnableTls, want.EnableTls) {
-		return mismatch("enable_tls", output.Pstr(want.EnableTls), output.Pstr(got.EnableTls))
-	}
-	return nil
-}
-
-func verifyPortRouteUpdate(kind string, routeID int32, gotName string, gotNamespace *string, gotPort int32,
-	gotBackend string, gotBackendPort int32, gotBackendNS *string, want *portRouteFields) error {
-	mismatch := func(field string, wantValue, gotValue any) error {
-		return fmt.Errorf("updating %s route %d: asked for %s=%v, route still reports %v",
-			kind, routeID, field, wantValue, gotValue)
-	}
-	if gotName != want.name {
-		return mismatch("name", want.name, gotName)
-	}
-	if gotNamespace == nil || *gotNamespace != want.namespace {
-		return mismatch("namespace", want.namespace, output.Pstr(gotNamespace))
-	}
-	if gotPort != want.port {
-		return mismatch("port", want.port, gotPort)
-	}
-	if gotBackend != want.backend {
-		return mismatch("backend_service_name", want.backend, gotBackend)
-	}
-	if gotBackendPort != want.backendPort {
-		return mismatch("backend_service_port", want.backendPort, gotBackendPort)
-	}
-	if gotBackendNS == nil || *gotBackendNS != want.backendNS {
-		return mismatch("backend_namespace", want.backendNS, output.Pstr(gotBackendNS))
-	}
-	return nil
-}
-
-func samePointer[T comparable](got, want *T) bool {
-	return got != nil && want != nil && *got == *want
 }
 
 func sameStrings(got, want []string) bool {
@@ -454,15 +514,7 @@ func parseRouteArgs(args []string) (clusterID, routeID int32, err error) {
 }
 
 func init() {
-	httpRouteUpdateCmd.Flags().StringVar(&httpRouteUpdateName, "name", "", "Route name (required)")
-	httpRouteUpdateCmd.Flags().StringArrayVar(&httpRouteUpdateHostnames, "hostname", nil, "Hostname to route (repeatable, required)")
-	httpRouteUpdateCmd.Flags().StringVar(&httpRouteUpdateBackend, "backend", "", "Backend service name (required)")
-	httpRouteUpdateCmd.Flags().Int32Var(&httpRouteUpdatePort, "port", 0, "Backend service port (required)")
-	httpRouteUpdateCmd.Flags().StringVar(&httpRouteUpdateNamespace, "namespace", "default", "Kubernetes namespace")
-	httpRouteUpdateCmd.Flags().StringVar(&httpRouteUpdateBackendNS, "backend-namespace", "default", "Backend service namespace")
-	httpRouteUpdateCmd.Flags().StringVar(&httpRouteUpdatePrefix, "path-prefix", "", "Path prefix to match")
-	httpRouteUpdateCmd.Flags().BoolVar(&httpRouteUpdateTLS, "tls", true, "Enable TLS termination")
-
+	httpRouteUpdateFields.register(httpRouteUpdateCmd)
 	tcpRouteUpdateFields.register(tcpRouteUpdateCmd)
 	udpRouteUpdateFields.register(udpRouteUpdateCmd)
 
