@@ -3,6 +3,7 @@ package kubernetes
 import (
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 
 	pidginhost "github.com/pidginhost/sdk-go"
@@ -110,12 +111,17 @@ var clusterUpdateCmd = &cobra.Command{
 				return fmt.Errorf("removing every feature is not supported by the API client; " +
 					"pass the features the cluster should keep instead")
 			}
+			seenFeatures := make(map[pidginhost.FeaturesEnum]struct{}, len(clusterUpdateFeatures))
 			for _, name := range clusterUpdateFeatures {
 				feature, err := pidginhost.NewFeaturesEnumFromValue(name)
 				if err != nil {
 					return fmt.Errorf("invalid --features entry %q: must be one of %s",
 						name, featureNames())
 				}
+				if _, duplicate := seenFeatures[*feature]; duplicate {
+					return fmt.Errorf("duplicate --features entry %q: features form a set", name)
+				}
+				seenFeatures[*feature] = struct{}{}
 				wantFeatures = append(wantFeatures, *feature)
 			}
 			body.Features = wantFeatures
@@ -423,7 +429,7 @@ var nodeRRDCmd = &cobra.Command{
 // array, so a point is only rendered column-wise when it really is an object.
 func printRRDPoints(w io.Writer, data []interface{}) {
 	tw := output.NewTabWriter(w)
-	output.PrintRow(tw, "TIME", "CPU", "MEM", "MAXMEM", "NETIN", "NETOUT")
+	output.PrintRow(tw, "TIME", "CPU", "MEM", "MAXMEM", "NETIN", "NETOUT", "DISKREAD", "DISKWRITE")
 	for _, raw := range data {
 		point, ok := raw.(map[string]interface{})
 		if !ok {
@@ -432,7 +438,8 @@ func printRRDPoints(w io.Writer, data []interface{}) {
 		}
 		output.PrintRow(tw,
 			rrdField(point, "time"), rrdField(point, "cpu"), rrdField(point, "mem"),
-			rrdField(point, "maxmem"), rrdField(point, "netin"), rrdField(point, "netout"))
+			rrdField(point, "maxmem"), rrdField(point, "netin"), rrdField(point, "netout"),
+			rrdField(point, "diskread"), rrdField(point, "diskwrite"))
 	}
 	tw.Flush()
 }
@@ -441,6 +448,9 @@ func rrdField(point map[string]interface{}, key string) string {
 	v, ok := point[key]
 	if !ok || v == nil {
 		return "<none>"
+	}
+	if number, ok := v.(float64); ok {
+		return strconv.FormatFloat(number, 'f', -1, 64)
 	}
 	return fmt.Sprintf("%v", v)
 }

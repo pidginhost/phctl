@@ -171,6 +171,7 @@ var (
 	httpRouteUpdateBackend   string
 	httpRouteUpdatePort      int32
 	httpRouteUpdateNamespace string
+	httpRouteUpdateBackendNS string
 	httpRouteUpdatePrefix    string
 	httpRouteUpdateTLS       bool
 )
@@ -211,9 +212,8 @@ var httpRouteUpdateCmd = &cobra.Command{
 			*pidginhost.NewNullableBool(nil),
 			"", "", "",
 		)
-		if httpRouteUpdateNamespace != "" {
-			body.Namespace = pidginhost.PtrString(httpRouteUpdateNamespace)
-		}
+		body.Namespace = pidginhost.PtrString(httpRouteUpdateNamespace)
+		body.BackendNamespace = pidginhost.PtrString(httpRouteUpdateBackendNS)
 		if httpRouteUpdatePrefix != "" {
 			body.PathPrefix = pidginhost.PtrString(httpRouteUpdatePrefix)
 		}
@@ -230,6 +230,9 @@ var httpRouteUpdateCmd = &cobra.Command{
 		if route.Id != routeID {
 			return fmt.Errorf("updating HTTP route %d: server returned route %d", routeID, route.Id)
 		}
+		if err := verifyHTTPRouteUpdate(routeID, route, &body); err != nil {
+			return err
+		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), route,
 			"HTTP route %d updated (Name: %s).\n", route.Id, route.Name)
 	},
@@ -242,6 +245,7 @@ type portRouteFields struct {
 	backend     string
 	backendPort int32
 	namespace   string
+	backendNS   string
 }
 
 func (f *portRouteFields) register(cmd *cobra.Command) {
@@ -249,7 +253,8 @@ func (f *portRouteFields) register(cmd *cobra.Command) {
 	cmd.Flags().Int32Var(&f.port, "port", 0, "External port to expose (required)")
 	cmd.Flags().StringVar(&f.backend, "backend", "", "Backend service name (required)")
 	cmd.Flags().Int32Var(&f.backendPort, "backend-port", 0, "Backend service port (required)")
-	cmd.Flags().StringVar(&f.namespace, "namespace", "", "Kubernetes namespace")
+	cmd.Flags().StringVar(&f.namespace, "namespace", "default", "Kubernetes namespace")
+	cmd.Flags().StringVar(&f.backendNS, "backend-namespace", "default", "Backend service namespace")
 }
 
 func (f *portRouteFields) validate() error {
@@ -296,9 +301,8 @@ var tcpRouteUpdateCmd = &cobra.Command{
 			*pidginhost.NewNullableBool(nil),
 			"", "", "",
 		)
-		if f.namespace != "" {
-			body.Namespace = pidginhost.PtrString(f.namespace)
-		}
+		body.Namespace = pidginhost.PtrString(f.namespace)
+		body.BackendNamespace = pidginhost.PtrString(f.backendNS)
 		route, _, err := c.KubernetesAPI.KubernetesClustersTcproutesUpdate(cmd.Context(), clusterID, args[1]).
 			TCPRoute(body).Execute()
 		if err != nil {
@@ -309,6 +313,10 @@ var tcpRouteUpdateCmd = &cobra.Command{
 		}
 		if route.Id != routeID {
 			return fmt.Errorf("updating TCP route %d: server returned route %d", routeID, route.Id)
+		}
+		if err := verifyPortRouteUpdate("TCP", routeID, route.Name, route.Namespace, route.Port,
+			route.BackendServiceName, route.BackendServicePort, route.BackendNamespace, f); err != nil {
+			return err
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), route,
 			"TCP route %d updated (Name: %s).\n", route.Id, route.Name)
@@ -338,9 +346,8 @@ var udpRouteUpdateCmd = &cobra.Command{
 			*pidginhost.NewNullableBool(nil),
 			"", "", "",
 		)
-		if f.namespace != "" {
-			body.Namespace = pidginhost.PtrString(f.namespace)
-		}
+		body.Namespace = pidginhost.PtrString(f.namespace)
+		body.BackendNamespace = pidginhost.PtrString(f.backendNS)
 		route, _, err := c.KubernetesAPI.KubernetesClustersUdproutesUpdate(cmd.Context(), clusterID, args[1]).
 			UDPRoute(body).Execute()
 		if err != nil {
@@ -352,9 +359,88 @@ var udpRouteUpdateCmd = &cobra.Command{
 		if route.Id != routeID {
 			return fmt.Errorf("updating UDP route %d: server returned route %d", routeID, route.Id)
 		}
+		if err := verifyPortRouteUpdate("UDP", routeID, route.Name, route.Namespace, route.Port,
+			route.BackendServiceName, route.BackendServicePort, route.BackendNamespace, f); err != nil {
+			return err
+		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), route,
 			"UDP route %d updated (Name: %s).\n", route.Id, route.Name)
 	},
+}
+
+func verifyHTTPRouteUpdate(routeID int32, got, want *pidginhost.HTTPRoute) error {
+	mismatch := func(field string, wantValue, gotValue any) error {
+		return fmt.Errorf("updating HTTP route %d: asked for %s=%v, route still reports %v",
+			routeID, field, wantValue, gotValue)
+	}
+	if got.Name != want.Name {
+		return mismatch("name", want.Name, got.Name)
+	}
+	if !sameStrings(got.Hostnames, want.Hostnames) {
+		return mismatch("hostnames", want.Hostnames, got.Hostnames)
+	}
+	if !samePointer(got.Namespace, want.Namespace) {
+		return mismatch("namespace", output.Pstr(want.Namespace), output.Pstr(got.Namespace))
+	}
+	if got.BackendServiceName != want.BackendServiceName {
+		return mismatch("backend_service_name", want.BackendServiceName, got.BackendServiceName)
+	}
+	if got.BackendServicePort != want.BackendServicePort {
+		return mismatch("backend_service_port", want.BackendServicePort, got.BackendServicePort)
+	}
+	if !samePointer(got.BackendNamespace, want.BackendNamespace) {
+		return mismatch("backend_namespace", output.Pstr(want.BackendNamespace), output.Pstr(got.BackendNamespace))
+	}
+	if !samePointer(got.PathPrefix, want.PathPrefix) {
+		return mismatch("path_prefix", output.Pstr(want.PathPrefix), output.Pstr(got.PathPrefix))
+	}
+	if !samePointer(got.EnableTls, want.EnableTls) {
+		return mismatch("enable_tls", output.Pstr(want.EnableTls), output.Pstr(got.EnableTls))
+	}
+	return nil
+}
+
+func verifyPortRouteUpdate(kind string, routeID int32, gotName string, gotNamespace *string, gotPort int32,
+	gotBackend string, gotBackendPort int32, gotBackendNS *string, want *portRouteFields) error {
+	mismatch := func(field string, wantValue, gotValue any) error {
+		return fmt.Errorf("updating %s route %d: asked for %s=%v, route still reports %v",
+			kind, routeID, field, wantValue, gotValue)
+	}
+	if gotName != want.name {
+		return mismatch("name", want.name, gotName)
+	}
+	if gotNamespace == nil || *gotNamespace != want.namespace {
+		return mismatch("namespace", want.namespace, output.Pstr(gotNamespace))
+	}
+	if gotPort != want.port {
+		return mismatch("port", want.port, gotPort)
+	}
+	if gotBackend != want.backend {
+		return mismatch("backend_service_name", want.backend, gotBackend)
+	}
+	if gotBackendPort != want.backendPort {
+		return mismatch("backend_service_port", want.backendPort, gotBackendPort)
+	}
+	if gotBackendNS == nil || *gotBackendNS != want.backendNS {
+		return mismatch("backend_namespace", want.backendNS, output.Pstr(gotBackendNS))
+	}
+	return nil
+}
+
+func samePointer[T comparable](got, want *T) bool {
+	return got != nil && want != nil && *got == *want
+}
+
+func sameStrings(got, want []string) bool {
+	if len(got) != len(want) {
+		return false
+	}
+	for i := range got {
+		if got[i] != want[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func parseRouteArgs(args []string) (clusterID, routeID int32, err error) {
@@ -372,7 +458,8 @@ func init() {
 	httpRouteUpdateCmd.Flags().StringArrayVar(&httpRouteUpdateHostnames, "hostname", nil, "Hostname to route (repeatable, required)")
 	httpRouteUpdateCmd.Flags().StringVar(&httpRouteUpdateBackend, "backend", "", "Backend service name (required)")
 	httpRouteUpdateCmd.Flags().Int32Var(&httpRouteUpdatePort, "port", 0, "Backend service port (required)")
-	httpRouteUpdateCmd.Flags().StringVar(&httpRouteUpdateNamespace, "namespace", "", "Kubernetes namespace")
+	httpRouteUpdateCmd.Flags().StringVar(&httpRouteUpdateNamespace, "namespace", "default", "Kubernetes namespace")
+	httpRouteUpdateCmd.Flags().StringVar(&httpRouteUpdateBackendNS, "backend-namespace", "default", "Backend service namespace")
 	httpRouteUpdateCmd.Flags().StringVar(&httpRouteUpdatePrefix, "path-prefix", "", "Path prefix to match")
 	httpRouteUpdateCmd.Flags().BoolVar(&httpRouteUpdateTLS, "tls", true, "Enable TLS termination")
 

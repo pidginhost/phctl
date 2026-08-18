@@ -3,6 +3,7 @@ package kubernetes
 import (
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	pidginhost "github.com/pidginhost/sdk-go"
@@ -203,7 +204,7 @@ stops working, wherever it was copied to.`,
 		}
 		// The route answers 200 with a plain-text body; an empty one would be
 		// written out as a valid-looking but unusable kubeconfig.
-		if resp == "" {
+		if strings.TrimSpace(resp) == "" {
 			return fmt.Errorf("kubeconfig for cluster %s: server returned an empty kubeconfig", args[0])
 		}
 

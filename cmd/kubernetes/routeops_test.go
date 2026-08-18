@@ -44,14 +44,14 @@ func TestRouteGroupsGainGetAndUpdate(t *testing.T) {
 	}
 }
 
-func TestRouteUpdateFlagsMirrorCreate(t *testing.T) {
-	for _, name := range []string{"name", "hostname", "backend", "port", "namespace", "path-prefix", "tls"} {
+func TestRouteUpdateFlagsCoverWritableFields(t *testing.T) {
+	for _, name := range []string{"name", "hostname", "backend", "port", "namespace", "backend-namespace", "path-prefix", "tls"} {
 		if httpRouteUpdateCmd.Flags().Lookup(name) == nil {
 			t.Errorf("http-route update missing flag --%s", name)
 		}
 	}
 	for _, cmd := range []*cobra.Command{tcpRouteUpdateCmd, udpRouteUpdateCmd} {
-		for _, name := range []string{"name", "port", "backend", "backend-port", "namespace"} {
+		for _, name := range []string{"name", "port", "backend", "backend-port", "namespace", "backend-namespace"} {
 			if cmd.Flags().Lookup(name) == nil {
 				t.Errorf("%s missing flag --%s", cmd.Name(), name)
 			}
@@ -157,10 +157,12 @@ func TestRouteGetRejectsMismatchedRoute(t *testing.T) {
 func TestHTTPRouteUpdateReplacesRoute(t *testing.T) {
 	setFlags(t, httpRouteUpdateCmd, map[string]string{
 		"name": "web", "backend": "web-svc", "port": "8080", "hostname": "example.com",
-		"namespace": "default", "path-prefix": "/api", "tls": "true",
+		"namespace": "default", "backend-namespace": "services", "path-prefix": "/api", "tls": "true",
 	})
 
-	rec, out, _, err := runCmd(t, httpRouteUpdateCmd, []string{"42", "4"}, okBody(httpRouteJSON), "table", "", true)
+	response := strings.Replace(httpRouteJSON, `"backend_namespace":"default"`, `"backend_namespace":"services"`, 1)
+	response = strings.Replace(response, `"path_prefix":"/"`, `"path_prefix":"/api"`, 1)
+	rec, out, _, err := runCmd(t, httpRouteUpdateCmd, []string{"42", "4"}, okBody(response), "table", "", true)
 	if err != nil {
 		t.Fatalf("RunE: %v", err)
 	}
@@ -176,6 +178,9 @@ func TestHTTPRouteUpdateReplacesRoute(t *testing.T) {
 	}
 	if call.body["path_prefix"] != "/api" {
 		t.Errorf("body[path_prefix] = %v", call.body["path_prefix"])
+	}
+	if call.body["backend_namespace"] != "services" {
+		t.Errorf("body[backend_namespace] = %v", call.body["backend_namespace"])
 	}
 	hostnames, _ := call.body["hostnames"].([]any)
 	if len(hostnames) != 1 || hostnames[0] != "example.com" {
@@ -214,8 +219,10 @@ func TestHTTPRouteUpdateRejectsEmptyBodyWithoutPanicking(t *testing.T) {
 func TestTCPRouteUpdateReplacesRoute(t *testing.T) {
 	setFlags(t, tcpRouteUpdateCmd, map[string]string{
 		"name": "pg", "port": "5432", "backend": "pg-svc", "backend-port": "5432", "namespace": "default",
+		"backend-namespace": "database",
 	})
-	rec, _, _, err := runCmd(t, tcpRouteUpdateCmd, []string{"42", "6"}, okBody(tcpRouteJSON), "table", "", true)
+	response := strings.Replace(tcpRouteJSON, `"backend_namespace":"default"`, `"backend_namespace":"database"`, 1)
+	rec, _, _, err := runCmd(t, tcpRouteUpdateCmd, []string{"42", "6"}, okBody(response), "table", "", true)
 	if err != nil {
 		t.Fatalf("RunE: %v", err)
 	}
@@ -225,6 +232,9 @@ func TestTCPRouteUpdateReplacesRoute(t *testing.T) {
 	}
 	if call.body["port"] != float64(5432) || call.body["backend_service_name"] != "pg-svc" {
 		t.Errorf("body = %v", call.body)
+	}
+	if call.body["backend_namespace"] != "database" {
+		t.Errorf("body[backend_namespace] = %v", call.body["backend_namespace"])
 	}
 }
 
@@ -242,6 +252,9 @@ func TestUDPRouteUpdateReplacesRoute(t *testing.T) {
 	}
 	if call.body["backend_service_port"] != float64(53) {
 		t.Errorf("body = %v", call.body)
+	}
+	if call.body["namespace"] != "default" || call.body["backend_namespace"] != "default" {
+		t.Errorf("PUT body omits route defaults: %v", call.body)
 	}
 }
 
@@ -268,6 +281,28 @@ func TestRouteUpdateRejectsMismatchedRoute(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected an error when the server answers with a different route")
 	}
+}
+
+func TestRouteUpdateRejectsUnappliedFields(t *testing.T) {
+	t.Run("http", func(t *testing.T) {
+		setFlags(t, httpRouteUpdateCmd, map[string]string{
+			"name": "web", "port": "8080", "backend": "web-svc", "hostname": "example.com", "path-prefix": "/api",
+		})
+		_, _, _, err := runCmd(t, httpRouteUpdateCmd, []string{"42", "4"}, okBody(httpRouteJSON), "table", "", true)
+		if err == nil {
+			t.Fatal("expected an error when the HTTP route still reports the old path prefix")
+		}
+	})
+
+	t.Run("tcp", func(t *testing.T) {
+		setFlags(t, tcpRouteUpdateCmd, map[string]string{
+			"name": "pg", "port": "15432", "backend": "pg-svc", "backend-port": "5432",
+		})
+		_, _, _, err := runCmd(t, tcpRouteUpdateCmd, []string{"42", "6"}, okBody(tcpRouteJSON), "table", "", true)
+		if err == nil {
+			t.Fatal("expected an error when the TCP route still reports the old external port")
+		}
+	})
 }
 
 // --- existing create commands must survive an empty body too ---

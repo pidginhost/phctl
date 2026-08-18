@@ -18,8 +18,8 @@ import (
 // --- test harness ---
 //
 // Commands are driven through RunE against a real httptest server reached via
-// the package's newClient seam. Nothing global is mutated, so these tests stay
-// safe under -race and t.Parallel.
+// the package's newClient seam. The seam is restored after every test; callers
+// must remain non-parallel because replacing it is a package-global mutation.
 
 type apiCall struct {
 	method string
@@ -372,6 +372,74 @@ func TestLBFirewallCreateRejectsEmptyBodyWithoutPanicking(t *testing.T) {
 	}
 }
 
+func TestLBFirewallFlagsWorkThroughCobraAndStayIsolated(t *testing.T) {
+	rec := &recorder{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		call := apiCall{method: r.Method, path: r.URL.Path, query: r.URL.Query()}
+		raw, _ := io.ReadAll(r.Body)
+		if len(raw) > 0 {
+			_ = json.Unmarshal(raw, &call.body)
+		}
+		rec.calls = append(rec.calls, call)
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method == http.MethodPost {
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(lbRuleJSON))
+			return
+		}
+		_, _ = w.Write([]byte(strings.Replace(lbRuleJSON, `"dport":"443"`, `"dport":"8443"`, 1)))
+	}))
+	t.Cleanup(server.Close)
+
+	oldNewClient := newClient
+	newClient = func() (*pidginhost.APIClient, error) {
+		return pidginhost.New("test-token", server.URL), nil
+	}
+	t.Cleanup(func() { newClient = oldNewClient })
+
+	oldSilenceUsage, oldSilenceErrors := Cmd.SilenceUsage, Cmd.SilenceErrors
+	Cmd.SetOut(io.Discard)
+	Cmd.SetErr(io.Discard)
+	Cmd.SilenceUsage = true
+	Cmd.SilenceErrors = true
+	t.Cleanup(func() {
+		Cmd.SetArgs(nil)
+		Cmd.SetIn(nil)
+		Cmd.SetOut(nil)
+		Cmd.SetErr(nil)
+		Cmd.SilenceUsage = oldSilenceUsage
+		Cmd.SilenceErrors = oldSilenceErrors
+		resetFlag(lbFirewallCreateCmd, "source")
+		resetFlag(lbFirewallUpdateCmd, "dport")
+	})
+
+	Cmd.SetArgs([]string{"lb-firewall", "create", "42", "--source", "10.0.0.0/8"})
+	if _, err := Cmd.ExecuteC(); err != nil {
+		t.Fatalf("create through Cobra: %v", err)
+	}
+	Cmd.SetIn(strings.NewReader("y\n"))
+	Cmd.SetArgs([]string{"lb-firewall", "update", "42", "5", "--dport", "8443"})
+	if _, err := Cmd.ExecuteC(); err != nil {
+		t.Fatalf("update through Cobra: %v", err)
+	}
+
+	if rec.count() != 2 {
+		t.Fatalf("calls = %d, want 2", rec.count())
+	}
+	if rec.calls[0].body["source"] != "10.0.0.0/8" {
+		t.Errorf("create did not observe its parsed flag: %v", rec.calls[0].body)
+	}
+	if _, leaked := rec.calls[0].body["dport"]; leaked {
+		t.Errorf("update flag leaked into create: %v", rec.calls[0].body)
+	}
+	if rec.calls[1].body["dport"] != "8443" {
+		t.Errorf("update did not observe its parsed flag: %v", rec.calls[1].body)
+	}
+	if _, leaked := rec.calls[1].body["source"]; leaked {
+		t.Errorf("create flag leaked into update: %v", rec.calls[1].body)
+	}
+}
+
 // --- lb-firewall update ---
 
 func TestLBFirewallUpdateSendsOnlyChangedFields(t *testing.T) {
@@ -416,6 +484,17 @@ func TestLBFirewallUpdateRejectsMismatchedRule(t *testing.T) {
 		okBody(strings.Replace(lbRuleJSON, `"id":5`, `"id":9`, 1)), "table", "", false)
 	if err == nil {
 		t.Fatal("expected an error when the server answers with a different rule")
+	}
+}
+
+func TestLBFirewallUpdateRejectsUnappliedField(t *testing.T) {
+	setFlags(t, lbFirewallUpdateCmd, map[string]string{"dport": "8443"})
+	_, _, _, err := runCmd(t, lbFirewallUpdateCmd, []string{"42", "5"}, okBody(lbRuleJSON), "table", "", true)
+	if err == nil {
+		t.Fatal("expected an error when the rule still reports the old destination port")
+	}
+	if !strings.Contains(err.Error(), "dport") {
+		t.Errorf("error should identify the unapplied field, got %v", err)
 	}
 }
 
@@ -727,7 +806,7 @@ func TestNodeGetRejectsEmptyBodyWithoutPanicking(t *testing.T) {
 
 func TestNodeRRDRendersDataPoints(t *testing.T) {
 	rec, out, _, err := runCmd(t, nodeRRDCmd, []string{"42", "3", "11"},
-		okBody(`{"timeframe":"hour","data":[{"time":1755500000,"cpu":0.1,"mem":100,"maxmem":200,"netin":1,"netout":2}]}`),
+		okBody(`{"timeframe":"hour","data":[{"time":1755500000,"cpu":0.1,"mem":100,"maxmem":200,"netin":1,"netout":2,"diskread":3,"diskwrite":4}]}`),
 		"table", "", false)
 	if err != nil {
 		t.Fatalf("RunE: %v", err)
@@ -737,6 +816,14 @@ func TestNodeRRDRendersDataPoints(t *testing.T) {
 	}
 	if !strings.Contains(out, "hour") {
 		t.Errorf("output missing the timeframe:\n%s", out)
+	}
+	for _, want := range []string{"1755500000", "DISKREAD", "DISKWRITE", "3", "4"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output missing %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "1.7555e+09") {
+		t.Errorf("timestamp should not use scientific notation:\n%s", out)
 	}
 }
 
@@ -875,6 +962,17 @@ func TestClusterUpdateRejectsUnknownFeature(t *testing.T) {
 	}
 }
 
+func TestClusterUpdateRejectsDuplicateFeatures(t *testing.T) {
+	setFlags(t, clusterUpdateCmd, map[string]string{"features": "cert-manager,cert-manager"})
+	rec, _, _, err := runCmd(t, clusterUpdateCmd, []string{"42"}, okBody(clusterDetailJSON), "table", "", true)
+	if err == nil {
+		t.Fatal("expected an error for a duplicate feature in a feature set")
+	}
+	if rec.count() != 0 {
+		t.Errorf("duplicate feature still reached the API (%d call(s))", rec.count())
+	}
+}
+
 // The generated model drops an empty feature list (omitempty), so a request to
 // remove every feature would leave the cluster untouched while answering 200.
 func TestClusterUpdateRejectsSilentlyDroppedFeatureClear(t *testing.T) {
@@ -965,5 +1063,12 @@ func TestKubeconfigRejectsEmptyBody(t *testing.T) {
 	_, _, _, err := runCmd(t, clusterKubeconfigCmd, []string{"42"}, okBody(""), "table", "", false)
 	if err == nil {
 		t.Fatal("expected an error when the server returns an empty kubeconfig")
+	}
+}
+
+func TestKubeconfigRejectsBlankBody(t *testing.T) {
+	_, _, _, err := runCmd(t, clusterKubeconfigCmd, []string{"42"}, okBody(" \n\t"), "table", "", false)
+	if err == nil {
+		t.Fatal("expected an error when the server returns a whitespace-only kubeconfig")
 	}
 }

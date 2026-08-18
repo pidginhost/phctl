@@ -313,9 +313,48 @@ var lbFirewallUpdateCmd = &cobra.Command{
 		if rule.Id != ruleID {
 			return fmt.Errorf("updating LB firewall rule %d: server returned rule %d", ruleID, rule.Id)
 		}
+		if err := f.verifyApplied(ruleID, rule); err != nil {
+			return err
+		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), rule,
 			"LB firewall rule %d updated.\n", rule.Id)
 	},
+}
+
+func (f *lbRuleFlags) verifyApplied(ruleID int32, rule *pidginhost.LBFirewallRule) error {
+	mismatch := func(field string, want, got any) error {
+		return fmt.Errorf("updating LB firewall rule %d: asked for %s=%v, rule still reports %v",
+			ruleID, field, want, got)
+	}
+	if f.isSet("direction") && (rule.Direction == nil || string(*rule.Direction) != f.direction) {
+		return mismatch("direction", f.direction, output.Pstr(rule.Direction))
+	}
+	if f.isSet("action") && (rule.Action == nil || string(*rule.Action) != f.action) {
+		return mismatch("action", f.action, output.Pstr(rule.Action))
+	}
+	for _, field := range []struct {
+		name string
+		want string
+		got  *string
+	}{
+		{"protocol", f.protocol, rule.Protocol},
+		{"source", f.source, rule.Source},
+		{"sport", f.sport, rule.Sport},
+		{"destination", f.destination, rule.Destination},
+		{"dport", f.dport, rule.Dport},
+		{"comment", f.comment, rule.Comment},
+	} {
+		if f.isSet(field.name) && (field.got == nil || *field.got != field.want) {
+			return mismatch(field.name, field.want, output.Pstr(field.got))
+		}
+	}
+	if f.isSet("enabled") && (rule.Enabled == nil || *rule.Enabled != f.enabled) {
+		return mismatch("enabled", f.enabled, output.Pstr(rule.Enabled))
+	}
+	if f.isSet("position") && (rule.Position == nil || *rule.Position != f.position) {
+		return mismatch("position", f.position, output.Pstr(rule.Position))
+	}
+	return nil
 }
 
 func (f *lbRuleFlags) applyOptionalPatched(body *pidginhost.PatchedLBFirewallRule) {
