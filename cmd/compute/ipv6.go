@@ -114,9 +114,58 @@ var ipv6DetachCmd = &cobra.Command{
 	},
 }
 
+var ipv6ReverseDNSCmd = &cobra.Command{
+	Use:     "reverse-dns <id>",
+	Aliases: []string{"rdns"},
+	Short:   "Get or set the PTR record for an IPv6 address",
+	Long: "Without --hostname, prints the current PTR record. " +
+		"With --hostname <fqdn>, sets the PTR record to that FQDN.",
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		id, err := cmdutil.ParseInt32(args[0])
+		if err != nil {
+			return err
+		}
+		hostname, err := cmd.Flags().GetString("hostname")
+		if err != nil {
+			return err
+		}
+		if cmd.Flags().Changed("hostname") && hostname == "" {
+			return fmt.Errorf("--hostname requires a non-empty FQDN")
+		}
+		c, err := client.New()
+		if err != nil {
+			return err
+		}
+		var resp *pidginhost.ReverseDNS
+		if cmd.Flags().Changed("hostname") {
+			body := pidginhost.NewReverseDNS(hostname)
+			resp, _, err = c.CloudAPI.CloudIpv6RdnsCreate(cmd.Context(), id).ReverseDNS(*body).Execute()
+			if err != nil {
+				return cmdutil.APIError("setting reverse DNS", err)
+			}
+		} else {
+			resp, _, err = c.CloudAPI.CloudIpv6RdnsRetrieve(cmd.Context(), id).Execute()
+			if err != nil {
+				return cmdutil.APIError("fetching reverse DNS", err)
+			}
+		}
+		format := cmdutil.OutputFormat(cmd)
+		return output.Print(cmd.OutOrStdout(), format, resp, func(w io.Writer) {
+			tw := output.NewTabWriter(w)
+			output.PrintRow(tw, "ID", "REVERSE_DNS")
+			output.PrintRow(tw, id, resp.ReverseDns)
+			tw.Flush()
+		})
+	},
+}
+
 func init() {
+	ipv6ReverseDNSCmd.Flags().String("hostname", "", "Set PTR record to this FQDN (omit to read current value)")
+
 	ipv6Cmd.AddCommand(ipv6ListCmd)
 	ipv6Cmd.AddCommand(ipv6CreateCmd)
 	ipv6Cmd.AddCommand(ipv6DeleteCmd)
 	ipv6Cmd.AddCommand(ipv6DetachCmd)
+	ipv6Cmd.AddCommand(ipv6ReverseDNSCmd)
 }

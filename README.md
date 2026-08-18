@@ -126,6 +126,22 @@ phctl k8s cluster kubeconfig my-cluster
 phctl domain create example.ro --years 1
 phctl domain check example.ro
 
+# Server operations
+phctl compute server usage 42
+phctl compute server activity 42
+phctl compute server boot-isos 42            # per-server: compatibility depends on its disk/RAM
+phctl compute server rescue enter 42          # default rescue image; --iso <slug> for another
+phctl compute server rescue exit 42
+phctl compute server retry-provision 42
+
+# A server's public interface (addresses are platform-assigned; firewall is not)
+phctl compute server public-interface get 42
+phctl compute server public-interface set 42 --firewall web --policy-in DROP
+phctl compute server public-interface delete 42
+
+# Reverse DNS on a standalone IP
+phctl compute ipv6 reverse-dns 9 --hostname host.example.com
+
 # Object storage
 phctl storage bucket list
 phctl storage bucket create --name assets --quota 50
