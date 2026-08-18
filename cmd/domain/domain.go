@@ -280,7 +280,7 @@ var domainGlueDeleteCmd = &cobra.Command{
 			return fmt.Errorf("--name is required")
 		}
 		if err := client.RawDelete(cmd.Context(), fmt.Sprintf("/api/domain/domain/%s/dns/%s/", args[0], glueName)); err != nil {
-			return fmt.Errorf("deleting glue record: %w", err)
+			return cmdutil.APIError("deleting glue record", err)
 		}
 		cmd.Printf("Glue record %s.%s deleted.\n", glueName, args[0])
 		return nil

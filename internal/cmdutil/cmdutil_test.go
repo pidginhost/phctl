@@ -112,6 +112,33 @@ func TestForceReadsPersistentFlagWithoutExecute(t *testing.T) {
 	}
 }
 
+func TestForceHandlesExplicitFalseAndShorthand(t *testing.T) {
+	tests := []struct {
+		name         string
+		defaultValue bool
+		arg          string
+		want         bool
+	}{
+		{name: "explicit false", defaultValue: true, arg: "--force=false", want: false},
+		{name: "shorthand", arg: "-f", want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := &cobra.Command{Use: "test"}
+			root.PersistentFlags().BoolP("force", "f", tt.defaultValue, "Skip confirmation")
+			child := &cobra.Command{Use: "sub", RunE: func(cmd *cobra.Command, args []string) error { return nil }}
+			root.AddCommand(child)
+			root.SetArgs([]string{"sub", tt.arg})
+			if err := root.Execute(); err != nil {
+				t.Fatalf("execute: %v", err)
+			}
+			if got := Force(child); got != tt.want {
+				t.Errorf("Force() = %t, want %t", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestForceOnCommandWithoutForceFlag(t *testing.T) {
 	child := &cobra.Command{Use: "sub"}
 	if Force(child) {
