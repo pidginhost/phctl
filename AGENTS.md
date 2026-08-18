@@ -76,7 +76,12 @@ reach for `APIError`.
   merged the root's persistent flags, which is how every `RunE`-level test runs.
 - Check the operation actually happened. Several endpoints answer `200` with
   `{"attached": false}` or `{"upgrading": false}`; reporting success there tells
-  an operator something is true when it is not. Return an error instead.
+  an operator something is true when it is not. Return an error instead. Where
+  the response echoes the resource, read the change back out of it: a route that
+  answers `200` having applied nothing looks identical to one that worked.
+- Guard the response pointer. The SDK decodes an empty or `null` body to a nil
+  model and returns no error, so `resp.Id` in the success message panics. Every
+  command that reads a field off a response checks for nil first.
 - Destructive, billable or restarting operations confirm first:
   `if !cmdutil.Force(cmd) && !confirm.Action(...) { return nil }`.
 - Paginated list endpoints go through `cmdutil.FetchAll`.
