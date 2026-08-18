@@ -202,20 +202,6 @@ var bucketResizeCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		current, _, err := c.CloudAPI.CloudBucketsRetrieve(cmd.Context(), id).Execute()
-		if err != nil {
-			return cmdutil.APIError("checking current bucket quota", err)
-		}
-		if current == nil {
-			return fmt.Errorf("checking current bucket quota: server returned no bucket")
-		}
-		if current.Id != id {
-			return fmt.Errorf("checking current bucket quota: asked for bucket %d, server returned bucket %d",
-				id, current.Id)
-		}
-		if current.QuotaGb == bucketResizeQuota {
-			return fmt.Errorf("resizing bucket %d: quota is already %d GB", id, bucketResizeQuota)
-		}
 		body := *pidginhost.NewBucketResize(bucketResizeQuota)
 		b, _, err := c.CloudAPI.CloudBucketsResizeCreate(cmd.Context(), id).BucketResize(body).Execute()
 		if err != nil {
@@ -227,7 +213,9 @@ var bucketResizeCmd = &cobra.Command{
 		if b.Id != id {
 			return fmt.Errorf("resizing bucket %d: server returned bucket %d", id, b.Id)
 		}
-		// A 200 still carrying the old quota means nothing changed.
+		// A 200 still carrying a different quota means nothing changed. Asking
+		// for the quota it already has is a no-op, not an error: scripts
+		// converge on a desired state and should not have to check first.
 		if b.QuotaGb != bucketResizeQuota {
 			return fmt.Errorf("resizing bucket %d: asked for %d GB, bucket still reports %d GB",
 				id, bucketResizeQuota, b.QuotaGb)
@@ -264,20 +252,6 @@ var bucketVisibilityCmd = &cobra.Command{
 		c, err := client.New()
 		if err != nil {
 			return err
-		}
-		current, _, err := c.CloudAPI.CloudBucketsRetrieve(cmd.Context(), id).Execute()
-		if err != nil {
-			return cmdutil.APIError("checking current bucket visibility", err)
-		}
-		if current == nil {
-			return fmt.Errorf("checking current bucket visibility: server returned no bucket")
-		}
-		if current.Id != id {
-			return fmt.Errorf("checking current bucket visibility: asked for bucket %d, server returned bucket %d",
-				id, current.Id)
-		}
-		if current.PublicRead == public {
-			return fmt.Errorf("changing bucket %d visibility: bucket is already public_read=%t", id, public)
 		}
 		body := *pidginhost.NewBucketVisibility(public)
 		b, _, err := c.CloudAPI.CloudBucketsVisibilityCreate(cmd.Context(), id).BucketVisibility(body).Execute()

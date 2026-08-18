@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	pidginhost "github.com/pidginhost/sdk-go"
@@ -55,13 +56,14 @@ func APIErrorRedacted(op string, err error) error {
 	return fmt.Errorf("%s: %w", op, err)
 }
 
+// redactedAPIStatus keeps the HTTP status off the front of an SDK error message
+// and discards the rest. For a non-2xx that message is the status line ("404 Not
+// Found"); for a 2xx the model could not decode it is the json error, which can
+// quote the input, so nothing but a status is ever safe to repeat here.
 func redactedAPIStatus(message string) string {
-	fields := strings.Fields(message)
-	if len(fields) > 0 && len(fields[0]) == 3 &&
-		fields[0][0] >= '1' && fields[0][0] <= '5' &&
-		fields[0][1] >= '0' && fields[0][1] <= '9' &&
-		fields[0][2] >= '0' && fields[0][2] <= '9' {
-		return "HTTP " + fields[0]
+	code, _, _ := strings.Cut(strings.TrimSpace(message), " ")
+	if n, err := strconv.Atoi(code); err == nil && n >= 100 && n <= 599 {
+		return "HTTP " + code
 	}
 	return "credential endpoint response failed"
 }

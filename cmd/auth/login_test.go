@@ -6,12 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/pidginhost/phctl/internal/testutil/httptest"
 	"github.com/spf13/cobra"
 )
 

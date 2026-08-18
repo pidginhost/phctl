@@ -301,12 +301,7 @@ func TestBucketResizeSendsQuota(t *testing.T) {
 	t.Cleanup(func() { bucketResizeQuota = 0 })
 
 	resized := strings.Replace(bucketJSON, `"quota_gb":50`, `"quota_gb":100`, 1)
-	st, _, _, err := run(t, bucketResizeCmd, []string{"7"}, func(st *stub) (int, string) {
-		if st.method == http.MethodGet {
-			return http.StatusOK, bucketJSON
-		}
-		return http.StatusOK, resized
-	}, "table", "", true)
+	st, _, _, err := run(t, bucketResizeCmd, []string{"7"}, ok(resized), "table", "", true)
 	if err != nil {
 		t.Fatalf("RunE: %v", err)
 	}
@@ -316,8 +311,11 @@ func TestBucketResizeSendsQuota(t *testing.T) {
 	if st.body["quota_gb"] != float64(100) {
 		t.Errorf("quota_gb = %v", st.body["quota_gb"])
 	}
-	if st.calls != 2 {
-		t.Errorf("calls = %d, want current-state check plus resize", st.calls)
+	// One round trip. Reading the bucket first to see whether the resize is
+	// needed costs a call on every invocation and buys nothing the response
+	// check below does not already give.
+	if st.calls != 1 {
+		t.Errorf("calls = %d, want just the resize", st.calls)
 	}
 }
 
@@ -336,16 +334,19 @@ func TestBucketResizeFailsWhenQuotaDidNotChange(t *testing.T) {
 	}
 }
 
-func TestBucketResizeRejectsQuotaItAlreadyHas(t *testing.T) {
+// Asking for the quota a bucket already has is a no-op, not a failure. A script
+// that converges on a desired state should not have to read the bucket first to
+// find out whether calling resize is allowed.
+func TestBucketResizeToCurrentQuotaSucceeds(t *testing.T) {
 	bucketResizeQuota = 50
 	t.Cleanup(func() { bucketResizeQuota = 0 })
 
-	st, _, _, err := run(t, bucketResizeCmd, []string{"7"}, ok(bucketJSON), "table", "", true)
-	if err == nil {
-		t.Fatal("expected an error when the requested quota is already current")
+	_, out, _, err := run(t, bucketResizeCmd, []string{"7"}, ok(bucketJSON), "table", "", true)
+	if err != nil {
+		t.Fatalf("resizing to the current quota should succeed: %v", err)
 	}
-	if st.calls != 1 || st.method != http.MethodGet {
-		t.Errorf("no-op resize made mutation calls: calls=%d last_method=%s", st.calls, st.method)
+	if !strings.Contains(out, "50") {
+		t.Errorf("output should report the quota: %q", out)
 	}
 }
 
@@ -356,12 +357,7 @@ func TestBucketVisibilityPublicSendsTrue(t *testing.T) {
 	t.Cleanup(func() { bucketVisibilityPublic = false })
 
 	pub := strings.Replace(bucketJSON, `"public_read":false`, `"public_read":true`, 1)
-	st, _, _, err := run(t, bucketVisibilityCmd, []string{"7"}, func(st *stub) (int, string) {
-		if st.method == http.MethodGet {
-			return http.StatusOK, bucketJSON
-		}
-		return http.StatusOK, pub
-	}, "table", "", true)
+	st, _, _, err := run(t, bucketVisibilityCmd, []string{"7"}, ok(pub), "table", "", true)
 	if err != nil {
 		t.Fatalf("RunE: %v", err)
 	}
@@ -371,8 +367,8 @@ func TestBucketVisibilityPublicSendsTrue(t *testing.T) {
 	if st.body["public_read"] != true {
 		t.Errorf("public_read = %v", st.body["public_read"])
 	}
-	if st.calls != 2 {
-		t.Errorf("calls = %d, want current-state check plus visibility change", st.calls)
+	if st.calls != 1 {
+		t.Errorf("calls = %d, want just the visibility change", st.calls)
 	}
 }
 
@@ -393,17 +389,12 @@ func TestBucketVisibilityGoingPrivateDoesNotConfirm(t *testing.T) {
 	bucketVisibilityPrivate = true
 	t.Cleanup(func() { bucketVisibilityPrivate = false })
 
-	pub := strings.Replace(bucketJSON, `"public_read":false`, `"public_read":true`, 1)
-	st, _, _, err := run(t, bucketVisibilityCmd, []string{"7"}, func(st *stub) (int, string) {
-		if st.method == http.MethodGet {
-			return http.StatusOK, pub
-		}
-		return http.StatusOK, bucketJSON
-	}, "table", "n\n", false)
+	// stdin says "n": if this asked, the change would not be sent.
+	st, _, _, err := run(t, bucketVisibilityCmd, []string{"7"}, ok(bucketJSON), "table", "n\n", false)
 	if err != nil {
 		t.Fatalf("going private should not ask for confirmation: %v", err)
 	}
-	if st.calls != 2 || st.method != http.MethodPost || st.body["public_read"] != false {
+	if st.calls != 1 || st.method != http.MethodPost || st.body["public_read"] != false {
 		t.Errorf("private change was not sent: calls=%d method=%s body=%v", st.calls, st.method, st.body)
 	}
 }
@@ -418,17 +409,19 @@ func TestBucketVisibilityFailsWhenFlagDidNotChange(t *testing.T) {
 	}
 }
 
-func TestBucketVisibilityRejectsStateItAlreadyHas(t *testing.T) {
+// Setting the visibility a bucket already has is a no-op, not a failure --
+// same reasoning as resizing to the current quota.
+func TestBucketVisibilityToCurrentStateSucceeds(t *testing.T) {
 	bucketVisibilityPublic = true
 	t.Cleanup(func() { bucketVisibilityPublic = false })
 
 	pub := strings.Replace(bucketJSON, `"public_read":false`, `"public_read":true`, 1)
-	st, _, _, err := run(t, bucketVisibilityCmd, []string{"7"}, ok(pub), "table", "", true)
-	if err == nil {
-		t.Fatal("expected an error when the requested visibility is already current")
+	_, out, _, err := run(t, bucketVisibilityCmd, []string{"7"}, ok(pub), "table", "", true)
+	if err != nil {
+		t.Fatalf("setting the current visibility should succeed: %v", err)
 	}
-	if st.calls != 1 || st.method != http.MethodGet {
-		t.Errorf("no-op visibility change made mutation calls: calls=%d last_method=%s", st.calls, st.method)
+	if !strings.Contains(out, "public-read") {
+		t.Errorf("output should report the state: %q", out)
 	}
 }
 

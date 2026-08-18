@@ -5,13 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"sync/atomic"
 	"testing"
 
 	"github.com/pidginhost/phctl/internal/cmdutil"
-	"github.com/pidginhost/phctl/internal/testutil/httptest"
 )
 
 func TestNewNoToken(t *testing.T) {
