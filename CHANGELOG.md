@@ -9,7 +9,7 @@
 
 ### Fixed
 
-- **API errors now keep the response body across every command.** 84 call sites in `account`, `billing`, `dedicated`, `domain`, `freedns`, `hosting`, `kubernetes` and `support` wrapped the SDK error with `fmt.Errorf`, which discards the body — the only part that says what was actually wrong. A rejected ticket used to report `creating ticket: 400 Bad Request`; it now reports `creating ticket: 400 Bad Request: department=This field is required.` `compute` had already been converted; the rest had not.
+- **API errors now keep the response body across every command.** 85 call sites in `account`, `billing`, `dedicated`, `domain`, `freedns`, `hosting`, `kubernetes` and `support` wrapped the SDK error with `fmt.Errorf`, which discards the body — the only part that says what was actually wrong. A rejected ticket used to report `creating ticket: 400 Bad Request`; it now reports `creating ticket: 400 Bad Request: department=This field is required.` `compute` had already been converted; the rest had not. A contract test in `cmd/apierror_contract_test.go` keeps it that way.
 - **`-f/--force` is now resolved the same way `-o/--output` is.** It was read through `Flags().GetBool`, which only sees a root's persistent flags after Cobra merges them during `Execute`, so it returned `false` for any command driven directly through `RunE`.
 
 ## v0.16.0
