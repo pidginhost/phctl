@@ -99,6 +99,9 @@ var httpRouteCreateCmd = &cobra.Command{
 		if err != nil {
 			return cmdutil.APIError("creating HTTP route", err)
 		}
+		if resp == nil {
+			return fmt.Errorf("creating HTTP route: server returned no route")
+		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"HTTP route created (ID: %d, Name: %s)\n", resp.Id, resp.Name)
 	},
@@ -213,6 +216,9 @@ var tcpRouteCreateCmd = &cobra.Command{
 		if err != nil {
 			return cmdutil.APIError("creating TCP route", err)
 		}
+		if resp == nil {
+			return fmt.Errorf("creating TCP route: server returned no route")
+		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"TCP route created (ID: %d, Name: %s)\n", resp.Id, resp.Name)
 	},
@@ -326,6 +332,9 @@ var udpRouteCreateCmd = &cobra.Command{
 		resp, _, err := c.KubernetesAPI.KubernetesClustersUdproutesCreate(cmd.Context(), id).UDPRoute(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("creating UDP route", err)
+		}
+		if resp == nil {
+			return fmt.Errorf("creating UDP route: server returned no route")
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"UDP route created (ID: %d, Name: %s)\n", resp.Id, resp.Name)

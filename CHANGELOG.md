@@ -1,5 +1,37 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **`phctl kubernetes lb-firewall`**: `list`, `get`, `create`, `update`, `delete` for the firewall in front of a cluster's load balancer. `update` is a PATCH that sends only the flags you actually pass, so it cannot blank a field you did not mention, and it refuses an empty change rather than making a round trip the API would answer `200` to. `--direction` and `--action` are validated against the schema's enums before the request, because a typo would otherwise reach a live load balancer as a rejected write.
+- **`phctl kubernetes cluster update`**: rename a cluster, set delete protection, or replace its feature set. Changing features confirms first — features the new set omits are uninstalled and their workloads restart. Every setting is read back out of the response: the route answers `200` regardless of whether it applied anything, so a rename or a protection change that did not take now fails instead of reporting success.
+
+  Removing *every* feature is rejected up front rather than attempted. `PatchedClusterDetail.features` is generated with `omitempty`, so an empty list is dropped from the request body and the server would keep the current features while answering `200`.
+- **`phctl kubernetes cluster upgrade-feature`**: upgrade a cluster feature (cert-manager and friends) to the latest version compatible with the cluster's Kubernetes release, with `--retry` for a failed install. It confirms first because the feature's workloads restart, and it checks the reported status rather than the HTTP code — the route answers `200` with a non-`OK` status when it declines the work.
+- **`phctl kubernetes cluster toggle-vm-access`** and **`cluster eligible-vms`**: turn cloud VM access to the cluster's private network on or off, and list the VMs that could then be connected. The toggle flips the current setting rather than setting it, so it confirms first and reports the state the cluster ended up in; running it twice returns to where you started.
+- **`phctl kubernetes cluster kubeconfig --regenerate`**: issue a fresh kubeconfig. It confirms first, because every copy of the previous one stops working. The command also now rejects an empty response instead of writing out a zero-byte file that looks like a kubeconfig — including through `--merge`.
+- **`phctl kubernetes pool get`** and **`pool resize`**: pool details with its nodes, and a node-count change. `resize` confirms because growing a pool provisions billable VMs and shrinking one destroys them, and it requires `--size` — the API treats a body without `new_size` as a no-op and still answers `200`. The work is asynchronous, so the command reports the size the pool still has rather than claiming the new one.
+- **`phctl kubernetes node get`** and **`node rrd`**: a single node's details, and its recorded metric series.
+- **`phctl kubernetes {http,tcp,udp}-route get`** and **`update`**: route details and replacement. `get` decodes the response itself, as `list` already did — those routes carry no response schema (see *Known gaps*). `update` is a PUT and requires every field: the server rebuilds the route manifest from the request body, so a partial body has nothing to rebuild from and the PATCH variants are unusable.
+
+### Fixed
+
+- **`{http,tcp,udp}-route create` no longer panics on an empty response body.** A `201` with no body decodes to a nil route, which the success message then dereferenced.
+
+### Known gaps
+
+These are API schema problems, not phctl ones. Each needs a `phclient` change and a
+new `sdk-go` release before a command can be written against it.
+
+- **`kubernetes/clusters/{id}/port-forwards/` — all six operations are unusable.** The schema documents no request body and no response schema for `GET`, `POST`, `PUT`, `PATCH` and `DELETE`, so `sdk-go` generates `POST` and `PUT` methods that take no body at all and there is no `K8sPortForward` model to decode into.
+
+  Cause: `K8sPortForwardViewSet.get_serializer` injects `self.cluster`, which reads `self.kwargs["cluster_id"]`. drf-spectacular introspects with a view that has no URL kwargs, so the lookup raises and it emits no schema. The three Gateway route viewsets override `get_serializer` the same way and lose their `GET` schemas for the same reason; they keep working schemas on the write methods only because those carry an explicit `@extend_schema`. Those four viewsets are the only ones in the API that override `get_serializer`, and they are exactly the ones affected.
+
+- **`.../nodes/{id}/metrics/` cannot be decoded.** `NodeMetricsResponse` declares `mem`, `maxmem`, `netin` and `netout` as bare `serializers.IntegerField()`, which the schema emits as `type: integer` with no format and `sdk-go` generates as `int32`. A node with 2 GiB of RAM reports `2147483648`, one past `int32`, so the response fails to decode on essentially every real node. Either the serializer should declare int64, or the generator should map a formatless `integer` to `int64` — an unformatted OpenAPI `integer` is unbounded.
+
+- **`.../nodes/{id}/rrd/` accepts a `timeframe` query parameter that is not documented.** The view reads `?timeframe=hour|day|week|month|year`, but no `@extend_schema(parameters=...)` declares it, so the SDK cannot send one and `phctl kubernetes node rrd` only ever returns the server's default window.
+
 ## v0.17.0
 
 ### Added

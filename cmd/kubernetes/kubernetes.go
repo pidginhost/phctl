@@ -159,7 +159,10 @@ var clusterDeleteCmd = &cobra.Command{
 	},
 }
 
-var kubeconfigMerge bool
+var (
+	kubeconfigMerge      bool
+	kubeconfigRegenerate bool
+)
 
 var clusterKubeconfigCmd = &cobra.Command{
 	Use:   "kubeconfig <id>",
@@ -171,16 +174,37 @@ By default, prints the raw kubeconfig YAML to stdout so you can redirect it:
 
 With --merge, the kubeconfig is merged into your existing kubeconfig file
 (~/.kube/config or $KUBECONFIG) and the new context is set as current:
-  phctl k8s cluster kubeconfig 42 --merge`,
+  phctl k8s cluster kubeconfig 42 --merge
+
+With --regenerate, the cluster issues a fresh kubeconfig and the previous one
+stops working, wherever it was copied to.`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if kubeconfigRegenerate && !cmdutil.Force(cmd) &&
+			!confirm.Action(cmd.InOrStdin(), cmd.ErrOrStderr(),
+				fmt.Sprintf("Regenerate the kubeconfig for cluster %s? Every copy of the current one stops working.", args[0])) {
+			return nil
+		}
 		c, err := newClient()
 		if err != nil {
 			return err
 		}
-		resp, _, err := c.KubernetesAPI.KubernetesClustersKubeconfigRetrieve(cmd.Context(), args[0]).Execute()
-		if err != nil {
-			return cmdutil.APIError("getting kubeconfig", err)
+		var resp string
+		if kubeconfigRegenerate {
+			resp, _, err = c.KubernetesAPI.KubernetesClustersKubeconfigCreate(cmd.Context(), args[0]).Execute()
+			if err != nil {
+				return cmdutil.APIError("regenerating kubeconfig", err)
+			}
+		} else {
+			resp, _, err = c.KubernetesAPI.KubernetesClustersKubeconfigRetrieve(cmd.Context(), args[0]).Execute()
+			if err != nil {
+				return cmdutil.APIError("getting kubeconfig", err)
+			}
+		}
+		// The route answers 200 with a plain-text body; an empty one would be
+		// written out as a valid-looking but unusable kubeconfig.
+		if resp == "" {
+			return fmt.Errorf("kubeconfig for cluster %s: server returned an empty kubeconfig", args[0])
 		}
 
 		if kubeconfigMerge {
@@ -575,6 +599,7 @@ func init() {
 	clusterCreateCmd.MarkFlagRequired("package")
 
 	clusterKubeconfigCmd.Flags().BoolVar(&kubeconfigMerge, "merge", false, "Merge into existing kubeconfig (~/.kube/config or $KUBECONFIG)")
+	clusterKubeconfigCmd.Flags().BoolVar(&kubeconfigRegenerate, "regenerate", false, "Issue a new kubeconfig, invalidating the current one")
 
 	clusterUpgradeKubeCmd.Flags().BoolVar(&upgradeKubeWait, "wait", false, "Wait for the upgrade to complete")
 	clusterUpgradeKubeCmd.Flags().DurationVar(&upgradeKubeTimeout, "wait-timeout", defaultWaitTimeout, "Timeout for --wait")

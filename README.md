@@ -77,7 +77,7 @@ narration stay human-readable; progress goes to stderr, so stdout under
 | `phctl account` | | Profile, SSH keys, companies, API tokens, email history |
 | `phctl compute` | `c` | Servers, volumes, firewalls, IPs, networks, snapshots |
 | `phctl domain` | `dns` | Domains, TLDs, registrants, nameservers, transfers |
-| `phctl kubernetes` | `k8s` | Clusters, pools, nodes, HTTP/TCP/UDP routes |
+| `phctl kubernetes` | `k8s` | Clusters, pools, nodes, LB firewall, HTTP/TCP/UDP routes |
 | `phctl storage` | | S3 buckets: quota, visibility, credentials |
 | `phctl billing` | `bill` | Funds, deposits, invoices, services, subscriptions |
 | `phctl dedicated` | `ded` | Dedicated servers |
@@ -121,6 +121,34 @@ phctl compute server create --image ubuntu-22 --package starter -o json | jq .id
 # Manage Kubernetes clusters
 phctl k8s cluster list
 phctl k8s cluster kubeconfig my-cluster
+phctl k8s cluster kubeconfig 42 --regenerate   # invalidates every existing copy
+
+# Cluster settings: rename, delete protection, feature set
+phctl k8s cluster update 42 --name prod
+phctl k8s cluster update 42 --protected
+phctl k8s cluster update 42 --features cert-manager,metrics-server   # replaces the set
+
+# Cluster features and cloud VM access
+phctl k8s cluster upgrade-feature 42 --feature cert-manager
+phctl k8s cluster toggle-vm-access 42          # flips the setting; run twice to undo
+phctl k8s cluster eligible-vms 42              # empty while VM access is off
+
+# Resource pools and their nodes
+phctl k8s pool get 42 3
+phctl k8s pool resize 42 3 --size 4            # provisions or destroys billable VMs
+phctl k8s node get 42 3 11
+phctl k8s node rrd 42 3 11
+
+# Load balancer firewall
+phctl k8s lb-firewall list 42
+phctl k8s lb-firewall create 42 --direction in --action ACCEPT --protocol tcp --dport 443
+phctl k8s lb-firewall update 42 5 --dport 8443 # sends only the flags you pass
+phctl k8s lb-firewall delete 42 5
+
+# Gateway routes
+phctl k8s http-route get 42 4
+phctl k8s http-route update 42 4 --name web --hostname example.com \
+  --backend web-svc --port 8080                # replaces the route, so pass every field
 
 # Domain management
 phctl domain create example.ro --years 1
