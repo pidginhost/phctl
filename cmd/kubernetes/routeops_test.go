@@ -331,3 +331,40 @@ func TestRouteCreateRejectsEmptyBodyWithoutPanicking(t *testing.T) {
 		})
 	}
 }
+
+// create and update must be able to express the same route. update gained
+// --backend-namespace; without it on create, a backend outside the "default"
+// namespace can only be reached by creating the route and then replacing it.
+func TestRouteCreateCanSetBackendNamespace(t *testing.T) {
+	cases := map[string]struct {
+		cmd   *cobra.Command
+		flags map[string]string
+		body  string
+	}{
+		"http": {httpRouteCreateCmd, map[string]string{
+			"name": "web", "backend": "web-svc", "port": "8080",
+			"hostname": "example.com", "backend-namespace": "services",
+		}, httpRouteJSON},
+		"tcp": {tcpRouteCreateCmd, map[string]string{
+			"name": "pg", "port": "5432", "backend": "pg-svc",
+			"backend-port": "5432", "backend-namespace": "database",
+		}, tcpRouteJSON},
+		"udp": {udpRouteCreateCmd, map[string]string{
+			"name": "dns", "port": "5353", "backend": "dns-svc",
+			"backend-port": "53", "backend-namespace": "infra",
+		}, udpRouteJSON},
+	}
+	for kind, tc := range cases {
+		t.Run(kind, func(t *testing.T) {
+			want := tc.flags["backend-namespace"]
+			setFlags(t, tc.cmd, tc.flags)
+			rec, _, _, err := runCmd(t, tc.cmd, []string{"42"}, reply(http.StatusCreated, tc.body), "table", "", true)
+			if err != nil {
+				t.Fatalf("RunE: %v", err)
+			}
+			if got := rec.last().body["backend_namespace"]; got != want {
+				t.Errorf("body[backend_namespace] = %v, want %q", got, want)
+			}
+		})
+	}
+}

@@ -149,6 +149,8 @@ phctl k8s lb-firewall delete 42 5
 phctl k8s http-route get 42 4
 phctl k8s http-route update 42 4 --name web --hostname example.com \
   --backend web-svc --port 8080                # replaces the route, so pass every field
+phctl k8s tcp-route create 42 --name pg --port 5432 \
+  --backend pg-svc --backend-port 5432 --backend-namespace database
 
 # Domain management
 phctl domain create example.ro --years 1

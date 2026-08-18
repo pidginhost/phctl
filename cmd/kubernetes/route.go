@@ -63,6 +63,7 @@ var (
 	httpRouteBackend   string
 	httpRoutePort      int32
 	httpRouteNamespace string
+	httpRouteBackendNS string
 	httpRoutePrefix    string
 	httpRouteTLS       bool
 )
@@ -89,6 +90,9 @@ var httpRouteCreateCmd = &cobra.Command{
 		)
 		if httpRouteNamespace != "" {
 			body.Namespace = pidginhost.PtrString(httpRouteNamespace)
+		}
+		if httpRouteBackendNS != "" {
+			body.BackendNamespace = pidginhost.PtrString(httpRouteBackendNS)
 		}
 		if httpRoutePrefix != "" {
 			body.PathPrefix = pidginhost.PtrString(httpRoutePrefix)
@@ -186,6 +190,7 @@ var (
 	tcpRouteBackend   string
 	tcpRouteBackPort  int32
 	tcpRouteNamespace string
+	tcpRouteBackendNS string
 )
 
 var tcpRouteCreateCmd = &cobra.Command{
@@ -210,6 +215,9 @@ var tcpRouteCreateCmd = &cobra.Command{
 		)
 		if tcpRouteNamespace != "" {
 			body.Namespace = pidginhost.PtrString(tcpRouteNamespace)
+		}
+		if tcpRouteBackendNS != "" {
+			body.BackendNamespace = pidginhost.PtrString(tcpRouteBackendNS)
 		}
 
 		resp, _, err := c.KubernetesAPI.KubernetesClustersTcproutesCreate(cmd.Context(), id).TCPRoute(body).Execute()
@@ -303,6 +311,7 @@ var (
 	udpRouteBackend   string
 	udpRouteBackPort  int32
 	udpRouteNamespace string
+	udpRouteBackendNS string
 )
 
 var udpRouteCreateCmd = &cobra.Command{
@@ -327,6 +336,9 @@ var udpRouteCreateCmd = &cobra.Command{
 		)
 		if udpRouteNamespace != "" {
 			body.Namespace = pidginhost.PtrString(udpRouteNamespace)
+		}
+		if udpRouteBackendNS != "" {
+			body.BackendNamespace = pidginhost.PtrString(udpRouteBackendNS)
 		}
 
 		resp, _, err := c.KubernetesAPI.KubernetesClustersUdproutesCreate(cmd.Context(), id).UDPRoute(body).Execute()
@@ -376,6 +388,7 @@ func init() {
 	httpRouteCreateCmd.Flags().StringVar(&httpRouteBackend, "backend", "", "Backend service name (required)")
 	httpRouteCreateCmd.Flags().Int32Var(&httpRoutePort, "port", 0, "Backend service port (required)")
 	httpRouteCreateCmd.Flags().StringVar(&httpRouteNamespace, "namespace", "", "Namespace")
+	httpRouteCreateCmd.Flags().StringVar(&httpRouteBackendNS, "backend-namespace", "", "Backend service namespace (default: default)")
 	httpRouteCreateCmd.Flags().StringVar(&httpRoutePrefix, "path-prefix", "", "Path prefix (default: /)")
 	httpRouteCreateCmd.Flags().BoolVar(&httpRouteTLS, "tls", false, "Enable TLS with auto cert issuance")
 	httpRouteCreateCmd.MarkFlagRequired("name")
@@ -388,6 +401,7 @@ func init() {
 	tcpRouteCreateCmd.Flags().StringVar(&tcpRouteBackend, "backend", "", "Backend service name (required)")
 	tcpRouteCreateCmd.Flags().Int32Var(&tcpRouteBackPort, "backend-port", 0, "Backend service port (required)")
 	tcpRouteCreateCmd.Flags().StringVar(&tcpRouteNamespace, "namespace", "", "Namespace")
+	tcpRouteCreateCmd.Flags().StringVar(&tcpRouteBackendNS, "backend-namespace", "", "Backend service namespace (default: default)")
 	tcpRouteCreateCmd.MarkFlagRequired("name")
 	tcpRouteCreateCmd.MarkFlagRequired("port")
 	tcpRouteCreateCmd.MarkFlagRequired("backend")
@@ -398,6 +412,7 @@ func init() {
 	udpRouteCreateCmd.Flags().StringVar(&udpRouteBackend, "backend", "", "Backend service name (required)")
 	udpRouteCreateCmd.Flags().Int32Var(&udpRouteBackPort, "backend-port", 0, "Backend service port (required)")
 	udpRouteCreateCmd.Flags().StringVar(&udpRouteNamespace, "namespace", "", "Namespace")
+	udpRouteCreateCmd.Flags().StringVar(&udpRouteBackendNS, "backend-namespace", "", "Backend service namespace (default: default)")
 	udpRouteCreateCmd.MarkFlagRequired("name")
 	udpRouteCreateCmd.MarkFlagRequired("port")
 	udpRouteCreateCmd.MarkFlagRequired("backend")

@@ -33,7 +33,15 @@ func TestClusterKubeconfigHonorsJSONOutput(t *testing.T) {
 
 	root := &cobra.Command{Use: "test"}
 	root.PersistentFlags().String("output", "table", "")
+	// Cmd is a package-level command: adding it here moves its parent, and a
+	// later test executing it would run this root instead of its own.
+	originalParent := Cmd.Parent()
 	root.AddCommand(Cmd)
+	t.Cleanup(func() {
+		if originalParent != nil {
+			originalParent.AddCommand(Cmd)
+		}
+	})
 	if err := root.PersistentFlags().Set("output", "json"); err != nil {
 		t.Fatalf("setting output flag: %v", err)
 	}

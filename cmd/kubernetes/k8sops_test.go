@@ -372,6 +372,13 @@ func TestLBFirewallCreateRejectsEmptyBodyWithoutPanicking(t *testing.T) {
 	}
 }
 
+// The RunE-level tests above cannot prove that Cobra's own flag parsing feeds
+// lbRuleFlags.isSet, nor that create and update keep their state apart. Drive
+// both through a real command tree.
+//
+// The tree is built here rather than reusing the package-level Cmd: another
+// test in this package reparents Cmd, and executing a command whose parent has
+// moved runs the wrong root.
 func TestLBFirewallFlagsWorkThroughCobraAndStayIsolated(t *testing.T) {
 	rec := &recorder{}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -397,29 +404,27 @@ func TestLBFirewallFlagsWorkThroughCobraAndStayIsolated(t *testing.T) {
 	}
 	t.Cleanup(func() { newClient = oldNewClient })
 
-	oldSilenceUsage, oldSilenceErrors := Cmd.SilenceUsage, Cmd.SilenceErrors
-	Cmd.SetOut(io.Discard)
-	Cmd.SetErr(io.Discard)
-	Cmd.SilenceUsage = true
-	Cmd.SilenceErrors = true
+	originalParent := lbFirewallCmd.Parent()
+	root := &cobra.Command{Use: "phctl", SilenceUsage: true, SilenceErrors: true}
+	root.PersistentFlags().StringP("output", "o", "table", "Output format")
+	root.PersistentFlags().BoolP("force", "f", true, "Skip confirmation prompts")
+	root.SetOut(io.Discard)
+	root.SetErr(io.Discard)
+	root.AddCommand(lbFirewallCmd)
 	t.Cleanup(func() {
-		Cmd.SetArgs(nil)
-		Cmd.SetIn(nil)
-		Cmd.SetOut(nil)
-		Cmd.SetErr(nil)
-		Cmd.SilenceUsage = oldSilenceUsage
-		Cmd.SilenceErrors = oldSilenceErrors
+		if originalParent != nil {
+			originalParent.AddCommand(lbFirewallCmd)
+		}
 		resetFlag(lbFirewallCreateCmd, "source")
 		resetFlag(lbFirewallUpdateCmd, "dport")
 	})
 
-	Cmd.SetArgs([]string{"lb-firewall", "create", "42", "--source", "10.0.0.0/8"})
-	if _, err := Cmd.ExecuteC(); err != nil {
+	root.SetArgs([]string{"lb-firewall", "create", "42", "--source", "10.0.0.0/8"})
+	if err := root.Execute(); err != nil {
 		t.Fatalf("create through Cobra: %v", err)
 	}
-	Cmd.SetIn(strings.NewReader("y\n"))
-	Cmd.SetArgs([]string{"lb-firewall", "update", "42", "5", "--dport", "8443"})
-	if _, err := Cmd.ExecuteC(); err != nil {
+	root.SetArgs([]string{"lb-firewall", "update", "42", "5", "--dport", "8443"})
+	if err := root.Execute(); err != nil {
 		t.Fatalf("update through Cobra: %v", err)
 	}
 
