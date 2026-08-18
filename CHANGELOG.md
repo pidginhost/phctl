@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **`compute server detach-ipv6`**: `attach-ipv6` has existed for a while and `detach-ipv4` was already there, but an IPv6 could only be attached, never removed, from the CLI.
+- **`compute server resize --package <id|slug>`**: change a server's package. Downgrades are only accepted between packages with the same disk size, and the server restarts, so it confirms first unless `-f` is passed.
+
+### Fixed
+
+- **API errors now keep the response body across every command.** 84 call sites in `account`, `billing`, `dedicated`, `domain`, `freedns`, `hosting`, `kubernetes` and `support` wrapped the SDK error with `fmt.Errorf`, which discards the body — the only part that says what was actually wrong. A rejected ticket used to report `creating ticket: 400 Bad Request`; it now reports `creating ticket: 400 Bad Request: department=This field is required.` `compute` had already been converted; the rest had not.
+- **`-f/--force` is now resolved the same way `-o/--output` is.** It was read through `Flags().GetBool`, which only sees a root's persistent flags after Cobra merges them during `Execute`, so it returned `false` for any command driven directly through `RunE`.
+
 ## v0.16.0
 
 ### Added

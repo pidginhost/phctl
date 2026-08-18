@@ -959,3 +959,191 @@ func snapshotServerCreateState(t *testing.T) func() {
 		serverCreateUserDataFile = state.userDataFile
 	}
 }
+
+// --- detach-ipv6 ---
+//
+// attach-ipv6 has existed for a while; detach-ipv6 did not, so an IPv6 could
+// be put on a server and never taken off from the CLI, even though detach-ipv4
+// was right there. These pin the counterpart to the same contract.
+
+func TestServerDetachIPv6IsRegistered(t *testing.T) {
+	var found *cobra.Command
+	for _, c := range serverCmd.Commands() {
+		if c.Name() == "detach-ipv6" {
+			found = c
+		}
+	}
+	if found == nil {
+		t.Fatal("server has no detach-ipv6 subcommand, but it has attach-ipv6")
+	}
+	if got := found.Use; got != "detach-ipv6 <server-id>" {
+		t.Errorf("Use = %q, want %q", got, "detach-ipv6 <server-id>")
+	}
+	if err := found.Args(found, []string{}); err == nil {
+		t.Error("detach-ipv6 accepted zero args; it needs a server id")
+	}
+}
+
+func TestServerDetachIPv6ReportsSuccess(t *testing.T) {
+	_, out, err := runAttach(t, serverDetachIPv6Cmd, nil, `{"detached":true}`, "table")
+	if err != nil {
+		t.Fatalf("RunE: %v", err)
+	}
+	if !strings.Contains(out, "detached") || !strings.Contains(out, "5") {
+		t.Errorf("output %q should confirm the IPv6 was detached from server 5", out)
+	}
+}
+
+// A 200 that says detached=false is the backend declining, not succeeding.
+// Reporting success there would tell an operator the address is free when it
+// is still bound to the server.
+func TestServerDetachIPv6RejectsUndetached(t *testing.T) {
+	_, _, err := runAttach(t, serverDetachIPv6Cmd, nil, `{"detached":false}`, "table")
+	if err == nil {
+		t.Fatal("expected an error when the backend reports detached=false")
+	}
+	if !strings.Contains(err.Error(), "not detached") {
+		t.Fatalf("error = %q, want it to say the IPv6 was not detached", err)
+	}
+}
+
+func TestServerDetachIPv6HonoursOutputFlag(t *testing.T) {
+	_, out, err := runAttach(t, serverDetachIPv6Cmd, nil, `{"detached":true}`, "json")
+	if err != nil {
+		t.Fatalf("RunE: %v", err)
+	}
+	var decoded struct {
+		Detached bool `json:"detached"`
+	}
+	if err := json.Unmarshal([]byte(out), &decoded); err != nil {
+		t.Fatalf("-o json output is not valid JSON (%v): %q", err, out)
+	}
+	if !decoded.Detached {
+		t.Fatalf("decoded = %#v, want detached true", decoded)
+	}
+}
+
+// --- resize ---
+//
+// Changing a server's package was reachable through the API and the web panel
+// but had no CLI surface at all.
+
+// runResize drives `server resize` against a stub API. It builds its own root
+// so the command sees both -o and --force, the latter because a resize is
+// billable and disruptive enough to confirm.
+func runResize(t *testing.T, pkg, respBody, format string, force bool) (map[string]interface{}, string, error) {
+	t.Helper()
+
+	var gotBody map[string]interface{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/cloud/servers/5/modify-package/" {
+			t.Errorf("path = %s, want /api/cloud/servers/5/modify-package/", r.URL.Path)
+		}
+		_ = json.NewDecoder(r.Body).Decode(&gotBody)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(respBody))
+	}))
+	t.Cleanup(server.Close)
+
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("PIDGINHOST_API_TOKEN", "test-token")
+	t.Setenv("PIDGINHOST_API_URL", server.URL)
+
+	root := &cobra.Command{Use: "phctl"}
+	root.PersistentFlags().StringP("output", "o", format, "Output format")
+	root.PersistentFlags().BoolP("force", "f", force, "Skip confirmation prompts")
+	child := &cobra.Command{Use: "child"}
+	child.Flags().String("package", "", "package")
+	root.AddCommand(child)
+	if pkg != "" {
+		if err := child.Flags().Set("package", pkg); err != nil {
+			t.Fatalf("set --package: %v", err)
+		}
+	}
+
+	var out bytes.Buffer
+	child.SetOut(&out)
+	child.SetErr(&bytes.Buffer{})
+	child.SetIn(strings.NewReader("\n"))
+
+	err := serverResizeCmd.RunE(child, []string{"5"})
+	return gotBody, out.String(), err
+}
+
+func TestServerResizeIsRegistered(t *testing.T) {
+	var found *cobra.Command
+	for _, c := range serverCmd.Commands() {
+		if c.Name() == "resize" {
+			found = c
+		}
+	}
+	if found == nil {
+		t.Fatal("server has no resize subcommand")
+	}
+	if got := found.Use; got != "resize <server-id>" {
+		t.Errorf("Use = %q, want %q", got, "resize <server-id>")
+	}
+	if found.Flags().Lookup("package") == nil {
+		t.Error("resize has no --package flag")
+	}
+}
+
+func TestServerResizeSendsPackage(t *testing.T) {
+	body, out, err := runResize(t, "cloudv-2", `{"upgrading":true}`, "table", true)
+	if err != nil {
+		t.Fatalf("RunE: %v", err)
+	}
+	if got, ok := body["package"].(string); !ok || got != "cloudv-2" {
+		t.Fatalf("package = %#v, want %q", body["package"], "cloudv-2")
+	}
+	if !strings.Contains(out, "cloudv-2") {
+		t.Errorf("output %q should name the new package", out)
+	}
+}
+
+func TestServerResizeRequiresPackage(t *testing.T) {
+	_, _, err := runResize(t, "", `{"upgrading":true}`, "table", true)
+	if err == nil {
+		t.Fatal("expected an error when --package is missing")
+	}
+}
+
+// upgrading=false is the backend declining the change. Saying "resizing" there
+// would leave an operator waiting for a resize that is never going to happen.
+func TestServerResizeRejectsNotUpgrading(t *testing.T) {
+	_, _, err := runResize(t, "cloudv-2", `{"upgrading":false}`, "table", true)
+	if err == nil {
+		t.Fatal("expected an error when the backend reports upgrading=false")
+	}
+	if !strings.Contains(err.Error(), "not") {
+		t.Fatalf("error = %q, want it to say the resize did not start", err)
+	}
+}
+
+func TestServerResizeHonoursOutputFlag(t *testing.T) {
+	_, out, err := runResize(t, "cloudv-2", `{"upgrading":true}`, "json", true)
+	if err != nil {
+		t.Fatalf("RunE: %v", err)
+	}
+	var decoded struct {
+		Upgrading bool `json:"upgrading"`
+	}
+	if err := json.Unmarshal([]byte(out), &decoded); err != nil {
+		t.Fatalf("-o json output is not valid JSON (%v): %q", err, out)
+	}
+	if !decoded.Upgrading {
+		t.Fatalf("decoded = %#v, want upgrading true", decoded)
+	}
+}
+
+// A resize changes what the account is billed for and restarts the machine, so
+// it must not happen because someone typed the wrong id and pressed enter.
+func TestServerResizeConfirmsWithoutForce(t *testing.T) {
+	body, _, err := runResize(t, "cloudv-2", `{"upgrading":true}`, "table", false)
+	if err != nil {
+		t.Fatalf("RunE: %v", err)
+	}
+	if body != nil {
+		t.Fatalf("resize called the API without confirmation: %#v", body)
+	}
+}

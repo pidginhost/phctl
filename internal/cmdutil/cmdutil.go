@@ -31,7 +31,20 @@ func OutputFormat(cmd *cobra.Command) output.Format {
 	return output.ParseFormat(flag.Value.String())
 }
 
+// Force resolves the global -f/--force flag.
+//
+// It looks the flag up with Flag rather than Flags().GetBool: a root's
+// persistent flags are only merged into its Flags() set by Execute, so
+// GetBool returned false for anything driven directly through RunE -- which is
+// how every RunE-level test runs. A confirmation guard would then look like it
+// had not been bypassed no matter what the test set.
 func Force(cmd *cobra.Command) bool {
-	f, _ := cmd.Root().Flags().GetBool("force")
-	return f
+	if cmd == nil {
+		return false
+	}
+	flag := cmd.Root().Flag("force")
+	if flag == nil {
+		return false
+	}
+	return flag.Value.String() == "true"
 }

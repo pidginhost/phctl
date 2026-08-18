@@ -406,6 +406,83 @@ var serverDetachIPv4Cmd = &cobra.Command{
 	},
 }
 
+var serverResizePackage string
+
+var serverResizeCmd = &cobra.Command{
+	Use:   "resize <server-id>",
+	Short: "Change a server's package",
+	Long: "Change a server's package. Downgrades are only accepted between packages " +
+		"with the same disk size, and the server restarts to pick up the new resources.",
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		id, err := cmdutil.ParseInt32(args[0])
+		if err != nil {
+			return err
+		}
+		pkg, err := cmd.Flags().GetString("package")
+		if err != nil {
+			return err
+		}
+		if pkg == "" {
+			return fmt.Errorf("--package is required")
+		}
+		// A resize changes what the account is billed for and restarts the
+		// machine, so it gets the same treatment as delete and rollback.
+		if !cmdutil.Force(cmd) && !confirm.Action(cmd.InOrStdin(), cmd.ErrOrStderr(),
+			fmt.Sprintf("Resize server %d to package '%s'? It will restart.", id, pkg)) {
+			return nil
+		}
+		c, err := client.New()
+		if err != nil {
+			return err
+		}
+		body := *pidginhost.NewServerProductUpgrade(pkg)
+		resp, _, err := c.CloudAPI.CloudServersModifyPackageCreate(cmd.Context(), id).
+			ServerProductUpgrade(body).Execute()
+		if err != nil {
+			return cmdutil.APIError("resizing server", err)
+		}
+		if resp == nil {
+			return fmt.Errorf("resizing server: backend returned no result")
+		}
+		if !resp.Upgrading {
+			return fmt.Errorf("resizing server: backend reported the resize did not start")
+		}
+		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
+			"Server %d is resizing to package '%s'. It restarts to pick up the new resources.\n", id, pkg)
+	},
+}
+
+var serverDetachIPv6Cmd = &cobra.Command{
+	Use:   "detach-ipv6 <server-id>",
+	Short: "Detach the IPv6 address from a server",
+	Long: "Detach the IPv6 address from a server. A server carries at most one IPv6, " +
+		"so unlike detach-ipv4 there is nothing to select.",
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		id, err := cmdutil.ParseInt32(args[0])
+		if err != nil {
+			return err
+		}
+		c, err := client.New()
+		if err != nil {
+			return err
+		}
+		resp, _, err := c.CloudAPI.CloudServersDetachIpv6Create(cmd.Context(), id).Execute()
+		if err != nil {
+			return cmdutil.APIError("detaching IPv6", err)
+		}
+		if resp == nil {
+			return fmt.Errorf("detaching IPv6: backend returned no result")
+		}
+		if !resp.Detached {
+			return fmt.Errorf("detaching IPv6: backend reported the IPv6 was not detached")
+		}
+		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
+			"IPv6 detached from server %d.\n", id)
+	},
+}
+
 var serverAttachIPv6Cmd = &cobra.Command{
 	Use:   "attach-ipv6 <server-id>",
 	Short: "Attach an IPv6 address to a server",
@@ -652,7 +729,10 @@ func init() {
 	serverCmd.AddCommand(serverPowerCmd)
 	serverCmd.AddCommand(serverConsoleCmd)
 	serverCmd.AddCommand(serverAttachIPv4Cmd)
+	serverResizeCmd.Flags().StringVar(&serverResizePackage, "package", "", "Target package ID or slug (required)")
+	serverCmd.AddCommand(serverResizeCmd)
 	serverCmd.AddCommand(serverDetachIPv4Cmd)
+	serverCmd.AddCommand(serverDetachIPv6Cmd)
 	serverCmd.AddCommand(serverAttachIPv6Cmd)
 	serverCmd.AddCommand(serverProtectCmd)
 	serverCmd.AddCommand(snapshotCmd)

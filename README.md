@@ -104,6 +104,13 @@ phctl compute server create --image ubuntu-22 --package starter --new-ipv6
 # Attach an IPv4 you own to a running server, restarting it so the guest sees it
 phctl compute server attach-ipv4 123 --ipv4 203.0.113.7 --reboot
 
+# Detach addresses again
+phctl compute server detach-ipv4 123 --ipv4 203.0.113.7
+phctl compute server detach-ipv6 123
+
+# Change a server's package (restarts the server; asks first unless -f)
+phctl compute server resize 123 --package cloudv-2
+
 # Get server details as JSON
 phctl compute server get 123 -o json
 

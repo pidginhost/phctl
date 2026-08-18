@@ -95,3 +95,29 @@ func TestForce(t *testing.T) {
 		t.Error("Force should be true with --force flag")
 	}
 }
+
+// TestForce is written around root.Execute(), which is what merges a root's
+// persistent flags into its Flags() set. RunE-level unit tests never call
+// Execute, so Force silently returned false there and any confirmation guard
+// looked like it had not been bypassed. Resolve the flag the same way
+// OutputFormat does, which handles persistent flags directly.
+func TestForceReadsPersistentFlagWithoutExecute(t *testing.T) {
+	root := &cobra.Command{Use: "test"}
+	root.PersistentFlags().BoolP("force", "f", true, "Skip confirmation")
+	child := &cobra.Command{Use: "sub"}
+	root.AddCommand(child)
+
+	if !Force(child) {
+		t.Error("Force should see --force set on the root's persistent flags before Execute")
+	}
+}
+
+func TestForceOnCommandWithoutForceFlag(t *testing.T) {
+	child := &cobra.Command{Use: "sub"}
+	if Force(child) {
+		t.Error("Force should default to false when no --force flag exists")
+	}
+	if Force(nil) {
+		t.Error("Force(nil) should be false, not panic")
+	}
+}
