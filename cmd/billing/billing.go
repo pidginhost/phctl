@@ -143,7 +143,7 @@ var depositCreateCmd = &cobra.Command{
 			return cmdutil.APIError("creating deposit", err)
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
-			"Deposit created (ID: %d, Amount: %.2f)\n", resp.Id, resp.Amount)
+			"Deposit created (ID: %d, Amount: %s)\n", resp.Id, resp.Amount)
 	},
 }
 
