@@ -4,6 +4,13 @@
 
 ### Added
 
+- **`phctl storage bucket`**: object storage had no CLI surface at all. `list`, `get`, `create`, `delete`, `resize`, `visibility`, and `credentials reveal` / `credentials rotate`. It is a top-level group rather than `compute bucket` because `compute volume` is block storage attached to a server and the two are easy to confuse.
+
+  `create` and `resize` confirm first because they change what the account is billed; `delete` confirms because it takes the objects with it; `visibility --public` confirms because it exposes every object to the internet, while `--private` only removes access and does not. `resize` and `visibility` check that the bucket actually came back changed — the routes answer `200` with the current state, so trusting the status code alone would report a resize that never happened.
+
+  `credentials reveal` prints an access key and secret, so it asks before doing so unless `-f` is passed. Both credential commands wrap failures with a redacting error wrapper: those routes answer `200` with the secret in the body, and a body that fails to decode would otherwise put live credentials into an error string — and, for `rotate`, the *new* secret, after the old pair is already dead.
+
+  `storage product list` is deliberately absent: `StorageProduct.price` is a decimal, and pricing endpoints still go through `internal/client`'s `Raw*` types.
 - **`compute server detach-ipv6`**: `attach-ipv6` has existed for a while and `detach-ipv4` was already there, but an IPv6 could only be attached, never removed, from the CLI.
 - **`compute server resize --package <id|slug>`**: change a server's package. Downgrades are only accepted between packages with the same disk size, and the server restarts, so it confirms first unless `-f` is passed.
 

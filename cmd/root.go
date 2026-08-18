@@ -15,6 +15,7 @@ import (
 	"github.com/pidginhost/phctl/cmd/freedns"
 	"github.com/pidginhost/phctl/cmd/hosting"
 	"github.com/pidginhost/phctl/cmd/kubernetes"
+	"github.com/pidginhost/phctl/cmd/storage"
 	"github.com/pidginhost/phctl/cmd/support"
 	"github.com/pidginhost/phctl/cmd/update"
 	"github.com/pidginhost/phctl/internal/cmdutil"
@@ -75,6 +76,7 @@ func init() {
 	rootCmd.AddCommand(dedicated.Cmd)
 	rootCmd.AddCommand(freedns.Cmd)
 	rootCmd.AddCommand(hosting.Cmd)
+	rootCmd.AddCommand(storage.Cmd)
 	rootCmd.AddCommand(support.Cmd)
 	rootCmd.AddCommand(update.Cmd)
 	rootCmd.AddCommand(update.CheckCmd)

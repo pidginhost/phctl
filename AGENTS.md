@@ -59,6 +59,13 @@ creating ticket: 400 Bad Request: department=This field is required. <- APIError
 Errors that are not from the API (a file open, a `strconv`) take `fmt.Errorf` as
 normal; the analyzer tracks rebinding and will not flag them.
 
+One sanctioned exception: `cmdutil.APIErrorRedacted` wraps the same way but
+never lets the body through. Use it *only* where the body is itself a secret —
+today that is the two bucket credential routes, which answer `200` with an
+access key and secret, so a body that fails to decode would put live
+credentials into an error string, a log, and any bug report it is pasted into.
+Everywhere else the body is the whole point, so reach for `APIError`.
+
 ## Command conventions
 
 - Resolve global flags through `cmdutil`: `cmdutil.OutputFormat(cmd)`,
@@ -70,18 +77,23 @@ normal; the analyzer tracks rebinding and will not flag them.
 - Destructive, billable or restarting operations confirm first:
   `if !cmdutil.Force(cmd) && !confirm.Action(...) { return nil }`.
 - Paginated list endpoints go through `cmdutil.FetchAll`.
-- Endpoints whose response carries a decimal go through `internal/client`'s
-  `Raw*` types and `RawFetchAll`, not the SDK model — see below.
+- Endpoints whose response carries a decimal still go through `internal/client`'s
+  `Raw*` types and `RawFetchAll`. That is now legacy, not a rule for new code —
+  see below.
 
-## The decimal workaround
+## The decimal workaround (now removable)
 
 `internal/client/rawtypes.go` exists because `sdk-go` up to and including
-v0.11.0 maps `type: string, format: decimal` to `float64`, which cannot decode
-the `"12.50"` the API actually sends. Any endpoint returning a price, balance or
-total must therefore bypass the SDK model. This is fixed from `sdk-go` v0.12.0;
-once phctl is on that, the `Raw*` types and their endpoints can go back to the
-generated models. Until then, do not add a command that decodes a
-decimal-bearing component through the SDK.
+v0.11.0 mapped `type: string, format: decimal` to `float64`, which cannot decode
+the `"12.50"` the API actually sends, so any endpoint returning a price, balance
+or total had to bypass the SDK model.
+
+**That is fixed.** phctl is on `sdk-go` v0.12.2, where those fields generate as
+`string`. New commands should use the generated models even when the response
+carries a decimal — render the value with `%s` and never a float verb; `%.2f`
+against a string silently truncates it to two characters. The `Raw*` types and
+their remaining call sites are now dead weight to be deleted, not extended: do
+not add another one.
 
 ## SDK version bumps
 

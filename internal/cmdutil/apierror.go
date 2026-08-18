@@ -31,6 +31,24 @@ func APIError(op string, err error) error {
 	return fmt.Errorf("%s: %w", op, err)
 }
 
+// APIErrorRedacted wraps an SDK error the way APIError does, but never lets the
+// response body into the message. Use it only for endpoints whose body is
+// itself a secret: the bucket credential routes answer 200 with an access key
+// and secret, so a body that fails to decode would put live credentials into an
+// error string, the terminal, any log that captures it, and any bug report it
+// gets pasted into. The status line and the error chain are preserved, and the
+// message says a body was withheld rather than pretending there was none.
+func APIErrorRedacted(op string, err error) error {
+	if err == nil {
+		return nil
+	}
+	var apiErr *pidginhost.GenericOpenAPIError
+	if errors.As(err, &apiErr) && len(apiErr.Body()) > 0 {
+		return fmt.Errorf("%s: %w: response body withheld (it carries credentials)", op, err)
+	}
+	return fmt.Errorf("%s: %w", op, err)
+}
+
 func formatAPIBody(body []byte) string {
 	var parsed any
 	if err := json.Unmarshal(body, &parsed); err != nil {

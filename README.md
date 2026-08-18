@@ -78,6 +78,7 @@ narration stay human-readable; progress goes to stderr, so stdout under
 | `phctl compute` | `c` | Servers, volumes, firewalls, IPs, networks, snapshots |
 | `phctl domain` | `dns` | Domains, TLDs, registrants, nameservers, transfers |
 | `phctl kubernetes` | `k8s` | Clusters, pools, nodes, HTTP/TCP/UDP routes |
+| `phctl storage` | | S3 buckets: quota, visibility, credentials |
 | `phctl billing` | `bill` | Funds, deposits, invoices, services, subscriptions |
 | `phctl dedicated` | `ded` | Dedicated servers |
 | `phctl freedns` | `fdns` | FreeDNS domains and records |
@@ -124,6 +125,18 @@ phctl k8s cluster kubeconfig my-cluster
 # Domain management
 phctl domain create example.ro --years 1
 phctl domain check example.ro
+
+# Object storage
+phctl storage bucket list
+phctl storage bucket create --name assets --quota 50
+phctl storage bucket resize 7 --quota 100
+phctl storage bucket visibility 7 --public     # asks first; --private needs no prompt
+phctl storage bucket delete 7
+
+# Bucket credentials -- these grant full read/write access to the bucket.
+# reveal asks before printing; rotate kills the current pair immediately.
+phctl storage bucket credentials reveal 7
+phctl storage bucket credentials rotate 7
 
 # Billing
 phctl billing funds balance
