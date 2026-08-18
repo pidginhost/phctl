@@ -3,6 +3,7 @@ package kubernetes
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -87,6 +88,24 @@ func runCmd(t *testing.T, cmd *cobra.Command, args []string,
 
 	err := cmd.RunE(child, args)
 	return rec, out.String(), errOut.String(), err
+}
+
+// runCmdWithoutAPI drives an input-validation path and reports whether it got
+// as far as constructing an API client. Invalid local input must fail before
+// config is read or any request can be prepared.
+func runCmdWithoutAPI(t *testing.T, cmd *cobra.Command, args []string) (int, error) {
+	t.Helper()
+
+	oldNewClient := newClient
+	clientCalls := 0
+	newClient = func() (*pidginhost.APIClient, error) {
+		clientCalls++
+		return nil, errors.New("unexpected API client construction")
+	}
+	defer func() { newClient = oldNewClient }()
+
+	err := cmd.RunE(&cobra.Command{Use: "test"}, args)
+	return clientCalls, err
 }
 
 // reply answers every request with the same status and payload.

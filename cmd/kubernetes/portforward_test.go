@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/spf13/cobra"
 )
 
 const portForwardJSON = `{"id":9,"internal_ip":"10.0.0.50","port":8080,"protocol":"tcp"}`
@@ -36,6 +38,24 @@ func TestPortForwardSubcommands(t *testing.T) {
 		if portForwardUpdateCmd.Flags().Lookup(name) == nil {
 			t.Errorf("port-forward update missing flag --%s", name)
 		}
+	}
+}
+
+func TestPortForwardCreateAndUpdateFlagStateIsIsolated(t *testing.T) {
+	setFlags(t, portForwardCreateCmd, map[string]string{"port": "8080"})
+	setFlags(t, portForwardUpdateCmd, map[string]string{"protocol": "udp"})
+
+	if !portForwardCreateFields.isSet("port") {
+		t.Error("create did not observe its own --port flag")
+	}
+	if portForwardUpdateFields.isSet("port") {
+		t.Error("create --port leaked into update state")
+	}
+	if !portForwardUpdateFields.isSet("protocol") {
+		t.Error("update did not observe its own --protocol flag")
+	}
+	if portForwardCreateFields.isSet("protocol") {
+		t.Error("update --protocol leaked into create state")
 	}
 }
 
@@ -139,6 +159,50 @@ func TestPortForwardRejectsUnknownProtocol(t *testing.T) {
 	}
 	if rec.count() != 0 {
 		t.Errorf("invalid protocol still reached the API (%d call(s))", rec.count())
+	}
+}
+
+func TestPortForwardRejectsInvalidFieldsBeforeClient(t *testing.T) {
+	cases := []struct {
+		name    string
+		cmd     *cobra.Command
+		args    []string
+		flags   map[string]string
+		wantErr string
+	}{
+		{
+			"create blank internal IP", portForwardCreateCmd, []string{"42"},
+			map[string]string{"internal-ip": " ", "port": "8080"}, "--internal-ip",
+		},
+		{
+			"create negative port", portForwardCreateCmd, []string{"42"},
+			map[string]string{"internal-ip": "10.0.0.50", "port": "-1"}, "--port",
+		},
+		{
+			"create oversized port", portForwardCreateCmd, []string{"42"},
+			map[string]string{"internal-ip": "10.0.0.50", "port": "65536"}, "--port",
+		},
+		{
+			"update empty internal IP", portForwardUpdateCmd, []string{"42", "9"},
+			map[string]string{"internal-ip": ""}, "--internal-ip",
+		},
+		{
+			"update zero port", portForwardUpdateCmd, []string{"42", "9"},
+			map[string]string{"port": "0"}, "--port",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			setFlags(t, tc.cmd, tc.flags)
+			clientCalls, err := runCmdWithoutAPI(t, tc.cmd, tc.args)
+			if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("error = %v, want local validation mentioning %s", err, tc.wantErr)
+			}
+			if clientCalls != 0 {
+				t.Errorf("invalid port forward constructed an API client %d time(s)", clientCalls)
+			}
+		})
 	}
 }
 
@@ -276,5 +340,16 @@ func TestNodeRRDRejectsUnknownTimeframe(t *testing.T) {
 	}
 	if rec.count() != 0 {
 		t.Errorf("invalid timeframe still reached the API (%d call(s))", rec.count())
+	}
+}
+
+func TestNodeRRDRejectsUnknownTimeframeBeforeClient(t *testing.T) {
+	setFlags(t, nodeRRDCmd, map[string]string{"timeframe": "fortnight"})
+	clientCalls, err := runCmdWithoutAPI(t, nodeRRDCmd, []string{"42", "3", "11"})
+	if err == nil || !strings.Contains(err.Error(), "invalid --timeframe") {
+		t.Fatalf("error = %v, want invalid --timeframe", err)
+	}
+	if clientCalls != 0 {
+		t.Errorf("invalid timeframe constructed an API client %d time(s)", clientCalls)
 	}
 }

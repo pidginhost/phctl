@@ -186,7 +186,7 @@ func (f *httpRouteFields) register(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&f.namespace, "namespace", "", "Kubernetes namespace")
 	cmd.Flags().StringVar(&f.backendNS, "backend-namespace", "", "Backend service namespace")
 	cmd.Flags().StringVar(&f.prefix, "path-prefix", "", "Path prefix to match")
-	cmd.Flags().BoolVar(&f.tls, "tls", true, "Enable TLS termination")
+	cmd.Flags().BoolVar(&f.tls, "tls", false, "Enable TLS termination")
 }
 
 func (f *httpRouteFields) isSet(name string) bool {
@@ -200,6 +200,35 @@ func (f *httpRouteFields) anySet() bool {
 		}
 	}
 	return false
+}
+
+func (f *httpRouteFields) validate() error {
+	if f.isSet("name") {
+		if err := validateNonEmptyFlag("name", f.name); err != nil {
+			return err
+		}
+	}
+	if f.isSet("hostname") {
+		if len(f.hostnames) == 0 {
+			return fmt.Errorf("--hostname must include at least one hostname")
+		}
+		for _, hostname := range f.hostnames {
+			if err := validateNonEmptyFlag("hostname", hostname); err != nil {
+				return err
+			}
+		}
+	}
+	if f.isSet("backend") {
+		if err := validateNonEmptyFlag("backend", f.backend); err != nil {
+			return err
+		}
+	}
+	if f.isSet("port") {
+		if err := validateNetworkPort("port", f.port); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 var httpRouteUpdateFields httpRouteFields
@@ -217,6 +246,9 @@ var httpRouteUpdateCmd = &cobra.Command{
 		f := &httpRouteUpdateFields
 		if !f.anySet() {
 			return fmt.Errorf("nothing to update: pass at least one of --%s", joinFlags(httpRouteUpdateFieldFlags))
+		}
+		if err := f.validate(); err != nil {
+			return err
 		}
 		// Not NewPatchedHTTPRoute(): that constructor seeds the schema defaults for
 		// backend_namespace, path_prefix and enable_tls, which a PATCH would then
@@ -340,6 +372,30 @@ func (f *portRouteFields) anySet() bool {
 	return false
 }
 
+func (f *portRouteFields) validate() error {
+	if f.isSet("name") {
+		if err := validateNonEmptyFlag("name", f.name); err != nil {
+			return err
+		}
+	}
+	if f.isSet("port") {
+		if err := validateNetworkPort("port", f.port); err != nil {
+			return err
+		}
+	}
+	if f.isSet("backend") {
+		if err := validateNonEmptyFlag("backend", f.backend); err != nil {
+			return err
+		}
+	}
+	if f.isSet("backend-port") {
+		if err := validateNetworkPort("backend-port", f.backendPort); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // verifyApplied reads back the fields the caller asked to change.
 func (f *portRouteFields) verifyApplied(kind string, routeID int32, name string, namespace *string,
 	port int32, backend string, backendPort int32, backendNS *string) error {
@@ -386,6 +442,9 @@ var tcpRouteUpdateCmd = &cobra.Command{
 		f := &tcpRouteUpdateFields
 		if !f.anySet() {
 			return fmt.Errorf("nothing to update: pass at least one of --%s", joinFlags(portRouteUpdateFieldFlags))
+		}
+		if err := f.validate(); err != nil {
+			return err
 		}
 		// Zero value, not the constructor: it seeds backend_namespace.
 		var body pidginhost.PatchedTCPRoute
@@ -445,6 +504,9 @@ var udpRouteUpdateCmd = &cobra.Command{
 		f := &udpRouteUpdateFields
 		if !f.anySet() {
 			return fmt.Errorf("nothing to update: pass at least one of --%s", joinFlags(portRouteUpdateFieldFlags))
+		}
+		if err := f.validate(); err != nil {
+			return err
 		}
 		// Zero value, not the constructor: it seeds backend_namespace.
 		var body pidginhost.PatchedUDPRoute

@@ -59,6 +59,16 @@ func TestRouteUpdateFlagsCoverWritableFields(t *testing.T) {
 	}
 }
 
+func TestHTTPRouteUpdateAdvertisesNoTLSDefault(t *testing.T) {
+	flag := httpRouteUpdateCmd.Flags().Lookup("tls")
+	if flag == nil {
+		t.Fatal("http-route update missing flag --tls")
+	}
+	if flag.DefValue != "false" {
+		t.Errorf("http-route update --tls advertises default %q, want false for a partial update", flag.DefValue)
+	}
+}
+
 // --- route get ---
 
 func TestHTTPRouteGetDecodesUntypedResponse(t *testing.T) {
@@ -215,6 +225,41 @@ func TestRouteUpdateRequiresAtLeastOneField(t *testing.T) {
 			}
 			if rec.count() != 0 {
 				t.Errorf("empty update still reached the API (%d call(s))", rec.count())
+			}
+		})
+	}
+}
+
+func TestRouteUpdateRejectsInvalidChangedFieldsBeforeClient(t *testing.T) {
+	cases := []struct {
+		name    string
+		cmd     *cobra.Command
+		args    []string
+		flag    string
+		value   string
+		wantErr string
+	}{
+		{"http empty name", httpRouteUpdateCmd, []string{"42", "4"}, "name", "", "--name"},
+		{"http empty hostname", httpRouteUpdateCmd, []string{"42", "4"}, "hostname", "", "--hostname"},
+		{"http empty backend", httpRouteUpdateCmd, []string{"42", "4"}, "backend", "", "--backend"},
+		{"http zero backend port", httpRouteUpdateCmd, []string{"42", "4"}, "port", "0", "--port"},
+		{"http oversized backend port", httpRouteUpdateCmd, []string{"42", "4"}, "port", "65536", "--port"},
+		{"tcp empty name", tcpRouteUpdateCmd, []string{"42", "6"}, "name", "", "--name"},
+		{"tcp zero external port", tcpRouteUpdateCmd, []string{"42", "6"}, "port", "0", "--port"},
+		{"tcp empty backend", tcpRouteUpdateCmd, []string{"42", "6"}, "backend", "", "--backend"},
+		{"tcp oversized backend port", tcpRouteUpdateCmd, []string{"42", "6"}, "backend-port", "65536", "--backend-port"},
+		{"udp zero backend port", udpRouteUpdateCmd, []string{"42", "7"}, "backend-port", "0", "--backend-port"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			setFlags(t, tc.cmd, map[string]string{tc.flag: tc.value})
+			clientCalls, err := runCmdWithoutAPI(t, tc.cmd, tc.args)
+			if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("error = %v, want local validation mentioning %s", err, tc.wantErr)
+			}
+			if clientCalls != 0 {
+				t.Errorf("invalid update constructed an API client %d time(s)", clientCalls)
 			}
 		})
 	}

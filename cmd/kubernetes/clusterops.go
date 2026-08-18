@@ -457,16 +457,16 @@ var nodeRRDCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		if nodeRRDTimeframe != "" && !validRRDTimeframe(nodeRRDTimeframe) {
+			return fmt.Errorf("invalid --timeframe %q: must be one of %s",
+				nodeRRDTimeframe, strings.Join(rrdTimeframes, ", "))
+		}
 		c, err := newClient()
 		if err != nil {
 			return err
 		}
 		req := c.KubernetesAPI.KubernetesClustersResourcePoolsNodesRrdRetrieve(cmd.Context(), clusterID, args[2], poolID)
 		if nodeRRDTimeframe != "" {
-			if !validRRDTimeframe(nodeRRDTimeframe) {
-				return fmt.Errorf("invalid --timeframe %q: must be one of %s",
-					nodeRRDTimeframe, strings.Join(rrdTimeframes, ", "))
-			}
 			req = req.Timeframe(nodeRRDTimeframe)
 		}
 		resp, _, err := req.Execute()

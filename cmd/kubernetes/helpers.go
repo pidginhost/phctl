@@ -23,6 +23,20 @@ var newClient = client.New
 
 const defaultWaitTimeout = 10 * time.Minute
 
+func validateNetworkPort(flag string, port int32) error {
+	if port < 1 || port > 65535 {
+		return fmt.Errorf("--%s must be between 1 and 65535, got %d", flag, port)
+	}
+	return nil
+}
+
+func validateNonEmptyFlag(flag, value string) error {
+	if strings.TrimSpace(value) == "" {
+		return fmt.Errorf("--%s must not be empty", flag)
+	}
+	return nil
+}
+
 var (
 	waitPollInterval = 15 * time.Second
 	getClusterStatus = func(ctx context.Context, clusterID string, cl *client.RawCluster) error {

@@ -55,6 +55,20 @@ func (f *portForwardFields) anySet() bool {
 	return false
 }
 
+func (f *portForwardFields) validateChanged() error {
+	if f.isSet("internal-ip") {
+		if err := validateNonEmptyFlag("internal-ip", f.internalIP); err != nil {
+			return err
+		}
+	}
+	if f.isSet("port") {
+		if err := validateNetworkPort("port", f.port); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // protocol is an enum server-side. Validate here so a typo fails before it
 // reaches a live load balancer.
 func (f *portForwardFields) parsedProtocol() (*pidginhost.ProtocolEnum, error) {
@@ -158,8 +172,14 @@ var portForwardCreateCmd = &cobra.Command{
 		if f.internalIP == "" {
 			return fmt.Errorf("--internal-ip is required")
 		}
+		if err := validateNonEmptyFlag("internal-ip", f.internalIP); err != nil {
+			return err
+		}
 		if f.port == 0 {
 			return fmt.Errorf("--port is required")
+		}
+		if err := validateNetworkPort("port", f.port); err != nil {
+			return err
 		}
 		protocol, err := f.parsedProtocol()
 		if err != nil {
@@ -199,6 +219,9 @@ var portForwardUpdateCmd = &cobra.Command{
 		// A PATCH with an empty body answers 200 having changed nothing.
 		if !f.anySet() {
 			return fmt.Errorf("nothing to update: pass at least one of --%s", joinFlags(portForwardFieldFlags))
+		}
+		if err := f.validateChanged(); err != nil {
+			return err
 		}
 		var body pidginhost.PatchedK8sPortForward
 		if f.isSet("internal-ip") {
