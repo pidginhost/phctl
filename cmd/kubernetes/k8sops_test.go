@@ -1077,3 +1077,26 @@ func TestKubeconfigRejectsBlankBody(t *testing.T) {
 		t.Fatal("expected an error when the server returns a whitespace-only kubeconfig")
 	}
 }
+
+// update sends only the flags you pass, so advertising a default for one would
+// read as "omit this and it resets to in/ACCEPT". create's defaults are real:
+// they are what the rule ends up with.
+func TestLBFirewallUpdateAdvertisesNoDefaults(t *testing.T) {
+	for _, name := range lbRuleFieldFlags {
+		flag := lbFirewallUpdateCmd.Flags().Lookup(name)
+		if flag == nil {
+			t.Fatalf("lb-firewall update missing flag --%s", name)
+		}
+		switch flag.DefValue {
+		case "", "false", "0":
+		default:
+			t.Errorf("lb-firewall update --%s advertises default %q", name, flag.DefValue)
+		}
+	}
+	if got := lbFirewallCreateCmd.Flags().Lookup("direction").DefValue; got != "in" {
+		t.Errorf("lb-firewall create --direction default = %q, want in", got)
+	}
+	if got := lbFirewallCreateCmd.Flags().Lookup("action").DefValue; got != "ACCEPT" {
+		t.Errorf("lb-firewall create --action default = %q, want ACCEPT", got)
+	}
+}

@@ -45,18 +45,25 @@ var lbRuleFieldFlags = []string{
 	"destination", "dport", "comment", "enabled", "position",
 }
 
-func (f *lbRuleFlags) register(cmd *cobra.Command) {
+// register wires the rule flags onto cmd. withDefaults belongs to create,
+// where the defaults describe the rule you get; update sends only the flags
+// you pass, so a default there would read as "omit this and it resets".
+func (f *lbRuleFlags) register(cmd *cobra.Command, withDefaults bool) {
 	f.owner = cmd
-	cmd.Flags().StringVar(&f.direction, "direction", "in", "Direction: in or out")
-	cmd.Flags().StringVar(&f.action, "action", "ACCEPT", "Action: ACCEPT, DROP or REJECT")
+	direction, action, enabled, position := "", "", false, int32(0)
+	if withDefaults {
+		direction, action, enabled, position = "in", "ACCEPT", true, 100
+	}
+	cmd.Flags().StringVar(&f.direction, "direction", direction, "Direction: in or out")
+	cmd.Flags().StringVar(&f.action, "action", action, "Action: ACCEPT, DROP or REJECT")
 	cmd.Flags().StringVar(&f.protocol, "protocol", "", "Protocol (tcp, udp, icmp, etc.)")
 	cmd.Flags().StringVar(&f.source, "source", "", "Source IP or CIDR")
 	cmd.Flags().StringVar(&f.sport, "sport", "", "Source port or range (e.g. 1024-65535)")
 	cmd.Flags().StringVar(&f.destination, "destination", "", "Destination IP or CIDR")
 	cmd.Flags().StringVar(&f.dport, "dport", "", "Destination port or range (e.g. 80, 8000-9000)")
 	cmd.Flags().StringVar(&f.comment, "comment", "", "Free-form comment")
-	cmd.Flags().BoolVar(&f.enabled, "enabled", true, "Whether the rule is active")
-	cmd.Flags().Int32Var(&f.position, "position", 100, "Rule order (lower = higher priority)")
+	cmd.Flags().BoolVar(&f.enabled, "enabled", enabled, "Whether the rule is active")
+	cmd.Flags().Int32Var(&f.position, "position", position, "Rule order (lower = higher priority)")
 }
 
 // isSet reports whether the caller actually gave the flag. Defaults are left
@@ -431,8 +438,8 @@ func joinFlags(names []string) string {
 }
 
 func init() {
-	lbFirewallCreateFlags.register(lbFirewallCreateCmd)
-	lbFirewallUpdateFlags.register(lbFirewallUpdateCmd)
+	lbFirewallCreateFlags.register(lbFirewallCreateCmd, true)
+	lbFirewallUpdateFlags.register(lbFirewallUpdateCmd, false)
 
 	lbFirewallCmd.AddCommand(lbFirewallListCmd)
 	lbFirewallCmd.AddCommand(lbFirewallGetCmd)
