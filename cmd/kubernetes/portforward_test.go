@@ -126,6 +126,9 @@ func TestPortForwardCreateSendsForward(t *testing.T) {
 	if call.body["internal_ip"] != "10.0.0.50" || call.body["port"] != float64(8080) || call.body["protocol"] != "tcp" {
 		t.Errorf("body = %v", call.body)
 	}
+	if v, present := call.body["id"]; present {
+		t.Errorf("read-only id was sent as %v", v)
+	}
 	if !strings.Contains(out, "9") {
 		t.Errorf("output missing the new ID:\n%s", out)
 	}

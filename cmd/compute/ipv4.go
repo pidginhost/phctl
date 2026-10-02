@@ -140,8 +140,8 @@ var ipv4ReverseDNSCmd = &cobra.Command{
 		}
 		var resp *pidginhost.ReverseDNS
 		if cmd.Flags().Changed("hostname") {
-			body := pidginhost.NewReverseDNS(hostname)
-			resp, _, err = c.CloudAPI.CloudIpv4RdnsCreate(cmd.Context(), id).ReverseDNS(*body).Execute()
+			body := pidginhost.NewReverseDNSRequest(hostname)
+			resp, _, err = c.CloudAPI.CloudIpv4RdnsCreate(cmd.Context(), id).ReverseDNSRequest(*body).Execute()
 			if err != nil {
 				return cmdutil.APIError("setting reverse DNS", err)
 			}

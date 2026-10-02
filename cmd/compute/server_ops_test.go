@@ -266,25 +266,26 @@ func TestRetryProvisionReportsSuccess(t *testing.T) {
 	}
 }
 
-// --- boot ISOs: paginated, and min_ram is a decimal string ---
+// --- boot ISOs: a plain array, and min_ram is a decimal string ---
 
-func TestBootISOsFollowsPagination(t *testing.T) {
-	st, out, err := runOp(t, serverBootISOsCmd, []string{"42"}, func(st *opStub) (int, string) {
-		if st.calls == 1 {
-			return http.StatusOK, `{"count":2,"next":"http://x/?page=2","results":` +
-				`[{"slug":"systemrescue","name":"SystemRescue","min_ram":"0.50","compatible":true}]}`
-		}
-		return http.StatusOK, `{"count":2,"next":null,"results":` +
-			`[{"slug":"gparted","name":"GParted","min_ram":"1.00","compatible":false}]}`
-	}, "table", "", false)
+// The route answers a bare JSON array. Reading it as a paginated envelope
+// failed to decode every real response.
+func TestBootISOsDecodesPlainArray(t *testing.T) {
+	st, out, err := runOp(t, serverBootISOsCmd, []string{"42"}, okOp(
+		`[{"slug":"systemrescue","name":"SystemRescue","min_ram":"0.50","compatible":true},`+
+			`{"slug":"gparted","name":"GParted","min_ram":"1.00","compatible":false}]`),
+		"table", "", false)
 	if err != nil {
 		t.Fatalf("RunE: %v", err)
 	}
-	if st.calls != 2 {
-		t.Errorf("calls = %d, want both pages fetched", st.calls)
+	if st.calls != 1 {
+		t.Errorf("calls = %d, want a single request", st.calls)
 	}
-	if !strings.HasPrefix(st.path, "/api/cloud/servers/42/boot-isos/") {
+	if st.path != "/api/cloud/servers/42/boot-isos/" {
 		t.Errorf("path = %q, want the per-server catalog", st.path)
+	}
+	if st.query != "" {
+		t.Errorf("query = %q, want no pagination parameters", st.query)
 	}
 	for _, want := range []string{"systemrescue", "gparted", "0.50", "1.00"} {
 		if !strings.Contains(out, want) {
@@ -293,6 +294,22 @@ func TestBootISOsFollowsPagination(t *testing.T) {
 	}
 	if strings.Contains(out, "%!") {
 		t.Errorf("min_ram is a decimal string, not a float: %q", out)
+	}
+}
+
+func TestBootISOsJSONIsTheArray(t *testing.T) {
+	_, out, err := runOp(t, serverBootISOsCmd, []string{"42"}, okOp(
+		`[{"slug":"systemrescue","name":"SystemRescue","min_ram":"0.50","compatible":true}]`),
+		"json", "", false)
+	if err != nil {
+		t.Fatalf("RunE: %v", err)
+	}
+	var got []map[string]interface{}
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("unmarshal %q: %v", out, err)
+	}
+	if len(got) != 1 || got[0]["slug"] != "systemrescue" || got[0]["min_ram"] != "0.50" {
+		t.Errorf("json = %v, want the one ISO with min_ram as sent", got)
 	}
 }
 
@@ -392,9 +409,11 @@ func TestPublicInterfaceSetSendsOnlyRequestedValues(t *testing.T) {
 	if st.body["fw_policy_in"] != "DROP" {
 		t.Errorf("fw_policy_in = %v", st.body["fw_policy_in"])
 	}
+	// The addresses and interface name are read-only; the request model has
+	// no place for them, so they must not be sent at all.
 	for _, readOnly := range []string{"interface", "ipv4", "ipv6"} {
-		if st.body[readOnly] != "" {
-			t.Errorf("required read-only field %s = %v, want inert empty value", readOnly, st.body[readOnly])
+		if v, present := st.body[readOnly]; present {
+			t.Errorf("read-only field %s was sent as %v", readOnly, v)
 		}
 	}
 	if _, present := st.body["fw_policy_out"]; present {

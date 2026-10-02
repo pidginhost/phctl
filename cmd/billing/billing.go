@@ -137,8 +137,8 @@ var depositCreateCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		body := *pidginhost.NewDepositCreate(depositCreateAmount)
-		resp, _, err := c.BillingAPI.BillingDepositsCreate(cmd.Context()).DepositCreate(body).Execute()
+		body := *pidginhost.NewDepositCreateRequest(depositCreateAmount)
+		resp, _, err := c.BillingAPI.BillingDepositsCreate(cmd.Context()).DepositCreateRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("creating deposit", err)
 		}

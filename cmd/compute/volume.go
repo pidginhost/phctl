@@ -116,13 +116,19 @@ var volumeAttachCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		body := *pidginhost.NewAttachVolume(volumeAttachVM)
-		_, _, err = c.CloudAPI.CloudVolumesAttachCreate(cmd.Context(), id).AttachVolume(body).Execute()
+		body := *pidginhost.NewAttachVolumeRequest(volumeAttachVM)
+		resp, _, err := c.CloudAPI.CloudVolumesAttachCreate(cmd.Context(), id).AttachVolumeRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("attaching volume", err)
 		}
-		cmd.Printf("Volume %d attached to server %d.\n", id, volumeAttachVM)
-		return nil
+		if resp == nil {
+			return fmt.Errorf("attaching volume %d: server returned no result", id)
+		}
+		if !resp.Attached {
+			return fmt.Errorf("attaching volume %d: server reported it was not attached to server %d", id, volumeAttachVM)
+		}
+		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
+			"Volume %d attached to server %d.\n", id, volumeAttachVM)
 	},
 }
 

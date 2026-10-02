@@ -102,16 +102,16 @@ var floatingIPCreateCmd = &cobra.Command{
 		label, _ := cmd.Flags().GetString("label")
 		ipv6 := isIPv6(cmd)
 		if ipv6 {
-			body := pidginhost.FloatingIPv6Create{Label: &label}
-			resp, _, err := c.CloudAPI.CloudFloatingIpv6Create(cmd.Context()).FloatingIPv6Create(body).Execute()
+			body := pidginhost.FloatingIPv6CreateRequest{Label: &label}
+			resp, _, err := c.CloudAPI.CloudFloatingIpv6Create(cmd.Context()).FloatingIPv6CreateRequest(body).Execute()
 			if err != nil {
 				return cmdutil.APIError("creating floating IPv6", err)
 			}
 			return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 				"Floating IPv6 created (ID: %d, Address: %s)\n", resp.Id, resp.Address)
 		}
-		body := pidginhost.FloatingIPv4Create{Label: &label}
-		resp, _, err := c.CloudAPI.CloudFloatingIpv4Create(cmd.Context()).FloatingIPv4Create(body).Execute()
+		body := pidginhost.FloatingIPv4CreateRequest{Label: &label}
+		resp, _, err := c.CloudAPI.CloudFloatingIpv4Create(cmd.Context()).FloatingIPv4CreateRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("creating floating IPv4", err)
 		}
@@ -285,11 +285,11 @@ var floatingIPReverseDNSCmd = &cobra.Command{
 		var resp *pidginhost.ReverseDNS
 		ipv6 := isIPv6(cmd)
 		if cmd.Flags().Changed("hostname") {
-			body := pidginhost.NewReverseDNS(hostname)
+			body := pidginhost.NewReverseDNSRequest(hostname)
 			if ipv6 {
-				resp, _, err = c.CloudAPI.CloudFloatingIpv6RdnsCreate(cmd.Context(), id).ReverseDNS(*body).Execute()
+				resp, _, err = c.CloudAPI.CloudFloatingIpv6RdnsCreate(cmd.Context(), id).ReverseDNSRequest(*body).Execute()
 			} else {
-				resp, _, err = c.CloudAPI.CloudFloatingIpv4RdnsCreate(cmd.Context(), id).ReverseDNS(*body).Execute()
+				resp, _, err = c.CloudAPI.CloudFloatingIpv4RdnsCreate(cmd.Context(), id).ReverseDNSRequest(*body).Execute()
 			}
 			if err != nil {
 				return cmdutil.APIError("setting floating IP reverse DNS", err)

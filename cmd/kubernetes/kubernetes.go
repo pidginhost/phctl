@@ -94,7 +94,7 @@ var clusterCreateCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		body := *pidginhost.NewClusterAdd(
+		body := *pidginhost.NewClusterAddRequest(
 			pidginhost.ClusterTypeEnum(clusterCreateType),
 			clusterCreatePkg,
 		)
@@ -113,7 +113,7 @@ var clusterCreateCmd = &cobra.Command{
 			body.KubeVersion = &v
 		}
 
-		resp, _, err := c.KubernetesAPI.KubernetesClustersCreate(cmd.Context()).ClusterAdd(body).Execute()
+		resp, _, err := c.KubernetesAPI.KubernetesClustersCreate(cmd.Context()).ClusterAddRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("creating cluster", err)
 		}
@@ -459,8 +459,8 @@ var poolCreateCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		body := *pidginhost.NewResourcePoolAdd(poolCreatePkg, poolCreateSize)
-		resp, _, err := c.KubernetesAPI.KubernetesClustersResourcePoolsCreate(cmd.Context(), id).ResourcePoolAdd(body).Execute()
+		body := *pidginhost.NewResourcePoolAddRequest(poolCreatePkg, poolCreateSize)
+		resp, _, err := c.KubernetesAPI.KubernetesClustersResourcePoolsCreate(cmd.Context(), id).ResourcePoolAddRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("creating pool", err)
 		}
@@ -548,7 +548,7 @@ var nodeListCmd = &cobra.Command{
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID", "NAME", "IP")
 			for _, n := range nodes {
-				output.PrintRow(tw, n.Id, n.Name, n.Ip)
+				output.PrintRow(tw, n.Id, n.Name, output.Pstr(n.Ip.Get()))
 			}
 			tw.Flush()
 		})
@@ -579,12 +579,17 @@ var nodeDeleteCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		_, err = c.KubernetesAPI.KubernetesClustersResourcePoolsNodesDestroy(cmd.Context(), clusterId, args[2], poolId).Execute()
+		// The route admits the removal as an operation (cordon, drain, detach)
+		// and answers 202 with it; the node is still there when it returns.
+		op, _, err := c.KubernetesAPI.KubernetesClustersResourcePoolsNodesDestroy(cmd.Context(), clusterId, args[2], poolId).Execute()
 		if err != nil {
 			return cmdutil.APIError("deleting node", err)
 		}
-		cmd.Printf("Node %s deleted.\n", args[2])
-		return nil
+		if op == nil {
+			return fmt.Errorf("deleting node %s: server returned no operation", args[2])
+		}
+		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), op,
+			"Removal of node %s started (operation %d, status %s).\n", args[2], op.Id, op.Status)
 	},
 }
 

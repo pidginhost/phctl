@@ -185,8 +185,8 @@ func runTicketCreate(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	body := *pidginhost.NewTicketCreate(ticketCreateSubject, ticketCreateDept, ticketCreateMessage)
-	resp, _, err := c.SupportAPI.SupportTicketsCreate(cmd.Context()).TicketCreate(body).Execute()
+	body := *pidginhost.NewTicketCreateRequest(ticketCreateSubject, ticketCreateDept, ticketCreateMessage)
+	resp, _, err := c.SupportAPI.SupportTicketsCreate(cmd.Context()).TicketCreateRequest(body).Execute()
 	if err != nil {
 		return cmdutil.APIError("creating ticket", err)
 	}
@@ -199,8 +199,8 @@ func runTicketReply(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	body := *pidginhost.NewTicketReply(ticketReplyMessage)
-	_, _, err = c.SupportAPI.SupportTicketsReplyCreate(cmd.Context(), args[0]).TicketReply(body).Execute()
+	body := *pidginhost.NewTicketReplyRequest(ticketReplyMessage)
+	_, _, err = c.SupportAPI.SupportTicketsReplyCreate(cmd.Context(), args[0]).TicketReplyRequest(body).Execute()
 	if err != nil {
 		return cmdutil.APIError("replying to ticket", err)
 	}

@@ -94,7 +94,7 @@ var clusterUpdateCmd = &cobra.Command{
 			return fmt.Errorf("nothing to update: pass at least one of --name, --protected or --features")
 		}
 
-		body := *pidginhost.NewPatchedClusterDetail()
+		body := *pidginhost.NewPatchedClusterDetailRequest()
 		if nameSet {
 			body.Name = pidginhost.PtrString(clusterUpdateName)
 		}
@@ -138,7 +138,7 @@ var clusterUpdateCmd = &cobra.Command{
 			return err
 		}
 		cluster, _, err := c.KubernetesAPI.KubernetesClustersPartialUpdate(cmd.Context(), args[0]).
-			PatchedClusterDetail(body).Execute()
+			PatchedClusterDetailRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("updating cluster", err)
 		}
@@ -301,7 +301,7 @@ var poolGetCmd = &cobra.Command{
 			nodes := output.NewTabWriter(w)
 			output.PrintRow(nodes, "NODE ID", "NAME", "IP")
 			for _, n := range pool.Nodes {
-				output.PrintRow(nodes, n.Id, n.Name, n.Ip)
+				output.PrintRow(nodes, n.Id, n.Name, output.Pstr(n.Ip.Get()))
 			}
 			nodes.Flush()
 		})
@@ -341,10 +341,10 @@ var poolResizeCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		body := *pidginhost.NewPatchedResourcePool()
+		body := *pidginhost.NewPatchedResourcePoolRequest()
 		body.NewSize = pidginhost.PtrInt32(poolResizeSize)
 		pool, _, err := c.KubernetesAPI.KubernetesClustersResourcePoolsPartialUpdate(cmd.Context(), clusterID, args[1]).
-			PatchedResourcePool(body).Execute()
+			PatchedResourcePoolRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("resizing pool", err)
 		}
@@ -355,7 +355,7 @@ var poolResizeCmd = &cobra.Command{
 			return fmt.Errorf("resizing pool %d: server returned pool %d", poolID, pool.Id)
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), pool,
-			"Resize of pool %d to %d node(s) requested; it currently reports %s.\n",
+			"Resize of pool %d to %d node(s) requested; it currently reports %d.\n",
 			pool.Id, poolResizeSize, pool.Size)
 	},
 }
@@ -389,7 +389,7 @@ var nodeGetCmd = &cobra.Command{
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID:", node.Id)
 			output.PrintRow(tw, "Name:", node.Name)
-			output.PrintRow(tw, "IP:", node.Ip)
+			output.PrintRow(tw, "IP:", output.Pstr(node.Ip.Get()))
 			tw.Flush()
 		})
 	},

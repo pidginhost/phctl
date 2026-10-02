@@ -92,8 +92,8 @@ var firewallCreateCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		body := *pidginhost.NewFirewallRulesSet(0, firewallCreateName, "", []pidginhost.FirewallRule{}, false)
-		resp, _, err := c.CloudAPI.CloudFirewallRulesSetCreate(cmd.Context()).FirewallRulesSet(body).Execute()
+		body := *pidginhost.NewFirewallRulesSetRequest(firewallCreateName)
+		resp, _, err := c.CloudAPI.CloudFirewallRulesSetCreate(cmd.Context()).FirewallRulesSetRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("creating firewall", err)
 		}
@@ -180,11 +180,9 @@ var ruleCreateCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		body := *pidginhost.NewFirewallRule(
-			0,
+		body := *pidginhost.NewFirewallRuleRequest(
 			pidginhost.FirewallRuleDirectionEnum(ruleDirection),
 			pidginhost.FwPolicyOutEnum(ruleAction),
-			false, "",
 		)
 		if ruleProtocol != "" {
 			body.Protocol = pidginhost.PtrString(ruleProtocol)
@@ -202,7 +200,7 @@ var ruleCreateCmd = &cobra.Command{
 			body.Destination = pidginhost.PtrString(ruleDestination)
 		}
 
-		resp, _, err := c.CloudAPI.CloudFirewallRulesSetRulesCreate(cmd.Context(), args[0]).FirewallRule(body).Execute()
+		resp, _, err := c.CloudAPI.CloudFirewallRulesSetRulesCreate(cmd.Context(), args[0]).FirewallRuleRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("creating rule", err)
 		}

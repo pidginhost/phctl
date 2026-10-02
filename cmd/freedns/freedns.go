@@ -66,8 +66,8 @@ var domainActivateCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		body := *pidginhost.NewActivateFreeDNS(args[0], pidginhost.SourceEnum(activateSource), activateIP)
-		resp, _, err := c.FreednsAPI.FreednsDnsActivateCreate(cmd.Context()).ActivateFreeDNS(body).Execute()
+		body := *pidginhost.NewActivateFreeDNSRequest(args[0], pidginhost.SourceEnum(activateSource), activateIP)
+		resp, _, err := c.FreednsAPI.FreednsDnsActivateCreate(cmd.Context()).ActivateFreeDNSRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("activating FreeDNS", err)
 		}
@@ -90,8 +90,8 @@ var domainDeactivateCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		body := *pidginhost.NewDeactivateFreeDNS(args[0], pidginhost.SourceEnum(deactivateSource))
-		resp, _, err := c.FreednsAPI.FreednsDnsDeactivateCreate(cmd.Context()).DeactivateFreeDNS(body).Execute()
+		body := *pidginhost.NewDeactivateFreeDNSRequest(args[0], pidginhost.SourceEnum(deactivateSource))
+		resp, _, err := c.FreednsAPI.FreednsDnsDeactivateCreate(cmd.Context()).DeactivateFreeDNSRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("deactivating FreeDNS", err)
 		}
@@ -158,11 +158,11 @@ var recordCreateCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		body := *pidginhost.NewDNSRecordCreate(recordName, recordTTL, pidginhost.DNSRecordCreateTypeEnum(recordType))
+		body := *pidginhost.NewDNSRecordCreateRequest(recordName, recordTTL, pidginhost.DNSRecordCreateTypeEnum(recordType))
 		if recordAddress != "" {
 			body.Address = &recordAddress
 		}
-		req := c.FreednsAPI.FreednsDnsAddRecordCreate(cmd.Context()).Domain(recordCreateDomain).DNSRecordCreate(body)
+		req := c.FreednsAPI.FreednsDnsAddRecordCreate(cmd.Context()).Domain(recordCreateDomain).DNSRecordCreateRequest(body)
 		if recordCreateSource != "" {
 			req = req.Source(recordCreateSource)
 		}
@@ -192,8 +192,8 @@ var recordDeleteCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		body := *pidginhost.NewDeleteRecord(recordDeleteLine)
-		req := c.FreednsAPI.FreednsDnsDeleteRecordCreate(cmd.Context()).Domain(recordDeleteDomain).DeleteRecord(body)
+		body := *pidginhost.NewDeleteRecordRequest(recordDeleteLine)
+		req := c.FreednsAPI.FreednsDnsDeleteRecordCreate(cmd.Context()).Domain(recordDeleteDomain).DeleteRecordRequest(body)
 		if recordDeleteSource != "" {
 			req = req.Source(recordDeleteSource)
 		}
