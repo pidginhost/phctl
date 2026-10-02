@@ -61,6 +61,9 @@ var volumeGetCmd = &cobra.Command{
 		if err != nil {
 			return cmdutil.APIError("getting volume", err)
 		}
+		if vol == nil {
+			return fmt.Errorf("getting volume: server returned no response")
+		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, vol, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
@@ -148,6 +151,12 @@ var volumeDetachCmd = &cobra.Command{
 		resp, _, err := c.CloudAPI.CloudVolumesDetachCreate(cmd.Context(), id).Execute()
 		if err != nil {
 			return cmdutil.APIError("detaching volume", err)
+		}
+		if resp == nil {
+			return fmt.Errorf("detaching volume: server returned no response")
+		}
+		if !resp.Detached {
+			return fmt.Errorf("detaching volume: server did not detach the volume")
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"Volume detached: %v\n", resp.Detached)

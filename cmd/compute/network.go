@@ -33,6 +33,9 @@ var networkListCmd = &cobra.Command{
 			if err != nil {
 				return nil, false, err
 			}
+			if resp == nil {
+				return nil, false, fmt.Errorf("server returned no response page")
+			}
 			return resp.Results, resp.Next.Get() != nil, nil
 		})
 		if err != nil {
@@ -66,6 +69,9 @@ var networkGetCmd = &cobra.Command{
 		net, _, err := c.CloudAPI.CloudPrivateNetworksRetrieve(cmd.Context(), id).Execute()
 		if err != nil {
 			return cmdutil.APIError("getting network", err)
+		}
+		if net == nil {
+			return fmt.Errorf("getting network: server returned no response")
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, net, func(w io.Writer) {
@@ -102,6 +108,9 @@ var networkCreateCmd = &cobra.Command{
 		resp, _, err := c.CloudAPI.CloudPrivateNetworksCreate(cmd.Context()).PrivateNetworkRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("creating network", err)
+		}
+		if resp == nil {
+			return fmt.Errorf("creating network: server returned no response")
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"Private network created (ID: %d, Address: %s)\n", resp.Id, resp.Address)
@@ -160,6 +169,12 @@ var networkAddServerCmd = &cobra.Command{
 		if err != nil {
 			return cmdutil.APIError("adding server to network", err)
 		}
+		if resp == nil {
+			return fmt.Errorf("adding server to network: server returned no response")
+		}
+		if !resp.Created {
+			return fmt.Errorf("adding server to network: server was not added to the network")
+		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"Server added to network: %v\n", resp.Created)
 	},
@@ -184,6 +199,12 @@ var networkRemoveServerCmd = &cobra.Command{
 		resp, _, err := c.CloudAPI.CloudPrivateNetworksRemoveServerCreate(cmd.Context(), id).PrivateNetworkRemoveHostRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("removing server from network", err)
+		}
+		if resp == nil {
+			return fmt.Errorf("removing server from network: server returned no response")
+		}
+		if !resp.Removed {
+			return fmt.Errorf("removing server from network: server was not removed from the network")
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"Server removed from network: %v\n", resp.Removed)

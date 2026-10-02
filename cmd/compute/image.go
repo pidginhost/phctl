@@ -1,6 +1,7 @@
 package compute
 
 import (
+	"fmt"
 	"io"
 
 	pidginhost "github.com/pidginhost/sdk-go"
@@ -29,6 +30,9 @@ var imageListCmd = &cobra.Command{
 			resp, _, err := c.CloudAPI.CloudImagesList(cmd.Context()).Page(page).Execute()
 			if err != nil {
 				return nil, false, err
+			}
+			if resp == nil {
+				return nil, false, fmt.Errorf("server returned no response page")
 			}
 			return resp.Results, resp.Next.Get() != nil, nil
 		})

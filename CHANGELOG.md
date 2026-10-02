@@ -4,6 +4,10 @@
 
 ### Fixed
 
+- Commands that read SDK response fields now reject empty or null responses with an error instead of panicking or returning successful null output, including paginated lists.
+- `billing invoice get` preserves service details and the other invoice fields from the API. Decimal amounts retain their exact text in tables and remain strings in JSON.
+- IP and volume detach commands and private-network add/remove-server commands fail when the API reports that the operation did not happen.
+- FreeDNS record commands require `--source`, matching the API, instead of accepting its omission and failing later in the SDK.
 - **`dedicated server list` and `dedicated server get` work at all.** The API sends `ips` as a list of address objects and `server_status` as an object, but the commands decoded both as strings, so every call failed. They now use the generated model: the table shows the addresses comma-separated and the provider's status text, and `-o json` keeps the full address objects.
 - **`compute server snapshot list` and `compute server boot-isos` work at all.** Both routes answer a plain JSON array, and the commands expected a paginated envelope, so every call failed to decode.
 - **`compute server snapshot create` no longer reports an error after queuing the snapshot.** The answer was decoded as a snapshot list, which it is not. The command now checks that the API queued the snapshot and fails if it did not; under `-o json` it prints the API's answer.

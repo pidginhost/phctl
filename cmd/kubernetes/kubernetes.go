@@ -117,6 +117,9 @@ var clusterCreateCmd = &cobra.Command{
 		if err != nil {
 			return cmdutil.APIError("creating cluster", err)
 		}
+		if resp == nil {
+			return fmt.Errorf("creating cluster: server returned no response")
+		}
 		format := cmdutil.OutputFormat(cmd)
 		if err := output.Result(cmd.OutOrStdout(), format, resp, "Cluster created (ID: %d)\n", resp.Id); err != nil {
 			return err
@@ -244,6 +247,9 @@ var clusterUpgradeKubeCmd = &cobra.Command{
 		if err != nil {
 			return cmdutil.APIError("upgrading kube version", err)
 		}
+		if resp == nil {
+			return fmt.Errorf("upgrading kube version: server returned no response")
+		}
 		format := cmdutil.OutputFormat(cmd)
 		if err := output.Result(cmd.OutOrStdout(), format, resp, "Kubernetes upgrade initiated: %s\n", resp.Status); err != nil {
 			return err
@@ -280,6 +286,9 @@ var clusterUpgradeTalosCmd = &cobra.Command{
 		if err != nil {
 			return cmdutil.APIError("upgrading talos version", err)
 		}
+		if resp == nil {
+			return fmt.Errorf("upgrading talos version: server returned no response")
+		}
 		format := cmdutil.OutputFormat(cmd)
 		if err := output.Result(cmd.OutOrStdout(), format, resp, "Talos upgrade initiated: %s\n", resp.Status); err != nil {
 			return err
@@ -313,6 +322,9 @@ var clusterConnectVMCmd = &cobra.Command{
 		if err != nil {
 			return cmdutil.APIError("connecting VM", err)
 		}
+		if resp == nil {
+			return fmt.Errorf("connecting VM: server returned no response")
+		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"VM connected: %s - %s\n", resp.Status, resp.Message)
 	},
@@ -334,6 +346,9 @@ var clusterDisconnectVMCmd = &cobra.Command{
 		if err != nil {
 			return cmdutil.APIError("disconnecting VM", err)
 		}
+		if resp == nil {
+			return fmt.Errorf("disconnecting VM: server returned no response")
+		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"VM disconnected: %s - %s\n", resp.Status, resp.Message)
 	},
@@ -351,6 +366,9 @@ var clusterConnectedVMsCmd = &cobra.Command{
 		resp, _, err := c.KubernetesAPI.KubernetesClustersConnectedVmsRetrieve(cmd.Context(), args[0]).Execute()
 		if err != nil {
 			return cmdutil.APIError("listing connected VMs", err)
+		}
+		if resp == nil {
+			return fmt.Errorf("listing connected VMs: server returned no response")
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, resp.Vms, func(w io.Writer) {
@@ -378,6 +396,9 @@ var clusterTypesCmd = &cobra.Command{
 			resp, _, err := c.KubernetesAPI.KubernetesClusterTypesList(cmd.Context()).Page(page).Execute()
 			if err != nil {
 				return nil, false, err
+			}
+			if resp == nil {
+				return nil, false, fmt.Errorf("server returned no response page")
 			}
 			return resp.Results, resp.Next.Get() != nil, nil
 		})
@@ -422,6 +443,9 @@ var poolListCmd = &cobra.Command{
 			if err != nil {
 				return nil, false, err
 			}
+			if resp == nil {
+				return nil, false, fmt.Errorf("server returned no response page")
+			}
 			return resp.Results, resp.Next.Get() != nil, nil
 		})
 		if err != nil {
@@ -463,6 +487,9 @@ var poolCreateCmd = &cobra.Command{
 		resp, _, err := c.KubernetesAPI.KubernetesClustersResourcePoolsCreate(cmd.Context(), id).ResourcePoolAddRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("creating pool", err)
+		}
+		if resp == nil {
+			return fmt.Errorf("creating pool: server returned no response")
 		}
 		format := cmdutil.OutputFormat(cmd)
 		if err := output.Result(cmd.OutOrStdout(), format, resp, "Resource pool created (ID: %d)\n", resp.Id); err != nil {
@@ -537,6 +564,9 @@ var nodeListCmd = &cobra.Command{
 			resp, _, err := c.KubernetesAPI.KubernetesClustersResourcePoolsNodesList(cmd.Context(), clusterId, poolId).Page(page).Execute()
 			if err != nil {
 				return nil, false, err
+			}
+			if resp == nil {
+				return nil, false, fmt.Errorf("server returned no response page")
 			}
 			return resp.Results, resp.Next.Get() != nil, nil
 		})

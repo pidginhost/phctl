@@ -36,6 +36,9 @@ var serverListCmd = &cobra.Command{
 			if err != nil {
 				return nil, false, err
 			}
+			if resp == nil {
+				return nil, false, fmt.Errorf("server returned no response page")
+			}
 			return resp.Results, resp.Next.Get() != nil, nil
 		})
 		if err != nil {
@@ -94,6 +97,9 @@ var serverGetCmd = &cobra.Command{
 		s, _, err := c.CloudAPI.CloudServersRetrieve(cmd.Context(), id).Execute()
 		if err != nil {
 			return cmdutil.APIError("getting server", err)
+		}
+		if s == nil {
+			return fmt.Errorf("getting server: server returned no response")
 		}
 
 		return output.Print(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), s, func(w io.Writer) {
@@ -224,6 +230,9 @@ var serverCreateCmd = &cobra.Command{
 		if err != nil {
 			return cmdutil.APIError("creating server", err)
 		}
+		if resp == nil {
+			return fmt.Errorf("creating server: server returned no response")
+		}
 
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp, "Server created (ID: %d)\n", resp.Id)
 	},
@@ -296,6 +305,9 @@ var serverConsoleCmd = &cobra.Command{
 		resp, _, err := c.CloudAPI.CloudServersConsoleCreate(cmd.Context(), id).Execute()
 		if err != nil {
 			return cmdutil.APIError("getting console", err)
+		}
+		if resp == nil {
+			return fmt.Errorf("getting console: server returned no response")
 		}
 		return output.Print(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp, func(w io.Writer) {
 			tw := output.NewTabWriter(w)

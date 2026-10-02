@@ -97,6 +97,9 @@ var domainCreateCmd = &cobra.Command{
 		if err != nil {
 			return cmdutil.APIError("registering domain", err)
 		}
+		if resp == nil {
+			return fmt.Errorf("registering domain: server returned no response")
+		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"Domain registered: %s\n", resp.Domain)
 	},
@@ -115,6 +118,9 @@ var domainCheckCmd = &cobra.Command{
 		resp, _, err := c.DomainAPI.DomainDomainCheckAvailabilityCreate(cmd.Context()).CheckAvailabilityRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("checking availability", err)
+		}
+		if resp == nil {
+			return fmt.Errorf("checking availability: server returned no response")
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, resp, func(w io.Writer) {
@@ -186,6 +192,9 @@ var domainTransferCmd = &cobra.Command{
 		resp, _, err := c.DomainAPI.DomainDomainTransferRoDomainCreate(cmd.Context()).TransferRoDomainRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("transferring domain", err)
+		}
+		if resp == nil {
+			return fmt.Errorf("transferring domain: server returned no response")
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"Domain transfer initiated: %s\n", resp.Domain)
@@ -336,6 +345,9 @@ var registrantListCmd = &cobra.Command{
 			if err != nil {
 				return nil, false, err
 			}
+			if resp == nil {
+				return nil, false, fmt.Errorf("server returned no response page")
+			}
 			return resp.Results, resp.Next.Get() != nil, nil
 		})
 		if err != nil {
@@ -365,6 +377,9 @@ var registrantGetCmd = &cobra.Command{
 		r, _, err := c.DomainAPI.DomainRegistrantsRetrieve(cmd.Context(), args[0]).Execute()
 		if err != nil {
 			return cmdutil.APIError("getting registrant", err)
+		}
+		if r == nil {
+			return fmt.Errorf("getting registrant: server returned no response")
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, r, func(w io.Writer) {
@@ -417,6 +432,9 @@ var registrantCreateCmd = &cobra.Command{
 		resp, _, err := c.DomainAPI.DomainRegistrantsCreate(cmd.Context()).DomainRegistrantRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("creating registrant", err)
+		}
+		if resp == nil {
+			return fmt.Errorf("creating registrant: server returned no response")
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"Registrant created (ID: %d, %s %s)\n", resp.Id, resp.FirstName, resp.LastName)

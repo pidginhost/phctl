@@ -63,6 +63,9 @@ var sshKeyListCmd = &cobra.Command{
 			if err != nil {
 				return nil, false, err
 			}
+			if resp == nil {
+				return nil, false, fmt.Errorf("server returned no response page")
+			}
 			return resp.Results, resp.Next.Get() != nil, nil
 		})
 		if err != nil {
@@ -151,6 +154,9 @@ var companyListCmd = &cobra.Command{
 			resp, _, err := c.AccountAPI.AccountCompaniesList(cmd.Context()).Page(page).Execute()
 			if err != nil {
 				return nil, false, err
+			}
+			if resp == nil {
+				return nil, false, fmt.Errorf("server returned no response page")
 			}
 			return resp.Results, resp.Next.Get() != nil, nil
 		})
@@ -278,6 +284,9 @@ var emailListCmd = &cobra.Command{
 			resp, _, err := c.AccountAPI.AccountEmailsList(cmd.Context()).Page(page).Execute()
 			if err != nil {
 				return nil, false, err
+			}
+			if resp == nil {
+				return nil, false, fmt.Errorf("server returned no response page")
 			}
 			return resp.Results, resp.Next.Get() != nil, nil
 		})

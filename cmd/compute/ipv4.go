@@ -33,6 +33,9 @@ var ipv4ListCmd = &cobra.Command{
 			if err != nil {
 				return nil, false, err
 			}
+			if resp == nil {
+				return nil, false, fmt.Errorf("server returned no response page")
+			}
 			return resp.Results, resp.Next.Get() != nil, nil
 		})
 		if err != nil {
@@ -61,6 +64,9 @@ var ipv4CreateCmd = &cobra.Command{
 		resp, _, err := c.CloudAPI.CloudIpv4Create(cmd.Context()).Execute()
 		if err != nil {
 			return cmdutil.APIError("creating IPv4", err)
+		}
+		if resp == nil {
+			return fmt.Errorf("creating IPv4: server returned no response")
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"IPv4 address created (ID: %d, Address: %s)\n", resp.Id, resp.Address)
@@ -110,6 +116,12 @@ var ipv4DetachCmd = &cobra.Command{
 		if err != nil {
 			return cmdutil.APIError("detaching IPv4", err)
 		}
+		if resp == nil {
+			return fmt.Errorf("detaching IPv4: server returned no response")
+		}
+		if !resp.Detached {
+			return fmt.Errorf("detaching IPv4: server did not detach the IPv4 address")
+		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"IPv4 detached: %v\n", resp.Detached)
 	},
@@ -150,6 +162,9 @@ var ipv4ReverseDNSCmd = &cobra.Command{
 			if err != nil {
 				return cmdutil.APIError("fetching reverse DNS", err)
 			}
+		}
+		if resp == nil {
+			return fmt.Errorf("reverse DNS: server returned no response")
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, resp, func(w io.Writer) {

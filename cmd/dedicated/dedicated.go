@@ -127,6 +127,9 @@ var serverPowerCmd = &cobra.Command{
 		if err != nil {
 			return cmdutil.APIError("power management", err)
 		}
+		if resp == nil {
+			return fmt.Errorf("power management: server returned no response")
+		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"Power action '%s': %s\n", serverPowerAction, resp.Message)
 	},
@@ -174,6 +177,9 @@ var serverRDNSCmd = &cobra.Command{
 		resp, _, err := c.DedicatedAPI.DedicatedServersRdnsCreate(cmd.Context(), args[0]).DedicatedRDNSRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("setting rDNS", err)
+		}
+		if resp == nil {
+			return fmt.Errorf("setting rDNS: server returned no response")
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"rDNS updated: %s\n", resp.Message)

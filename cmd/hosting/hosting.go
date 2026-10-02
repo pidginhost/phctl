@@ -86,6 +86,9 @@ var changePasswordCmd = &cobra.Command{
 		if err != nil {
 			return cmdutil.APIError("changing password", err)
 		}
+		if resp == nil {
+			return fmt.Errorf("changing password: server returned no response")
+		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"Password changed: %s\n", resp.Message)
 	},
