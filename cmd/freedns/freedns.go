@@ -66,10 +66,13 @@ var domainActivateCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		body := *pidginhost.NewActivateFreeDNS(args[0], pidginhost.SourceEnum(activateSource), activateIP)
-		resp, _, err := c.FreednsAPI.FreednsDnsActivateCreate(cmd.Context()).ActivateFreeDNS(body).Execute()
+		body := *pidginhost.NewActivateFreeDNSRequest(args[0], pidginhost.SourceEnum(activateSource), activateIP)
+		resp, _, err := c.FreednsAPI.FreednsDnsActivateCreate(cmd.Context()).ActivateFreeDNSRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("activating FreeDNS", err)
+		}
+		if resp == nil {
+			return fmt.Errorf("activating FreeDNS: server returned no response")
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"FreeDNS activated: %s\n", resp.Message)
@@ -90,10 +93,13 @@ var domainDeactivateCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		body := *pidginhost.NewDeactivateFreeDNS(args[0], pidginhost.SourceEnum(deactivateSource))
-		resp, _, err := c.FreednsAPI.FreednsDnsDeactivateCreate(cmd.Context()).DeactivateFreeDNS(body).Execute()
+		body := *pidginhost.NewDeactivateFreeDNSRequest(args[0], pidginhost.SourceEnum(deactivateSource))
+		resp, _, err := c.FreednsAPI.FreednsDnsDeactivateCreate(cmd.Context()).DeactivateFreeDNSRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("deactivating FreeDNS", err)
+		}
+		if resp == nil {
+			return fmt.Errorf("deactivating FreeDNS: server returned no response")
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"FreeDNS deactivated: %s\n", resp.Message)
@@ -158,17 +164,20 @@ var recordCreateCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		body := *pidginhost.NewDNSRecordCreate(recordName, recordTTL, pidginhost.DNSRecordCreateTypeEnum(recordType))
+		body := *pidginhost.NewDNSRecordCreateRequest(recordName, recordTTL, pidginhost.DNSRecordCreateTypeEnum(recordType))
 		if recordAddress != "" {
 			body.Address = &recordAddress
 		}
-		req := c.FreednsAPI.FreednsDnsAddRecordCreate(cmd.Context()).Domain(recordCreateDomain).DNSRecordCreate(body)
+		req := c.FreednsAPI.FreednsDnsAddRecordCreate(cmd.Context()).Domain(recordCreateDomain).DNSRecordCreateRequest(body)
 		if recordCreateSource != "" {
 			req = req.Source(recordCreateSource)
 		}
 		resp, _, err := req.Execute()
 		if err != nil {
 			return cmdutil.APIError("creating record", err)
+		}
+		if resp == nil {
+			return fmt.Errorf("creating record: server returned no response")
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"Record created: %s\n", resp.Message)
@@ -192,14 +201,17 @@ var recordDeleteCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		body := *pidginhost.NewDeleteRecord(recordDeleteLine)
-		req := c.FreednsAPI.FreednsDnsDeleteRecordCreate(cmd.Context()).Domain(recordDeleteDomain).DeleteRecord(body)
+		body := *pidginhost.NewDeleteRecordRequest(recordDeleteLine)
+		req := c.FreednsAPI.FreednsDnsDeleteRecordCreate(cmd.Context()).Domain(recordDeleteDomain).DeleteRecordRequest(body)
 		if recordDeleteSource != "" {
 			req = req.Source(recordDeleteSource)
 		}
 		resp, _, err := req.Execute()
 		if err != nil {
 			return cmdutil.APIError("deleting record", err)
+		}
+		if resp == nil {
+			return fmt.Errorf("deleting record: server returned no response")
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"Record deleted: %s\n", resp.Message)
@@ -214,23 +226,26 @@ func init() {
 	domainDeactivateCmd.Flags().StringVar(&deactivateSource, "source", "internal", "Source type: internal or external")
 
 	recordListCmd.Flags().StringVar(&recordListDomain, "domain", "", "Domain name (required)")
-	recordListCmd.Flags().StringVar(&recordListSource, "source", "", "Source: internal or external")
+	recordListCmd.Flags().StringVar(&recordListSource, "source", "", "Source: internal or external (required)")
 	recordListCmd.MarkFlagRequired("domain")
+	recordListCmd.MarkFlagRequired("source")
 
 	recordCreateCmd.Flags().StringVar(&recordCreateDomain, "domain", "", "Domain name (required)")
-	recordCreateCmd.Flags().StringVar(&recordCreateSource, "source", "", "Source: internal or external")
+	recordCreateCmd.Flags().StringVar(&recordCreateSource, "source", "", "Source: internal or external (required)")
 	recordCreateCmd.Flags().StringVar(&recordType, "type", "", "Record type: A, AAAA, CNAME, MX, TXT, SRV, CAA (required)")
 	recordCreateCmd.Flags().StringVar(&recordName, "name", "", "Record name (required)")
 	recordCreateCmd.Flags().Int32Var(&recordTTL, "ttl", 3600, "TTL in seconds")
 	recordCreateCmd.Flags().StringVar(&recordAddress, "address", "", "Record address/value")
 	recordCreateCmd.MarkFlagRequired("domain")
+	recordCreateCmd.MarkFlagRequired("source")
 	recordCreateCmd.MarkFlagRequired("type")
 	recordCreateCmd.MarkFlagRequired("name")
 
 	recordDeleteCmd.Flags().StringVar(&recordDeleteDomain, "domain", "", "Domain name (required)")
-	recordDeleteCmd.Flags().StringVar(&recordDeleteSource, "source", "", "Source: internal or external")
+	recordDeleteCmd.Flags().StringVar(&recordDeleteSource, "source", "", "Source: internal or external (required)")
 	recordDeleteCmd.Flags().Int32Var(&recordDeleteLine, "line", 0, "Record line number (required)")
 	recordDeleteCmd.MarkFlagRequired("domain")
+	recordDeleteCmd.MarkFlagRequired("source")
 	recordDeleteCmd.MarkFlagRequired("line")
 
 	domainCmd.AddCommand(domainListCmd)

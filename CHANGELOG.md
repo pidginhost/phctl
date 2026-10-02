@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- Commands that read SDK response fields now reject empty or null responses with an error instead of panicking or returning successful null output, including paginated lists.
+- `billing invoice get` preserves service details and the other invoice fields from the API. Decimal amounts retain their exact text in tables and remain strings in JSON.
+- IP and volume detach commands and private-network add/remove-server commands fail when the API reports that the operation did not happen.
+- FreeDNS record commands require `--source`, matching the API, instead of accepting its omission and failing later in the SDK.
+- **`dedicated server list` and `dedicated server get` work at all.** The API sends `ips` as a list of address objects and `server_status` as an object, but the commands decoded both as strings, so every call failed. They now use the generated model: the table shows the addresses comma-separated and the provider's status text, and `-o json` keeps the full address objects.
+- **`compute server snapshot list` and `compute server boot-isos` work at all.** Both routes answer a plain JSON array, and the commands expected a paginated envelope, so every call failed to decode.
+- **`compute server snapshot create` no longer reports an error after queuing the snapshot.** The answer was decoded as a snapshot list, which it is not. The command now checks that the API queued the snapshot and fails if it did not; under `-o json` it prints the API's answer.
+- **`compute volume attach` no longer reports an error after attaching.** The answer was decoded as the request body. The command now checks the `attached` flag it reports, fails if it is false, and prints the answer under `-o json`.
+- **`kubernetes node delete` no longer claims the node is gone.** The API starts a safe removal (cordon, drain, detach) and answers with the operation it queued. The command now reports the operation ID and status, and prints the operation under `-o json`.
+
+### Changed
+
+- **Requires `sdk-go` v0.14.0.** Request bodies have their own models without the fields the server assigns, so create and update commands no longer send placeholder values such as `"id": 0` or empty strings for read-only fields. This covers firewall rule sets and rules, private networks, SSH keys, public interface settings, API tokens, load balancer firewall rules, port forwards and Gateway routes.
+- **`compute network create --slug` is deprecated.** The server assigns the slug and never applied the value passed. The flag is still accepted, prints a deprecation warning, and is no longer required.
+- **`account api-token list` and `create` no longer patch the API's answer.** Personal tokens omit `account` and `membership_status` while multi-user IAM is off, and the SDK now treats them as optional. Under `-o json` the two fields are left out when the API does not send them, instead of being printed as null.
+- **A Kubernetes node without an address shows `<none>`** in `kubernetes pool get`, `node get` and `node list`.
+
 ## v0.18.0
 
 ### Added

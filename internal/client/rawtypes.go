@@ -172,21 +172,6 @@ type RawCluster struct {
 	TalosVersion  string  `json:"talos_version"`
 }
 
-// --- Dedicated ---
-
-type RawDedicatedServer struct {
-	Id           int32   `json:"id"`
-	Hostname     string  `json:"hostname"`
-	Status       string  `json:"status"`
-	Price        Decimal `json:"price"`
-	NextInvoice  string  `json:"next_invoice"`
-	Created      string  `json:"created"`
-	BillingCycle string  `json:"billing_cycle"`
-	ServerStatus string  `json:"server_status"`
-	Ips          string  `json:"ips"`
-	OsName       string  `json:"os_name"`
-}
-
 // --- Hosting ---
 
 type RawHostingService struct {

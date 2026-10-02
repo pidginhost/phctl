@@ -158,8 +158,9 @@ const lbRuleJSON = `{"id":5,"direction":"in","action":"ACCEPT","protocol":"tcp",
 	`"comment":"https","enabled":true,"position":1,` +
 	`"created":"2026-08-18T10:00:00Z","updated":"2026-08-18T10:00:00Z"}`
 
-const poolJSON = `{"id":3,"package":"vm-4","generation":"gen2","size":"2",` +
-	`"nodes":[{"id":11,"name":"node-a","ip":"10.0.0.11"}]}`
+// size is an integer and a node's ip is null until it has one.
+const poolJSON = `{"id":3,"package":"vm-4","generation":"gen2","size":2,` +
+	`"nodes":[{"id":11,"name":"node-a","ip":"10.0.0.11"},{"id":12,"name":"node-b","ip":null}]}`
 
 const nodeJSON = `{"id":11,"name":"node-a","ip":"10.0.0.11"}`
 
@@ -352,6 +353,12 @@ func TestLBFirewallCreateSendsRule(t *testing.T) {
 	} {
 		if call.body[key] != want {
 			t.Errorf("body[%s] = %v, want %v", key, call.body[key], want)
+		}
+	}
+	// id, created and updated are assigned by the server and must not be sent.
+	for _, readOnly := range []string{"id", "created", "updated"} {
+		if v, present := call.body[readOnly]; present {
+			t.Errorf("read-only field %s was sent as %v", readOnly, v)
 		}
 	}
 	if !strings.Contains(out, "5") {
@@ -717,6 +724,21 @@ func TestPoolGetRendersPool(t *testing.T) {
 			t.Errorf("output missing %q:\n%s", want, out)
 		}
 	}
+	// A node without an address renders as <none>, not as the Go struct
+	// behind the nullable field.
+	lines := strings.Split(out, "\n")
+	var nodeB string
+	for _, line := range lines {
+		if strings.Contains(line, "node-b") {
+			nodeB = line
+		}
+	}
+	if got := strings.Fields(nodeB); len(got) != 3 || got[2] != "<none>" {
+		t.Errorf("node-b row = %q, want its IP as <none>", nodeB)
+	}
+	if !strings.Contains(out, "Size:") || !strings.Contains(out, " 2\n") {
+		t.Errorf("output missing the pool size 2:\n%s", out)
+	}
 }
 
 func TestPoolGetRejectsEmptyBodyWithoutPanicking(t *testing.T) {
@@ -735,7 +757,7 @@ func TestPoolGetRejectsEmptyBodyWithoutPanicking(t *testing.T) {
 
 func TestPoolResizeConfirmsAndPatchesNewSize(t *testing.T) {
 	setFlags(t, poolResizeCmd, map[string]string{"size": "4"})
-	rec, _, errOut, err := runCmd(t, poolResizeCmd, []string{"42", "3"}, okBody(poolJSON), "table", "y\n", false)
+	rec, out, errOut, err := runCmd(t, poolResizeCmd, []string{"42", "3"}, okBody(poolJSON), "table", "y\n", false)
 	if err != nil {
 		t.Fatalf("RunE: %v", err)
 	}
@@ -745,6 +767,10 @@ func TestPoolResizeConfirmsAndPatchesNewSize(t *testing.T) {
 	}
 	if call.body["new_size"] != float64(4) {
 		t.Errorf("body = %v", call.body)
+	}
+	// size is an integer; a string verb would print %!s(int32=2).
+	if want := "Resize of pool 3 to 4 node(s) requested; it currently reports 2.\n"; out != want {
+		t.Errorf("output = %q, want %q", out, want)
 	}
 	if !strings.Contains(errOut, "[y/N]") {
 		t.Errorf("resize did not confirm: %q", errOut)
@@ -811,6 +837,97 @@ func TestNodeGetRendersNode(t *testing.T) {
 	}
 	if !strings.Contains(out, "node-a") {
 		t.Errorf("output missing the node name:\n%s", out)
+	}
+	if !strings.Contains(out, "10.0.0.11") {
+		t.Errorf("output missing the node IP:\n%s", out)
+	}
+}
+
+func TestNodeGetRendersMissingIPAsNone(t *testing.T) {
+	_, out, _, err := runCmd(t, nodeGetCmd, []string{"42", "3", "11"},
+		okBody(`{"id":11,"name":"node-a","ip":null}`), "table", "", false)
+	if err != nil {
+		t.Fatalf("RunE: %v", err)
+	}
+	if !strings.Contains(out, "IP:    <none>") {
+		t.Errorf("output = %q, want the IP as <none>", out)
+	}
+}
+
+func TestNodeListRendersIP(t *testing.T) {
+	_, out, _, err := runCmd(t, nodeListCmd, []string{"42", "3"},
+		okBody(`{"count":2,"next":null,"previous":null,"results":[`+
+			`{"id":11,"name":"node-a","ip":"10.0.0.11"},{"id":12,"name":"node-b","ip":null}]}`),
+		"table", "", false)
+	if err != nil {
+		t.Fatalf("RunE: %v", err)
+	}
+	for _, want := range []string{"10.0.0.11", "<none>"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output missing %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "{") {
+		t.Errorf("a nullable field leaked its Go struct into the table:\n%s", out)
+	}
+}
+
+// --- node delete: the API starts an operation and answers 202 with it ---
+
+const nodeOperationJSON = `{"id":77,"kind":"delete","source":"api","target_hostname":"node-a",` +
+	`"status":"pending","reason":"","message":"","bypass_pdb":false,"delete_unmanaged_pods":false,` +
+	`"local_data_loss_accepted":false,"bypass_pdb_confirmed_at":null,"unmanaged_pods_confirmed_at":null,` +
+	`"actor_label":"user@example.com","created_at":"2026-10-01T10:00:00Z","updated_at":"2026-10-01T10:00:00Z",` +
+	`"finished_at":null,"allowed_actions":["cancel"]}`
+
+func TestNodeDeleteReportsTheOperation(t *testing.T) {
+	rec, out, errOut, err := runCmd(t, nodeDeleteCmd, []string{"42", "3", "11"},
+		reply(http.StatusAccepted, nodeOperationJSON), "table", "y\n", false)
+	if err != nil {
+		t.Fatalf("RunE: %v", err)
+	}
+	call := rec.last()
+	if call.method != http.MethodDelete || call.path != "/api/kubernetes/clusters/42/resource-pools/3/nodes/11/" {
+		t.Fatalf("call = %s %s", call.method, call.path)
+	}
+	if !strings.Contains(errOut, "[y/N]") {
+		t.Errorf("delete did not confirm: %q", errOut)
+	}
+	// The node is not gone yet: the route only admits the removal.
+	if strings.Contains(out, "deleted") {
+		t.Errorf("output claims the node is already deleted: %q", out)
+	}
+	for _, want := range []string{"11", "77", "pending"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output missing %q: %q", want, out)
+		}
+	}
+}
+
+func TestNodeDeleteJSONIsTheOperation(t *testing.T) {
+	_, out, _, err := runCmd(t, nodeDeleteCmd, []string{"42", "3", "11"},
+		reply(http.StatusAccepted, nodeOperationJSON), "json", "", true)
+	if err != nil {
+		t.Fatalf("RunE: %v", err)
+	}
+	var got map[string]interface{}
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("unmarshal %q: %v", out, err)
+	}
+	if got["id"] != float64(77) || got["status"] != "pending" {
+		t.Errorf("json = %v, want the operation", got)
+	}
+}
+
+func TestNodeDeleteRejectsEmptyBodyWithoutPanicking(t *testing.T) {
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("empty 202 body caused a panic: %v", r)
+		}
+	}()
+	_, _, _, err := runCmd(t, nodeDeleteCmd, []string{"42", "3", "11"}, reply(http.StatusAccepted, ""), "table", "", true)
+	if err == nil {
+		t.Fatal("expected an error when the server returns no operation")
 	}
 }
 

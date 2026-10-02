@@ -117,9 +117,9 @@ var bucketCreateCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		body := *pidginhost.NewBucketCreate(bucketCreateName, bucketCreateQuota)
+		body := *pidginhost.NewBucketCreateRequest(bucketCreateName, bucketCreateQuota)
 		body.SetPublicRead(bucketCreatePublic)
-		b, _, err := c.CloudAPI.CloudBucketsCreate(cmd.Context()).BucketCreate(body).Execute()
+		b, _, err := c.CloudAPI.CloudBucketsCreate(cmd.Context()).BucketCreateRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("creating bucket", err)
 		}
@@ -202,8 +202,8 @@ var bucketResizeCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		body := *pidginhost.NewBucketResize(bucketResizeQuota)
-		b, _, err := c.CloudAPI.CloudBucketsResizeCreate(cmd.Context(), id).BucketResize(body).Execute()
+		body := *pidginhost.NewBucketResizeRequest(bucketResizeQuota)
+		b, _, err := c.CloudAPI.CloudBucketsResizeCreate(cmd.Context(), id).BucketResizeRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("resizing bucket", err)
 		}
@@ -253,8 +253,8 @@ var bucketVisibilityCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		body := *pidginhost.NewBucketVisibility(public)
-		b, _, err := c.CloudAPI.CloudBucketsVisibilityCreate(cmd.Context(), id).BucketVisibility(body).Execute()
+		body := *pidginhost.NewBucketVisibilityRequest(public)
+		b, _, err := c.CloudAPI.CloudBucketsVisibilityCreate(cmd.Context(), id).BucketVisibilityRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("changing bucket visibility", err)
 		}

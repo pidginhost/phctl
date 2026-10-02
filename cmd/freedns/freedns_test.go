@@ -1,7 +1,11 @@
 package freedns
 
 import (
+	"strings"
 	"testing"
+
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 func TestFreeDNSCommandStructure(t *testing.T) {
@@ -68,5 +72,25 @@ func TestRecordCreateFlags(t *testing.T) {
 		if f == nil {
 			t.Fatalf("missing --%s flag on record create command", flag)
 		}
+	}
+}
+
+func TestRecordCommandsRequireSource(t *testing.T) {
+	for _, command := range []*cobra.Command{recordListCmd, recordCreateCmd, recordDeleteCmd} {
+		t.Run(command.Name(), func(t *testing.T) {
+			// Supply every other required flag without making an API call.
+			command.Flags().VisitAll(func(flag *pflag.Flag) {
+				changed := flag.Changed
+				t.Cleanup(func() { flag.Changed = changed })
+				flag.Changed = flag.Name != "source"
+			})
+			if err := command.ValidateRequiredFlags(); err == nil || !strings.Contains(err.Error(), "source") {
+				t.Fatalf("missing --source: error = %v, want required flag error", err)
+			}
+			command.Flags().Lookup("source").Changed = true
+			if err := command.ValidateRequiredFlags(); err != nil {
+				t.Fatalf("supplied --source: %v", err)
+			}
+		})
 	}
 }

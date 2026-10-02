@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -131,13 +132,10 @@ func TestAPITokenCreateHandlesDarkModeResponse(t *testing.T) {
 		t.Fatalf("RunE: %v", err)
 	}
 
-	for _, field := range []string{"account", "membership_status"} {
-		value, present := body[field]
-		if !present {
-			t.Errorf("request omitted server-assigned field %q", field)
-		} else if value != nil {
-			t.Errorf("request field %q = %#v, want JSON null", field, value)
-		}
+	// The request model carries only what a caller sets; the server-assigned
+	// id, key, created and account fields are not sent at all.
+	if want := map[string]interface{}{"name": "deploy"}; !reflect.DeepEqual(body, want) {
+		t.Errorf("request body = %#v, want %#v", body, want)
 	}
 	if got, want := out.String(), "API token created (Name: deploy)\nToken: secret\nSave this token — it will not be shown again.\n"; got != want {
 		t.Fatalf("output = %q, want %q", got, want)
@@ -162,5 +160,63 @@ func TestAPITokenListHandlesDarkModeResponse(t *testing.T) {
 		if !strings.Contains(out.String(), want) {
 			t.Errorf("output %q missing %q", out.String(), want)
 		}
+	}
+}
+
+func runAccountCmd(t *testing.T, cmd *cobra.Command, payload string) (map[string]interface{}, string, error) {
+	t.Helper()
+	var body map[string]interface{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(payload))
+	}))
+	t.Cleanup(server.Close)
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("PIDGINHOST_API_TOKEN", "test-token")
+	t.Setenv("PIDGINHOST_API_URL", server.URL)
+
+	child, out := newAccountTestCommand(t, "table")
+	err := cmd.RunE(child, nil)
+	return body, out.String(), err
+}
+
+func TestAPITokenCreateRejectsNullResponse(t *testing.T) {
+	previousName := apiTokenCreateName
+	apiTokenCreateName = "deploy"
+	t.Cleanup(func() { apiTokenCreateName = previousName })
+
+	if _, _, err := runAccountCmd(t, apiTokenCreateCmd, `null`); err == nil {
+		t.Fatal("a null API response must return an error")
+	}
+}
+
+func TestSSHKeyCreateSendsOnlyKeyAndAlias(t *testing.T) {
+	prevKey, prevAlias := sshKeyCreateKey, sshKeyCreateAlias
+	t.Cleanup(func() { sshKeyCreateKey, sshKeyCreateAlias = prevKey, prevAlias })
+	sshKeyCreateKey, sshKeyCreateAlias = "ssh-ed25519 AAAAexample user@host", "laptop"
+
+	body, out, err := runAccountCmd(t, sshKeyCreateCmd,
+		`{"id":5,"alias":"laptop","fingerprint":"SHA256:example","key":"ssh-ed25519 AAAAexample user@host"}`)
+	if err != nil {
+		t.Fatalf("RunE: %v", err)
+	}
+	want := map[string]interface{}{"key": sshKeyCreateKey, "alias": "laptop"}
+	if !reflect.DeepEqual(body, want) {
+		t.Errorf("request body = %#v, want %#v", body, want)
+	}
+	if out != "SSH key created (ID: 5, Fingerprint: SHA256:example)\n" {
+		t.Errorf("output = %q", out)
+	}
+}
+
+func TestSSHKeyCreateRejectsNullResponse(t *testing.T) {
+	prevKey := sshKeyCreateKey
+	t.Cleanup(func() { sshKeyCreateKey = prevKey })
+	sshKeyCreateKey = "ssh-ed25519 AAAAexample user@host"
+
+	if _, _, err := runAccountCmd(t, sshKeyCreateCmd, `null`); err == nil {
+		t.Fatal("a null API response must return an error")
 	}
 }

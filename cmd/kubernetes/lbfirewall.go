@@ -216,14 +216,12 @@ var lbFirewallCreateCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		// id, created and updated are read-only server-side; the schema reuses
-		// the response component for the request body, so they must be present.
-		body := *pidginhost.NewLBFirewallRule(0, "", "")
+		body := *pidginhost.NewLBFirewallRuleRequest()
 		body.Direction = direction
 		body.Action = action
 		f.applyOptional(&body)
 
-		rule, _, err := c.KubernetesAPI.KubernetesClustersLbFirewallCreate(cmd.Context(), clusterID).LBFirewallRule(body).Execute()
+		rule, _, err := c.KubernetesAPI.KubernetesClustersLbFirewallCreate(cmd.Context(), clusterID).LBFirewallRuleRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("creating LB firewall rule", err)
 		}
@@ -237,7 +235,7 @@ var lbFirewallCreateCmd = &cobra.Command{
 
 // applyOptional copies the optional fields the caller actually gave, leaving
 // the rest to the server's own defaults.
-func (f *lbRuleFlags) applyOptional(body *pidginhost.LBFirewallRule) {
+func (f *lbRuleFlags) applyOptional(body *pidginhost.LBFirewallRuleRequest) {
 	if f.isSet("protocol") {
 		body.Protocol = pidginhost.PtrString(f.protocol)
 	}
@@ -288,7 +286,7 @@ var lbFirewallUpdateCmd = &cobra.Command{
 				joinFlags(lbRuleFieldFlags))
 		}
 
-		body := *pidginhost.NewPatchedLBFirewallRule()
+		body := *pidginhost.NewPatchedLBFirewallRuleRequest()
 		if f.isSet("direction") {
 			direction, err := f.parsedDirection()
 			if err != nil {
@@ -310,7 +308,7 @@ var lbFirewallUpdateCmd = &cobra.Command{
 			return err
 		}
 		rule, _, err := c.KubernetesAPI.KubernetesClustersLbFirewallPartialUpdate(cmd.Context(), clusterID, args[1]).
-			PatchedLBFirewallRule(body).Execute()
+			PatchedLBFirewallRuleRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("updating LB firewall rule", err)
 		}
@@ -364,7 +362,7 @@ func (f *lbRuleFlags) verifyApplied(ruleID int32, rule *pidginhost.LBFirewallRul
 	return nil
 }
 
-func (f *lbRuleFlags) applyOptionalPatched(body *pidginhost.PatchedLBFirewallRule) {
+func (f *lbRuleFlags) applyOptionalPatched(body *pidginhost.PatchedLBFirewallRuleRequest) {
 	if f.isSet("protocol") {
 		body.Protocol = pidginhost.PtrString(f.protocol)
 	}

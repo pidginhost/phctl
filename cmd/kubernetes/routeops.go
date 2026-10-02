@@ -250,10 +250,10 @@ var httpRouteUpdateCmd = &cobra.Command{
 		if err := f.validate(); err != nil {
 			return err
 		}
-		// Not NewPatchedHTTPRoute(): that constructor seeds the schema defaults for
+		// Not NewPatchedHTTPRouteRequest(): that constructor seeds the schema defaults for
 		// backend_namespace, path_prefix and enable_tls, which a PATCH would then
 		// send as if the caller had asked for them.
-		var body pidginhost.PatchedHTTPRoute
+		var body pidginhost.PatchedHTTPRouteRequest
 		if f.isSet("name") {
 			body.Name = pidginhost.PtrString(f.name)
 		}
@@ -284,7 +284,7 @@ var httpRouteUpdateCmd = &cobra.Command{
 			return err
 		}
 		route, _, err := c.KubernetesAPI.KubernetesClustersHttproutesPartialUpdate(cmd.Context(), clusterID, args[1]).
-			PatchedHTTPRoute(body).Execute()
+			PatchedHTTPRouteRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("updating HTTP route", err)
 		}
@@ -447,7 +447,7 @@ var tcpRouteUpdateCmd = &cobra.Command{
 			return err
 		}
 		// Zero value, not the constructor: it seeds backend_namespace.
-		var body pidginhost.PatchedTCPRoute
+		var body pidginhost.PatchedTCPRouteRequest
 		if f.isSet("name") {
 			body.Name = pidginhost.PtrString(f.name)
 		}
@@ -472,7 +472,7 @@ var tcpRouteUpdateCmd = &cobra.Command{
 			return err
 		}
 		route, _, err := c.KubernetesAPI.KubernetesClustersTcproutesPartialUpdate(cmd.Context(), clusterID, args[1]).
-			PatchedTCPRoute(body).Execute()
+			PatchedTCPRouteRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("updating TCP route", err)
 		}
@@ -509,7 +509,7 @@ var udpRouteUpdateCmd = &cobra.Command{
 			return err
 		}
 		// Zero value, not the constructor: it seeds backend_namespace.
-		var body pidginhost.PatchedUDPRoute
+		var body pidginhost.PatchedUDPRouteRequest
 		if f.isSet("name") {
 			body.Name = pidginhost.PtrString(f.name)
 		}
@@ -534,7 +534,7 @@ var udpRouteUpdateCmd = &cobra.Command{
 			return err
 		}
 		route, _, err := c.KubernetesAPI.KubernetesClustersUdproutesPartialUpdate(cmd.Context(), clusterID, args[1]).
-			PatchedUDPRoute(body).Execute()
+			PatchedUDPRouteRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("updating UDP route", err)
 		}

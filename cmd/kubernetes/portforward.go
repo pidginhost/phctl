@@ -189,11 +189,9 @@ var portForwardCreateCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		// id is read-only server-side; the schema reuses the response component
-		// for the request body, so it has to be present.
-		body := *pidginhost.NewK8sPortForward(0, f.internalIP, f.port, *protocol)
+		body := *pidginhost.NewK8sPortForwardRequest(f.internalIP, f.port, *protocol)
 		forward, _, err := c.KubernetesAPI.KubernetesClustersPortForwardsCreate(cmd.Context(), clusterID).
-			K8sPortForward(body).Execute()
+			K8sPortForwardRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("creating port forward", err)
 		}
@@ -223,7 +221,7 @@ var portForwardUpdateCmd = &cobra.Command{
 		if err := f.validateChanged(); err != nil {
 			return err
 		}
-		var body pidginhost.PatchedK8sPortForward
+		var body pidginhost.PatchedK8sPortForwardRequest
 		if f.isSet("internal-ip") {
 			body.InternalIp = pidginhost.PtrString(f.internalIP)
 		}
@@ -243,7 +241,7 @@ var portForwardUpdateCmd = &cobra.Command{
 			return err
 		}
 		forward, _, err := c.KubernetesAPI.KubernetesClustersPortForwardsPartialUpdate(cmd.Context(), clusterID, args[1]).
-			PatchedK8sPortForward(body).Execute()
+			PatchedK8sPortForwardRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("updating port forward", err)
 		}

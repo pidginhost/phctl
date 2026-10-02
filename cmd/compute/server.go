@@ -36,6 +36,9 @@ var serverListCmd = &cobra.Command{
 			if err != nil {
 				return nil, false, err
 			}
+			if resp == nil {
+				return nil, false, fmt.Errorf("server returned no response page")
+			}
 			return resp.Results, resp.Next.Get() != nil, nil
 		})
 		if err != nil {
@@ -94,6 +97,9 @@ var serverGetCmd = &cobra.Command{
 		s, _, err := c.CloudAPI.CloudServersRetrieve(cmd.Context(), id).Execute()
 		if err != nil {
 			return cmdutil.APIError("getting server", err)
+		}
+		if s == nil {
+			return fmt.Errorf("getting server: server returned no response")
 		}
 
 		return output.Print(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), s, func(w io.Writer) {
@@ -179,7 +185,7 @@ var serverCreateCmd = &cobra.Command{
 			return err
 		}
 
-		body := *pidginhost.NewServerAdd(serverCreateImage, serverCreatePackage)
+		body := *pidginhost.NewServerAddRequest(serverCreateImage, serverCreatePackage)
 		if serverCreateGeneration != "" {
 			body.Generation = pidginhost.PtrString(serverCreateGeneration)
 		}
@@ -220,9 +226,12 @@ var serverCreateCmd = &cobra.Command{
 			body.UserData = pidginhost.PtrString(userData)
 		}
 
-		resp, _, err := c.CloudAPI.CloudServersCreate(cmd.Context()).ServerAdd(body).Execute()
+		resp, _, err := c.CloudAPI.CloudServersCreate(cmd.Context()).ServerAddRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("creating server", err)
+		}
+		if resp == nil {
+			return fmt.Errorf("creating server: server returned no response")
 		}
 
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp, "Server created (ID: %d)\n", resp.Id)
@@ -296,6 +305,9 @@ var serverConsoleCmd = &cobra.Command{
 		resp, _, err := c.CloudAPI.CloudServersConsoleCreate(cmd.Context(), id).Execute()
 		if err != nil {
 			return cmdutil.APIError("getting console", err)
+		}
+		if resp == nil {
+			return fmt.Errorf("getting console: server returned no response")
 		}
 		return output.Print(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
@@ -436,9 +448,9 @@ var serverResizeCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		body := *pidginhost.NewServerProductUpgrade(pkg)
+		body := *pidginhost.NewServerProductUpgradeRequest(pkg)
 		resp, _, err := c.CloudAPI.CloudServersModifyPackageCreate(cmd.Context(), id).
-			ServerProductUpgrade(body).Execute()
+			ServerProductUpgradeRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("resizing server", err)
 		}
@@ -538,8 +550,8 @@ var serverProtectCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		body := *pidginhost.NewDestroyProtection(serverProtectEnable)
-		_, _, err = c.CloudAPI.CloudServersDestroyProtectionCreate(cmd.Context(), id).DestroyProtection(body).Execute()
+		body := *pidginhost.NewDestroyProtectionRequest(serverProtectEnable)
+		_, _, err = c.CloudAPI.CloudServersDestroyProtectionCreate(cmd.Context(), id).DestroyProtectionRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("setting destroy protection", err)
 		}
@@ -573,15 +585,13 @@ var serverSnapshotListCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		snapshots, err := cmdutil.FetchAll(func(page int32) ([]pidginhost.Snapshot, bool, error) {
-			resp, _, err := c.CloudAPI.CloudServersSnapshotsList(cmd.Context(), id).Page(page).Execute()
-			if err != nil {
-				return nil, false, err
-			}
-			return resp.Results, resp.Next.Get() != nil, nil
-		})
+		// The route answers a bare array, not a paginated envelope.
+		snapshots, _, err := c.CloudAPI.CloudServersSnapshotsList(cmd.Context(), id).Execute()
 		if err != nil {
 			return cmdutil.APIError("listing snapshots", err)
+		}
+		if snapshots == nil {
+			return fmt.Errorf("listing snapshots of server %d: server returned no snapshot list", id)
 		}
 		return output.Print(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), snapshots, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
@@ -613,13 +623,19 @@ var serverSnapshotCreateCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		body := *pidginhost.NewSnapshotCreate(snapshotCreateName)
-		_, _, err = c.CloudAPI.CloudServersSnapshotsCreate(cmd.Context(), id).SnapshotCreate(body).Execute()
+		body := *pidginhost.NewSnapshotCreateRequest(snapshotCreateName)
+		resp, _, err := c.CloudAPI.CloudServersSnapshotsCreate(cmd.Context(), id).SnapshotCreateRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("creating snapshot", err)
 		}
-		cmd.Printf("Snapshot '%s' creation queued.\n", snapshotCreateName)
-		return nil
+		if resp == nil {
+			return fmt.Errorf("creating snapshot on server %d: server returned no result", id)
+		}
+		if !resp.Queued {
+			return fmt.Errorf("creating snapshot on server %d: server did not queue the snapshot", id)
+		}
+		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
+			"Snapshot '%s' creation queued.\n", snapshotCreateName)
 	},
 }
 

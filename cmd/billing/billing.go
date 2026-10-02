@@ -59,6 +59,9 @@ var fundsLogCmd = &cobra.Command{
 			if err != nil {
 				return nil, false, err
 			}
+			if resp == nil {
+				return nil, false, fmt.Errorf("server returned no response page")
+			}
 			return resp.Results, resp.Next.Get() != nil, nil
 		})
 		if err != nil {
@@ -137,10 +140,13 @@ var depositCreateCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		body := *pidginhost.NewDepositCreate(depositCreateAmount)
-		resp, _, err := c.BillingAPI.BillingDepositsCreate(cmd.Context()).DepositCreate(body).Execute()
+		body := *pidginhost.NewDepositCreateRequest(depositCreateAmount)
+		resp, _, err := c.BillingAPI.BillingDepositsCreate(cmd.Context()).DepositCreateRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("creating deposit", err)
+		}
+		if resp == nil {
+			return fmt.Errorf("creating deposit: server returned no response")
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"Deposit created (ID: %d, Amount: %s)\n", resp.Id, resp.Amount)
@@ -180,9 +186,16 @@ var invoiceGetCmd = &cobra.Command{
 	Short: "Get invoice details",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		var inv client.RawInvoiceList
-		if err := client.RawGet(cmd.Context(), fmt.Sprintf("/api/billing/invoices/%s/", args[0]), &inv); err != nil {
+		c, err := client.New()
+		if err != nil {
+			return err
+		}
+		inv, _, err := c.BillingAPI.BillingInvoicesRetrieve(cmd.Context(), args[0]).Execute()
+		if err != nil {
 			return cmdutil.APIError("getting invoice", err)
+		}
+		if inv == nil {
+			return fmt.Errorf("getting invoice: server returned no invoice")
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, inv, func(w io.Writer) {
@@ -216,6 +229,9 @@ var invoicePayCmd = &cobra.Command{
 		resp, _, err := c.BillingAPI.BillingInvoicesPayWithFundsCreate(cmd.Context(), args[0]).Execute()
 		if err != nil {
 			return cmdutil.APIError("paying invoice", err)
+		}
+		if resp == nil {
+			return fmt.Errorf("paying invoice: server returned no response")
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"Invoice paid: %s\n", resp.Message)
@@ -291,6 +307,9 @@ var serviceCancelCmd = &cobra.Command{
 		if err != nil {
 			return cmdutil.APIError("cancelling service", err)
 		}
+		if resp == nil {
+			return fmt.Errorf("cancelling service: server returned no response")
+		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"Service cancelled: %s\n", resp.Message)
 	},
@@ -308,6 +327,9 @@ var serviceAutoPayCmd = &cobra.Command{
 		resp, _, err := c.BillingAPI.BillingServicesToggleAutoPaymentCreate(cmd.Context(), args[0]).Execute()
 		if err != nil {
 			return cmdutil.APIError("toggling auto-pay", err)
+		}
+		if resp == nil {
+			return fmt.Errorf("toggling auto-pay: server returned no response")
 		}
 		state := "enabled"
 		if !resp.AutoPayment {

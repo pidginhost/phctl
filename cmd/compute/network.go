@@ -33,6 +33,9 @@ var networkListCmd = &cobra.Command{
 			if err != nil {
 				return nil, false, err
 			}
+			if resp == nil {
+				return nil, false, fmt.Errorf("server returned no response page")
+			}
 			return resp.Results, resp.Next.Get() != nil, nil
 		})
 		if err != nil {
@@ -67,6 +70,9 @@ var networkGetCmd = &cobra.Command{
 		if err != nil {
 			return cmdutil.APIError("getting network", err)
 		}
+		if net == nil {
+			return fmt.Errorf("getting network: server returned no response")
+		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, net, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
@@ -88,10 +94,7 @@ var networkGetCmd = &cobra.Command{
 	},
 }
 
-var (
-	networkCreateSlug    string
-	networkCreateAddress string
-)
+var networkCreateAddress string
 
 var networkCreateCmd = &cobra.Command{
 	Use:   "create",
@@ -101,10 +104,13 @@ var networkCreateCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		body := *pidginhost.NewPrivateNetwork(0, networkCreateSlug, networkCreateAddress, false, nil)
-		resp, _, err := c.CloudAPI.CloudPrivateNetworksCreate(cmd.Context()).PrivateNetwork(body).Execute()
+		body := *pidginhost.NewPrivateNetworkRequest(networkCreateAddress)
+		resp, _, err := c.CloudAPI.CloudPrivateNetworksCreate(cmd.Context()).PrivateNetworkRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("creating network", err)
+		}
+		if resp == nil {
+			return fmt.Errorf("creating network: server returned no response")
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"Private network created (ID: %d, Address: %s)\n", resp.Id, resp.Address)
@@ -155,13 +161,19 @@ var networkAddServerCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		body := *pidginhost.NewPrivateNetworkAddHost(networkAddServerHost)
+		body := *pidginhost.NewPrivateNetworkAddHostRequest(networkAddServerHost)
 		if networkAddServerAddress != "" {
 			body.Address = pidginhost.PtrString(networkAddServerAddress)
 		}
-		resp, _, err := c.CloudAPI.CloudPrivateNetworksAddServerCreate(cmd.Context(), id).PrivateNetworkAddHost(body).Execute()
+		resp, _, err := c.CloudAPI.CloudPrivateNetworksAddServerCreate(cmd.Context(), id).PrivateNetworkAddHostRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("adding server to network", err)
+		}
+		if resp == nil {
+			return fmt.Errorf("adding server to network: server returned no response")
+		}
+		if !resp.Created {
+			return fmt.Errorf("adding server to network: server was not added to the network")
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"Server added to network: %v\n", resp.Created)
@@ -183,10 +195,16 @@ var networkRemoveServerCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		body := *pidginhost.NewPrivateNetworkRemoveHost(networkRemoveServerHost)
-		resp, _, err := c.CloudAPI.CloudPrivateNetworksRemoveServerCreate(cmd.Context(), id).PrivateNetworkRemoveHost(body).Execute()
+		body := *pidginhost.NewPrivateNetworkRemoveHostRequest(networkRemoveServerHost)
+		resp, _, err := c.CloudAPI.CloudPrivateNetworksRemoveServerCreate(cmd.Context(), id).PrivateNetworkRemoveHostRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("removing server from network", err)
+		}
+		if resp == nil {
+			return fmt.Errorf("removing server from network: server returned no response")
+		}
+		if !resp.Removed {
+			return fmt.Errorf("removing server from network: server was not removed from the network")
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"Server removed from network: %v\n", resp.Removed)
@@ -194,9 +212,11 @@ var networkRemoveServerCmd = &cobra.Command{
 }
 
 func init() {
-	networkCreateCmd.Flags().StringVar(&networkCreateSlug, "slug", "", "Network slug in CIDR format (required)")
+	// The server assigns the slug, so --slug was never applied. Kept, deprecated,
+	// so scripts that pass it do not break.
+	networkCreateCmd.Flags().String("slug", "", "Ignored: the server assigns the slug")
+	_ = networkCreateCmd.Flags().MarkDeprecated("slug", "the server assigns the slug; the value was never applied")
 	networkCreateCmd.Flags().StringVar(&networkCreateAddress, "address", "", "Network address in CIDR format (required)")
-	networkCreateCmd.MarkFlagRequired("slug")
 	networkCreateCmd.MarkFlagRequired("address")
 
 	networkAddServerCmd.Flags().StringVar(&networkAddServerHost, "server", "", "Server hostname (required)")

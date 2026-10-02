@@ -86,16 +86,19 @@ var domainCreateCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		body := *pidginhost.NewDomainCreate(args[0])
+		body := *pidginhost.NewDomainCreateRequest(args[0])
 		if domainCreateNameservers != "" {
 			body.Nameservers = pidginhost.PtrString(domainCreateNameservers)
 		}
 		if domainCreateYears > 0 {
 			body.Years = pidginhost.PtrInt32(domainCreateYears)
 		}
-		resp, _, err := c.DomainAPI.DomainDomainCreate(cmd.Context()).DomainCreate(body).Execute()
+		resp, _, err := c.DomainAPI.DomainDomainCreate(cmd.Context()).DomainCreateRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("registering domain", err)
+		}
+		if resp == nil {
+			return fmt.Errorf("registering domain: server returned no response")
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"Domain registered: %s\n", resp.Domain)
@@ -111,10 +114,13 @@ var domainCheckCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		body := *pidginhost.NewCheckAvailability(args[0])
-		resp, _, err := c.DomainAPI.DomainDomainCheckAvailabilityCreate(cmd.Context()).CheckAvailability(body).Execute()
+		body := *pidginhost.NewCheckAvailabilityRequest(args[0])
+		resp, _, err := c.DomainAPI.DomainDomainCheckAvailabilityCreate(cmd.Context()).CheckAvailabilityRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("checking availability", err)
+		}
+		if resp == nil {
+			return fmt.Errorf("checking availability: server returned no response")
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, resp, func(w io.Writer) {
@@ -137,8 +143,8 @@ var domainRenewCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		body := *pidginhost.NewRenewDomain(domainRenewYears)
-		_, _, err = c.DomainAPI.DomainDomainRenewCreate(cmd.Context(), args[0]).RenewDomain(body).Execute()
+		body := *pidginhost.NewRenewDomainRequest(domainRenewYears)
+		_, _, err = c.DomainAPI.DomainDomainRenewCreate(cmd.Context(), args[0]).RenewDomainRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("renewing domain", err)
 		}
@@ -182,10 +188,13 @@ var domainTransferCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		body := *pidginhost.NewTransferRoDomain(args[0], transferAuthCode)
-		resp, _, err := c.DomainAPI.DomainDomainTransferRoDomainCreate(cmd.Context()).TransferRoDomain(body).Execute()
+		body := *pidginhost.NewTransferRoDomainRequest(args[0], transferAuthCode)
+		resp, _, err := c.DomainAPI.DomainDomainTransferRoDomainCreate(cmd.Context()).TransferRoDomainRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("transferring domain", err)
+		}
+		if resp == nil {
+			return fmt.Errorf("transferring domain: server returned no response")
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"Domain transfer initiated: %s\n", resp.Domain)
@@ -203,8 +212,8 @@ var domainNameserversCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		body := *pidginhost.NewNameserversUpdate(strings.Split(nameserversValue, ","))
-		_, _, err = c.DomainAPI.DomainDomainNameserversCreate(cmd.Context(), args[0]).NameserversUpdate(body).Execute()
+		body := *pidginhost.NewNameserversUpdateRequest(strings.Split(nameserversValue, ","))
+		_, _, err = c.DomainAPI.DomainDomainNameserversCreate(cmd.Context(), args[0]).NameserversUpdateRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("updating nameservers", err)
 		}
@@ -336,6 +345,9 @@ var registrantListCmd = &cobra.Command{
 			if err != nil {
 				return nil, false, err
 			}
+			if resp == nil {
+				return nil, false, fmt.Errorf("server returned no response page")
+			}
 			return resp.Results, resp.Next.Get() != nil, nil
 		})
 		if err != nil {
@@ -365,6 +377,9 @@ var registrantGetCmd = &cobra.Command{
 		r, _, err := c.DomainAPI.DomainRegistrantsRetrieve(cmd.Context(), args[0]).Execute()
 		if err != nil {
 			return cmdutil.APIError("getting registrant", err)
+		}
+		if r == nil {
+			return fmt.Errorf("getting registrant: server returned no response")
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, r, func(w io.Writer) {
@@ -403,8 +418,7 @@ var registrantCreateCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		body := *pidginhost.NewDomainRegistrant(
-			0,
+		body := *pidginhost.NewDomainRegistrantRequest(
 			regFirstName,
 			regLastName,
 			regAddress,
@@ -415,9 +429,12 @@ var registrantCreateCmd = &cobra.Command{
 			regEmail,
 			regPhone,
 		)
-		resp, _, err := c.DomainAPI.DomainRegistrantsCreate(cmd.Context()).DomainRegistrant(body).Execute()
+		resp, _, err := c.DomainAPI.DomainRegistrantsCreate(cmd.Context()).DomainRegistrantRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("creating registrant", err)
+		}
+		if resp == nil {
+			return fmt.Errorf("creating registrant: server returned no response")
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"Registrant created (ID: %d, %s %s)\n", resp.Id, resp.FirstName, resp.LastName)

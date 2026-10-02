@@ -403,6 +403,12 @@ func TestRouteCreateCanSetBackendNamespace(t *testing.T) {
 			if got := rec.last().body["backend_namespace"]; got != want {
 				t.Errorf("body[backend_namespace] = %v, want %q", got, want)
 			}
+			// The server assigns these; the request model has no place for them.
+			for _, readOnly := range []string{"id", "status_ready", "status_message", "created", "updated"} {
+				if v, present := rec.last().body[readOnly]; present {
+					t.Errorf("read-only field %s was sent as %v", readOnly, v)
+				}
+			}
 		})
 	}
 }
