@@ -3,6 +3,7 @@ package dedicated
 import (
 	"fmt"
 	"io"
+	"strings"
 
 	pidginhost "github.com/pidginhost/sdk-go"
 	"github.com/spf13/cobra"
@@ -31,7 +32,20 @@ var serverListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all dedicated servers",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		servers, err := client.RawFetchAll[client.RawDedicatedServer](cmd.Context(), "/api/dedicated/servers/")
+		c, err := client.New()
+		if err != nil {
+			return err
+		}
+		servers, err := cmdutil.FetchAll(func(page int32) ([]pidginhost.DedicatedServer, bool, error) {
+			resp, _, err := c.DedicatedAPI.DedicatedServersList(cmd.Context()).Page(page).Execute()
+			if err != nil {
+				return nil, false, err
+			}
+			if resp == nil {
+				return nil, false, fmt.Errorf("server returned no dedicated server page")
+			}
+			return resp.Results, resp.Next.Get() != nil, nil
+		})
 		if err != nil {
 			return cmdutil.APIError("listing dedicated servers", err)
 		}
@@ -40,7 +54,7 @@ var serverListCmd = &cobra.Command{
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "ID", "HOSTNAME", "STATUS", "SERVER STATUS", "IPS", "OS")
 			for _, s := range servers {
-				output.PrintRow(tw, s.Id, s.Hostname, s.Status, s.ServerStatus, s.Ips, s.OsName)
+				output.PrintRow(tw, s.Id, s.Hostname, s.Status, serverStatusText(s), serverIPs(s), output.Pstr(s.OsName.Get()))
 			}
 			tw.Flush()
 		})
@@ -52,9 +66,16 @@ var serverGetCmd = &cobra.Command{
 	Short: "Get dedicated server details",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		var s client.RawDedicatedServer
-		if err := client.RawGet(cmd.Context(), fmt.Sprintf("/api/dedicated/servers/%s/", args[0]), &s); err != nil {
+		c, err := client.New()
+		if err != nil {
+			return err
+		}
+		s, _, err := c.DedicatedAPI.DedicatedServersRetrieve(cmd.Context(), args[0]).Execute()
+		if err != nil {
 			return cmdutil.APIError("getting dedicated server", err)
+		}
+		if s == nil {
+			return fmt.Errorf("getting dedicated server %s: server returned no server", args[0])
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, s, func(w io.Writer) {
@@ -62,15 +83,32 @@ var serverGetCmd = &cobra.Command{
 			output.PrintRow(tw, "ID:", s.Id)
 			output.PrintRow(tw, "Hostname:", s.Hostname)
 			output.PrintRow(tw, "Status:", s.Status)
-			output.PrintRow(tw, "Server Status:", s.ServerStatus)
-			output.PrintRow(tw, "IPs:", s.Ips)
-			output.PrintRow(tw, "OS:", s.OsName)
+			output.PrintRow(tw, "Server Status:", serverStatusText(*s))
+			output.PrintRow(tw, "IPs:", serverIPs(*s))
+			output.PrintRow(tw, "OS:", output.Pstr(s.OsName.Get()))
 			output.PrintRow(tw, "Price:", s.Price)
 			output.PrintRow(tw, "Billing Cycle:", s.BillingCycle)
 			output.PrintRow(tw, "Next Invoice:", s.NextInvoice)
 			tw.Flush()
 		})
 	},
+}
+
+// serverStatusText is the hardware state the provider reports, or <none>
+// while it has not reported one.
+func serverStatusText(s pidginhost.DedicatedServer) string {
+	if st := s.ServerStatus.Get(); st != nil {
+		return st.StatusText
+	}
+	return "<none>"
+}
+
+func serverIPs(s pidginhost.DedicatedServer) string {
+	ips := make([]string, len(s.Ips))
+	for i, ip := range s.Ips {
+		ips[i] = ip.Ip
+	}
+	return strings.Join(ips, ", ")
 }
 
 var serverPowerAction string
@@ -84,10 +122,13 @@ var serverPowerCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		body := *pidginhost.NewPowerAction(pidginhost.PowerActionActionEnum(serverPowerAction))
-		resp, _, err := c.DedicatedAPI.DedicatedServersPowerCreate(cmd.Context(), args[0]).PowerAction(body).Execute()
+		body := *pidginhost.NewPowerActionRequest(pidginhost.PowerActionActionEnum(serverPowerAction))
+		resp, _, err := c.DedicatedAPI.DedicatedServersPowerCreate(cmd.Context(), args[0]).PowerActionRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("power management", err)
+		}
+		if resp == nil {
+			return fmt.Errorf("power management: server returned no response")
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"Power action '%s': %s\n", serverPowerAction, resp.Message)
@@ -108,8 +149,8 @@ var serverReinstallCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		body := *pidginhost.NewReinstall(reinstallOSID)
-		_, _, err = c.DedicatedAPI.DedicatedServersReinstallCreate(cmd.Context(), args[0]).Reinstall(body).Execute()
+		body := *pidginhost.NewReinstallRequest(reinstallOSID)
+		_, _, err = c.DedicatedAPI.DedicatedServersReinstallCreate(cmd.Context(), args[0]).ReinstallRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("reinstalling", err)
 		}
@@ -132,10 +173,13 @@ var serverRDNSCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		body := *pidginhost.NewDedicatedRDNS(rdnsIPID, rdnsHostname)
-		resp, _, err := c.DedicatedAPI.DedicatedServersRdnsCreate(cmd.Context(), args[0]).DedicatedRDNS(body).Execute()
+		body := *pidginhost.NewDedicatedRDNSRequest(rdnsIPID, rdnsHostname)
+		resp, _, err := c.DedicatedAPI.DedicatedServersRdnsCreate(cmd.Context(), args[0]).DedicatedRDNSRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("setting rDNS", err)
+		}
+		if resp == nil {
+			return fmt.Errorf("setting rDNS: server returned no response")
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"rDNS updated: %s\n", resp.Message)

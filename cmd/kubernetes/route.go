@@ -83,12 +83,9 @@ var httpRouteCreateCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		body := *pidginhost.NewHTTPRoute(
-			0, httpRouteName, httpRouteHostnames,
+		body := *pidginhost.NewHTTPRouteRequest(
+			httpRouteName, httpRouteHostnames,
 			httpRouteBackend, httpRoutePort,
-			*pidginhost.NewNullableBool(nil),
-			"",
-			"", "",
 		)
 		if httpRouteNamespace != "" {
 			body.Namespace = pidginhost.PtrString(httpRouteNamespace)
@@ -101,7 +98,7 @@ var httpRouteCreateCmd = &cobra.Command{
 		}
 		body.EnableTls = pidginhost.PtrBool(httpRouteTLS)
 
-		resp, _, err := c.KubernetesAPI.KubernetesClustersHttproutesCreate(cmd.Context(), id).HTTPRoute(body).Execute()
+		resp, _, err := c.KubernetesAPI.KubernetesClustersHttproutesCreate(cmd.Context(), id).HTTPRouteRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("creating HTTP route", err)
 		}
@@ -211,12 +208,9 @@ var tcpRouteCreateCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		body := *pidginhost.NewTCPRoute(
-			0, tcpRouteName, tcpRoutePort,
+		body := *pidginhost.NewTCPRouteRequest(
+			tcpRouteName, tcpRoutePort,
 			tcpRouteBackend, tcpRouteBackPort,
-			*pidginhost.NewNullableBool(nil),
-			"",
-			"", "",
 		)
 		if tcpRouteNamespace != "" {
 			body.Namespace = pidginhost.PtrString(tcpRouteNamespace)
@@ -225,7 +219,7 @@ var tcpRouteCreateCmd = &cobra.Command{
 			body.BackendNamespace = pidginhost.PtrString(tcpRouteBackendNS)
 		}
 
-		resp, _, err := c.KubernetesAPI.KubernetesClustersTcproutesCreate(cmd.Context(), id).TCPRoute(body).Execute()
+		resp, _, err := c.KubernetesAPI.KubernetesClustersTcproutesCreate(cmd.Context(), id).TCPRouteRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("creating TCP route", err)
 		}
@@ -335,12 +329,9 @@ var udpRouteCreateCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		body := *pidginhost.NewUDPRoute(
-			0, udpRouteName, udpRoutePort,
+		body := *pidginhost.NewUDPRouteRequest(
+			udpRouteName, udpRoutePort,
 			udpRouteBackend, udpRouteBackPort,
-			*pidginhost.NewNullableBool(nil),
-			"",
-			"", "",
 		)
 		if udpRouteNamespace != "" {
 			body.Namespace = pidginhost.PtrString(udpRouteNamespace)
@@ -349,7 +340,7 @@ var udpRouteCreateCmd = &cobra.Command{
 			body.BackendNamespace = pidginhost.PtrString(udpRouteBackendNS)
 		}
 
-		resp, _, err := c.KubernetesAPI.KubernetesClustersUdproutesCreate(cmd.Context(), id).UDPRoute(body).Execute()
+		resp, _, err := c.KubernetesAPI.KubernetesClustersUdproutesCreate(cmd.Context(), id).UDPRouteRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("creating UDP route", err)
 		}

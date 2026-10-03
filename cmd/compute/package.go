@@ -1,6 +1,7 @@
 package compute
 
 import (
+	"fmt"
 	"io"
 	"strings"
 
@@ -48,6 +49,9 @@ var packageListCmd = &cobra.Command{
 			resp, _, err := req.Execute()
 			if err != nil {
 				return nil, false, err
+			}
+			if resp == nil {
+				return nil, false, fmt.Errorf("server returned no response page")
 			}
 			return resp.Results, resp.Next.Get() != nil, nil
 		})

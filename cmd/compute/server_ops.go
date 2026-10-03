@@ -126,18 +126,13 @@ var serverBootISOsCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		isos, err := cmdutil.FetchAll(func(page int32) ([]pidginhost.BootISO, bool, error) {
-			resp, _, err := c.CloudAPI.CloudServersBootIsosList(cmd.Context(), id).Page(page).Execute()
-			if err != nil {
-				return nil, false, err
-			}
-			if resp == nil {
-				return nil, false, fmt.Errorf("server returned no boot ISO page")
-			}
-			return resp.Results, resp.Next.Get() != nil, nil
-		})
+		// The route answers a bare array, not a paginated envelope.
+		isos, _, err := c.CloudAPI.CloudServersBootIsosList(cmd.Context(), id).Execute()
 		if err != nil {
 			return cmdutil.APIError("listing boot ISOs", err)
+		}
+		if isos == nil {
+			return fmt.Errorf("listing boot ISOs for server %d: server returned no boot ISO list", id)
 		}
 		return output.Print(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), isos, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
@@ -365,10 +360,9 @@ var serverPublicInterfaceSetCmd = &cobra.Command{
 			serverPublicInterfacePolicyIn == "" && serverPublicInterfacePolicyOut == "" {
 			return fmt.Errorf("pass at least one of --firewall, --policy-in or --policy-out")
 		}
-		// The interface, IPv4 and IPv6 are read-only server-side, but the
-		// schema shares one component between request and response so the
-		// constructor demands them. They are ignored on the way in.
-		body := pidginhost.NewPublicInterface("", "", "")
+		// Only the firewall settings are writable; the request model carries
+		// nothing else.
+		body := pidginhost.NewPublicInterfaceRequest()
 		if serverPublicInterfaceFirewall != "" {
 			body.SetFwRulesSet(serverPublicInterfaceFirewall)
 		}
@@ -390,7 +384,7 @@ var serverPublicInterfaceSetCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		pi, _, err := c.CloudAPI.CloudServersPublicInterfaceCreate(cmd.Context(), id).PublicInterface(*body).Execute()
+		pi, _, err := c.CloudAPI.CloudServersPublicInterfaceCreate(cmd.Context(), id).PublicInterfaceRequest(*body).Execute()
 		if err != nil {
 			return cmdutil.APIError("setting public interface", err)
 		}

@@ -61,6 +61,9 @@ var firewallGetCmd = &cobra.Command{
 		if err != nil {
 			return cmdutil.APIError("getting firewall", err)
 		}
+		if fw == nil {
+			return fmt.Errorf("getting firewall: server returned no response")
+		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, fw, func(w io.Writer) {
 			tw := output.NewTabWriter(w)
@@ -92,10 +95,13 @@ var firewallCreateCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		body := *pidginhost.NewFirewallRulesSet(0, firewallCreateName, "", []pidginhost.FirewallRule{}, false)
-		resp, _, err := c.CloudAPI.CloudFirewallRulesSetCreate(cmd.Context()).FirewallRulesSet(body).Execute()
+		body := *pidginhost.NewFirewallRulesSetRequest(firewallCreateName)
+		resp, _, err := c.CloudAPI.CloudFirewallRulesSetCreate(cmd.Context()).FirewallRulesSetRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("creating firewall", err)
+		}
+		if resp == nil {
+			return fmt.Errorf("creating firewall: server returned no response")
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"Firewall rule set created (ID: %d, Name: %s)\n", resp.Id, resp.Name)
@@ -180,11 +186,9 @@ var ruleCreateCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		body := *pidginhost.NewFirewallRule(
-			0,
+		body := *pidginhost.NewFirewallRuleRequest(
 			pidginhost.FirewallRuleDirectionEnum(ruleDirection),
 			pidginhost.FwPolicyOutEnum(ruleAction),
-			false, "",
 		)
 		if ruleProtocol != "" {
 			body.Protocol = pidginhost.PtrString(ruleProtocol)
@@ -202,9 +206,12 @@ var ruleCreateCmd = &cobra.Command{
 			body.Destination = pidginhost.PtrString(ruleDestination)
 		}
 
-		resp, _, err := c.CloudAPI.CloudFirewallRulesSetRulesCreate(cmd.Context(), args[0]).FirewallRule(body).Execute()
+		resp, _, err := c.CloudAPI.CloudFirewallRulesSetRulesCreate(cmd.Context(), args[0]).FirewallRuleRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("creating rule", err)
+		}
+		if resp == nil {
+			return fmt.Errorf("creating rule: server returned no response")
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"Rule created (ID: %d, Direction: %s, Action: %s)\n", resp.Id, resp.Direction, resp.Action)

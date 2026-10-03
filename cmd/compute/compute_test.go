@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"strings"
 	"testing"
 
@@ -814,7 +815,7 @@ func newTestServerDetail(floatingIPs []pidginhost.FloatingIPSummary) *pidginhost
 		"gen3",
 		map[string]interface{}{},
 		[]pidginhost.Volume{},
-		map[string]interface{}{},
+		pidginhost.ServerNetworks{},
 		floatingIPs,
 		pidginhost.RESOURCESTATUSENUM_ACTIVE,
 		"root",
@@ -1146,4 +1147,202 @@ func TestServerResizeConfirmsWithoutForce(t *testing.T) {
 	if body != nil {
 		t.Fatalf("resize called the API without confirmation: %#v", body)
 	}
+}
+
+// --- request bodies carry only what the caller can set ---
+//
+// sdk-go v0.14.0 gives request bodies their own models. Before it, create
+// commands built the response model and filled its read-only fields with
+// placeholders (id 0, empty strings, false), which went over the wire.
+
+func assertBodyKeys(t *testing.T, body map[string]interface{}, want ...string) {
+	t.Helper()
+	got := make([]string, 0, len(body))
+	for k := range body {
+		got = append(got, k)
+	}
+	sort.Strings(got)
+	sort.Strings(want)
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("request body keys = %v, want exactly %v (body %v)", got, want, body)
+	}
+}
+
+func TestFirewallCreateSendsOnlyName(t *testing.T) {
+	prev := firewallCreateName
+	t.Cleanup(func() { firewallCreateName = prev })
+	firewallCreateName = "web"
+
+	st, out, err := runOp(t, firewallCreateCmd, nil,
+		okOp(`{"id":9,"name":"web","status":"validated","rules":[],"read_only":false}`), "table", "", false)
+	if err != nil {
+		t.Fatalf("RunE: %v", err)
+	}
+	if st.method != http.MethodPost || st.path != "/api/cloud/firewall-rules-set/" {
+		t.Errorf("method=%s path=%q", st.method, st.path)
+	}
+	assertBodyKeys(t, st.body, "name")
+	if st.body["name"] != "web" {
+		t.Errorf("name = %v, want web", st.body["name"])
+	}
+	if !strings.Contains(out, "ID: 9") {
+		t.Errorf("output = %q, want the new set's ID", out)
+	}
+}
+
+func TestFirewallRuleCreateSendsNoReadOnlyFields(t *testing.T) {
+	prevDir, prevAction, prevDport := ruleDirection, ruleAction, ruleDport
+	t.Cleanup(func() { ruleDirection, ruleAction, ruleDport = prevDir, prevAction, prevDport })
+	ruleDirection, ruleAction, ruleDport = "in", "ACCEPT", "443"
+
+	st, _, err := runOp(t, ruleCreateCmd, []string{"9"},
+		okOp(`{"id":3,"direction":"in","action":"ACCEPT","dport":"443","has_error":false,"error_message":""}`),
+		"table", "", false)
+	if err != nil {
+		t.Fatalf("RunE: %v", err)
+	}
+	assertBodyKeys(t, st.body, "action", "direction", "dport")
+}
+
+func TestNetworkCreateSendsOnlyAddress(t *testing.T) {
+	prev := networkCreateAddress
+	t.Cleanup(func() { networkCreateAddress = prev })
+	networkCreateAddress = "10.10.0.0/24"
+
+	st, out, err := runOp(t, networkCreateCmd, nil,
+		okOp(`{"id":4,"slug":"10-10-0-0-24","address":"10.10.0.0/24","provisioned":false,"servers":[]}`),
+		"table", "", false)
+	if err != nil {
+		t.Fatalf("RunE: %v", err)
+	}
+	assertBodyKeys(t, st.body, "address")
+	if !strings.Contains(out, "ID: 4") {
+		t.Errorf("output = %q, want the new network's ID", out)
+	}
+}
+
+// The slug is assigned by the server; --slug was required yet never applied.
+// It stays accepted so existing scripts keep working, but warns and is optional.
+func TestNetworkCreateSlugIsDeprecatedAndOptional(t *testing.T) {
+	f := networkCreateCmd.Flags().Lookup("slug")
+	if f == nil {
+		t.Fatal("--slug was removed; existing scripts passing it would break")
+	}
+	if f.Deprecated == "" {
+		t.Error("--slug should be marked deprecated: the server ignores it")
+	}
+	if _, required := f.Annotations[cobra.BashCompOneRequiredFlag]; required {
+		t.Error("--slug must no longer be required")
+	}
+}
+
+func TestVolumeAttachChecksTheResult(t *testing.T) {
+	prev := volumeAttachVM
+	t.Cleanup(func() { volumeAttachVM = prev })
+	volumeAttachVM = 42
+
+	t.Run("attached", func(t *testing.T) {
+		st, out, err := runOp(t, volumeAttachCmd, []string{"7"}, okOp(`{"attached":true}`), "table", "", false)
+		if err != nil {
+			t.Fatalf("RunE: %v", err)
+		}
+		assertBodyKeys(t, st.body, "vm")
+		if st.body["vm"] != float64(42) {
+			t.Errorf("vm = %v, want 42", st.body["vm"])
+		}
+		if out != "Volume 7 attached to server 42.\n" {
+			t.Errorf("output = %q", out)
+		}
+	})
+	t.Run("not attached", func(t *testing.T) {
+		_, out, err := runOp(t, volumeAttachCmd, []string{"7"}, okOp(`{"attached":false}`), "table", "", false)
+		if err == nil {
+			t.Fatalf("a 200 with attached=false must fail, got output %q", out)
+		}
+	})
+	t.Run("null body", func(t *testing.T) {
+		if _, _, err := runOp(t, volumeAttachCmd, []string{"7"}, okOp(`null`), "table", "", false); err == nil {
+			t.Fatal("a null API response must return an error")
+		}
+	})
+	t.Run("json", func(t *testing.T) {
+		_, out, err := runOp(t, volumeAttachCmd, []string{"7"}, okOp(`{"attached":true}`), "json", "", false)
+		if err != nil {
+			t.Fatalf("RunE: %v", err)
+		}
+		var got map[string]interface{}
+		if err := json.Unmarshal([]byte(out), &got); err != nil || got["attached"] != true {
+			t.Errorf("json output = %q (err %v), want {\"attached\": true}", out, err)
+		}
+	})
+}
+
+// --- snapshots: plain arrays, and create reports whether it was queued ---
+
+func TestSnapshotListDecodesPlainArray(t *testing.T) {
+	st, out, err := runOp(t, serverSnapshotListCmd, []string{"42"}, okOp(
+		`[{"name":"before-upgrade","state":"ready","created_at":"2026-09-01T10:00:00Z","includes_memory":false,"is_current":false},`+
+			`{"name":"nightly","state":"ready","created_at":null,"includes_memory":true,"is_current":true}]`), "table", "", false)
+	if err != nil {
+		t.Fatalf("RunE: %v", err)
+	}
+	if st.calls != 1 || st.query != "" {
+		t.Errorf("calls=%d query=%q, want one unpaginated request", st.calls, st.query)
+	}
+	if st.path != "/api/cloud/servers/42/snapshots/" {
+		t.Errorf("path = %q", st.path)
+	}
+	for _, want := range []string{"before-upgrade", "nightly", "2026-09-01T10:00:00Z", "<none>"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output missing %q: %s", want, out)
+		}
+	}
+}
+
+func TestSnapshotListRejectsNullResponse(t *testing.T) {
+	if _, _, err := runOp(t, serverSnapshotListCmd, []string{"42"}, okOp(`null`), "table", "", false); err == nil {
+		t.Fatal("a null API response must return an error")
+	}
+}
+
+func TestSnapshotCreateChecksQueued(t *testing.T) {
+	prev := snapshotCreateName
+	t.Cleanup(func() { snapshotCreateName = prev })
+	snapshotCreateName = "before-upgrade"
+
+	t.Run("queued", func(t *testing.T) {
+		st, out, err := runOp(t, serverSnapshotCreateCmd, []string{"42"},
+			func(*opStub) (int, string) { return http.StatusAccepted, `{"queued":true}` }, "table", "", false)
+		if err != nil {
+			t.Fatalf("RunE: %v", err)
+		}
+		if st.method != http.MethodPost || st.path != "/api/cloud/servers/42/snapshots/" {
+			t.Errorf("method=%s path=%q", st.method, st.path)
+		}
+		// include_memory is the schema default the constructor seeds, as before.
+		assertBodyKeys(t, st.body, "include_memory", "name")
+		if out != "Snapshot 'before-upgrade' creation queued.\n" {
+			t.Errorf("output = %q", out)
+		}
+	})
+	t.Run("not queued", func(t *testing.T) {
+		if _, _, err := runOp(t, serverSnapshotCreateCmd, []string{"42"}, okOp(`{"queued":false}`), "table", "", false); err == nil {
+			t.Fatal("a 200 with queued=false must fail")
+		}
+	})
+	t.Run("null body", func(t *testing.T) {
+		if _, _, err := runOp(t, serverSnapshotCreateCmd, []string{"42"}, okOp(`null`), "table", "", false); err == nil {
+			t.Fatal("a null API response must return an error")
+		}
+	})
+	t.Run("json", func(t *testing.T) {
+		_, out, err := runOp(t, serverSnapshotCreateCmd, []string{"42"}, okOp(`{"queued":true}`), "json", "", false)
+		if err != nil {
+			t.Fatalf("RunE: %v", err)
+		}
+		var got map[string]interface{}
+		if err := json.Unmarshal([]byte(out), &got); err != nil || got["queued"] != true {
+			t.Errorf("json output = %q (err %v), want {\"queued\": true}", out, err)
+		}
+	})
 }

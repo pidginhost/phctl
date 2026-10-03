@@ -66,6 +66,9 @@ var floatingIPListCmd = &cobra.Command{
 				if err != nil {
 					return nil, false, err
 				}
+				if resp == nil {
+					return nil, false, fmt.Errorf("server returned no response page")
+				}
 				return resp.Results, resp.Next.Get() != nil, nil
 			})
 			if err != nil {
@@ -79,6 +82,9 @@ var floatingIPListCmd = &cobra.Command{
 			resp, _, err := c.CloudAPI.CloudFloatingIpv4List(cmd.Context()).Page(page).Execute()
 			if err != nil {
 				return nil, false, err
+			}
+			if resp == nil {
+				return nil, false, fmt.Errorf("server returned no response page")
 			}
 			return resp.Results, resp.Next.Get() != nil, nil
 		})
@@ -102,18 +108,24 @@ var floatingIPCreateCmd = &cobra.Command{
 		label, _ := cmd.Flags().GetString("label")
 		ipv6 := isIPv6(cmd)
 		if ipv6 {
-			body := pidginhost.FloatingIPv6Create{Label: &label}
-			resp, _, err := c.CloudAPI.CloudFloatingIpv6Create(cmd.Context()).FloatingIPv6Create(body).Execute()
+			body := pidginhost.FloatingIPv6CreateRequest{Label: &label}
+			resp, _, err := c.CloudAPI.CloudFloatingIpv6Create(cmd.Context()).FloatingIPv6CreateRequest(body).Execute()
 			if err != nil {
 				return cmdutil.APIError("creating floating IPv6", err)
+			}
+			if resp == nil {
+				return fmt.Errorf("creating floating IPv6: server returned no response")
 			}
 			return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 				"Floating IPv6 created (ID: %d, Address: %s)\n", resp.Id, resp.Address)
 		}
-		body := pidginhost.FloatingIPv4Create{Label: &label}
-		resp, _, err := c.CloudAPI.CloudFloatingIpv4Create(cmd.Context()).FloatingIPv4Create(body).Execute()
+		body := pidginhost.FloatingIPv4CreateRequest{Label: &label}
+		resp, _, err := c.CloudAPI.CloudFloatingIpv4Create(cmd.Context()).FloatingIPv4CreateRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("creating floating IPv4", err)
+		}
+		if resp == nil {
+			return fmt.Errorf("creating floating IPv4: server returned no response")
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"Floating IPv4 created (ID: %d, Address: %s)\n", resp.Id, resp.Address)
@@ -233,6 +245,9 @@ var floatingIPAuthorizationsCmd = &cobra.Command{
 				if err != nil {
 					return nil, false, err
 				}
+				if resp == nil {
+					return nil, false, fmt.Errorf("server returned no response page")
+				}
 				return resp.Results, resp.Next.Get() != nil, nil
 			})
 		} else {
@@ -240,6 +255,9 @@ var floatingIPAuthorizationsCmd = &cobra.Command{
 				resp, _, err := c.CloudAPI.CloudFloatingIpv4AuthorizationsList(cmd.Context(), id).Page(page).Execute()
 				if err != nil {
 					return nil, false, err
+				}
+				if resp == nil {
+					return nil, false, fmt.Errorf("server returned no response page")
 				}
 				return resp.Results, resp.Next.Get() != nil, nil
 			})
@@ -285,11 +303,11 @@ var floatingIPReverseDNSCmd = &cobra.Command{
 		var resp *pidginhost.ReverseDNS
 		ipv6 := isIPv6(cmd)
 		if cmd.Flags().Changed("hostname") {
-			body := pidginhost.NewReverseDNS(hostname)
+			body := pidginhost.NewReverseDNSRequest(hostname)
 			if ipv6 {
-				resp, _, err = c.CloudAPI.CloudFloatingIpv6RdnsCreate(cmd.Context(), id).ReverseDNS(*body).Execute()
+				resp, _, err = c.CloudAPI.CloudFloatingIpv6RdnsCreate(cmd.Context(), id).ReverseDNSRequest(*body).Execute()
 			} else {
-				resp, _, err = c.CloudAPI.CloudFloatingIpv4RdnsCreate(cmd.Context(), id).ReverseDNS(*body).Execute()
+				resp, _, err = c.CloudAPI.CloudFloatingIpv4RdnsCreate(cmd.Context(), id).ReverseDNSRequest(*body).Execute()
 			}
 			if err != nil {
 				return cmdutil.APIError("setting floating IP reverse DNS", err)
@@ -303,6 +321,9 @@ var floatingIPReverseDNSCmd = &cobra.Command{
 			if err != nil {
 				return cmdutil.APIError("fetching floating IP reverse DNS", err)
 			}
+		}
+		if resp == nil {
+			return fmt.Errorf("reverse DNS: server returned no response")
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, resp, func(w io.Writer) {

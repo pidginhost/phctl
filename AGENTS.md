@@ -96,7 +96,7 @@ v0.11.0 mapped `type: string, format: decimal` to `float64`, which cannot decode
 the `"12.50"` the API actually sends, so any endpoint returning a price, balance
 or total had to bypass the SDK model.
 
-**That is fixed.** phctl is on `sdk-go` v0.12.2, where those fields generate as
+**That is fixed.** phctl is on `sdk-go` v0.14.0, where those fields generate as
 `string`. New commands should use the generated models even when the response
 carries a decimal — render the value with `%s` and never a float verb; `%.2f`
 against a string silently truncates it to two characters. The `Raw*` types and

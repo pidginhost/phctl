@@ -81,10 +81,13 @@ var changePasswordCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		body := *pidginhost.NewChangePassword(changePasswordNew)
-		resp, _, err := c.HostingAPI.HostingHostingChangePasswordCreate(cmd.Context(), args[0]).ChangePassword(body).Execute()
+		body := *pidginhost.NewChangePasswordRequest(changePasswordNew)
+		resp, _, err := c.HostingAPI.HostingHostingChangePasswordCreate(cmd.Context(), args[0]).ChangePasswordRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("changing password", err)
+		}
+		if resp == nil {
+			return fmt.Errorf("changing password: server returned no response")
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"Password changed: %s\n", resp.Message)

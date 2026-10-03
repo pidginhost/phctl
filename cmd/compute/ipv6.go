@@ -32,6 +32,9 @@ var ipv6ListCmd = &cobra.Command{
 			if err != nil {
 				return nil, false, err
 			}
+			if resp == nil {
+				return nil, false, fmt.Errorf("server returned no response page")
+			}
 			return resp.Results, resp.Next.Get() != nil, nil
 		})
 		if err != nil {
@@ -60,6 +63,9 @@ var ipv6CreateCmd = &cobra.Command{
 		resp, _, err := c.CloudAPI.CloudIpv6Create(cmd.Context()).Execute()
 		if err != nil {
 			return cmdutil.APIError("creating IPv6", err)
+		}
+		if resp == nil {
+			return fmt.Errorf("creating IPv6: server returned no response")
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"IPv6 address created (ID: %d, Address: %s)\n", resp.Id, resp.Address)
@@ -109,6 +115,12 @@ var ipv6DetachCmd = &cobra.Command{
 		if err != nil {
 			return cmdutil.APIError("detaching IPv6", err)
 		}
+		if resp == nil {
+			return fmt.Errorf("detaching IPv6: server returned no response")
+		}
+		if !resp.Detached {
+			return fmt.Errorf("detaching IPv6: server did not detach the IPv6 address")
+		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 			"IPv6 detached: %v\n", resp.Detached)
 	},
@@ -139,8 +151,8 @@ var ipv6ReverseDNSCmd = &cobra.Command{
 		}
 		var resp *pidginhost.ReverseDNS
 		if cmd.Flags().Changed("hostname") {
-			body := pidginhost.NewReverseDNS(hostname)
-			resp, _, err = c.CloudAPI.CloudIpv6RdnsCreate(cmd.Context(), id).ReverseDNS(*body).Execute()
+			body := pidginhost.NewReverseDNSRequest(hostname)
+			resp, _, err = c.CloudAPI.CloudIpv6RdnsCreate(cmd.Context(), id).ReverseDNSRequest(*body).Execute()
 			if err != nil {
 				return cmdutil.APIError("setting reverse DNS", err)
 			}

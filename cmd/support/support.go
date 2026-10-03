@@ -122,6 +122,9 @@ func runTicketList(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return nil, false, err
 		}
+		if resp == nil {
+			return nil, false, fmt.Errorf("server returned no response page")
+		}
 		return resp.Results, resp.Next.Get() != nil, nil
 	})
 	if err != nil {
@@ -165,6 +168,9 @@ func runTicketGet(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return cmdutil.APIError("getting ticket", err)
 	}
+	if t == nil {
+		return fmt.Errorf("getting ticket: server returned no response")
+	}
 	format := cmdutil.OutputFormat(cmd)
 	return output.Print(cmd.OutOrStdout(), format, t, func(w io.Writer) {
 		tw := output.NewTabWriter(w)
@@ -185,10 +191,13 @@ func runTicketCreate(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	body := *pidginhost.NewTicketCreate(ticketCreateSubject, ticketCreateDept, ticketCreateMessage)
-	resp, _, err := c.SupportAPI.SupportTicketsCreate(cmd.Context()).TicketCreate(body).Execute()
+	body := *pidginhost.NewTicketCreateRequest(ticketCreateSubject, ticketCreateDept, ticketCreateMessage)
+	resp, _, err := c.SupportAPI.SupportTicketsCreate(cmd.Context()).TicketCreateRequest(body).Execute()
 	if err != nil {
 		return cmdutil.APIError("creating ticket", err)
+	}
+	if resp == nil {
+		return fmt.Errorf("creating ticket: server returned no response")
 	}
 	return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), resp,
 		"Ticket created (ID: %d, Subject: %s)\n", resp.Id, resp.Subject)
@@ -199,8 +208,8 @@ func runTicketReply(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	body := *pidginhost.NewTicketReply(ticketReplyMessage)
-	_, _, err = c.SupportAPI.SupportTicketsReplyCreate(cmd.Context(), args[0]).TicketReply(body).Execute()
+	body := *pidginhost.NewTicketReplyRequest(ticketReplyMessage)
+	_, _, err = c.SupportAPI.SupportTicketsReplyCreate(cmd.Context(), args[0]).TicketReplyRequest(body).Execute()
 	if err != nil {
 		return cmdutil.APIError("replying to ticket", err)
 	}

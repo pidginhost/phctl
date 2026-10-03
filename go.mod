@@ -3,7 +3,7 @@ module github.com/pidginhost/phctl
 go 1.26.6
 
 require (
-	github.com/pidginhost/sdk-go v0.13.0
+	github.com/pidginhost/sdk-go v0.14.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
 	golang.org/x/term v0.45.0
