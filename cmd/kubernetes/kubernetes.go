@@ -526,7 +526,10 @@ var poolDeleteCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		_, err = c.KubernetesAPI.KubernetesClustersResourcePoolsDestroy(cmd.Context(), clusterId, args[1]).Execute()
+		// An omitted request model makes the SDK send JSON null. Send an
+		// object so the API can read its options and apply its default guards.
+		_, err = c.KubernetesAPI.KubernetesClustersResourcePoolsDestroy(cmd.Context(), clusterId, args[1]).
+			ResourcePoolDeleteRequest(pidginhost.ResourcePoolDeleteRequest{}).Execute()
 		if err != nil {
 			return cmdutil.APIError("deleting pool", err)
 		}
@@ -611,7 +614,9 @@ var nodeDeleteCmd = &cobra.Command{
 		}
 		// The route admits the removal as an operation (cordon, drain, detach)
 		// and answers 202 with it; the node is still there when it returns.
-		op, _, err := c.KubernetesAPI.KubernetesClustersResourcePoolsNodesDestroy(cmd.Context(), clusterId, args[2], poolId).Execute()
+		// Keep default validation intact; the API requires an object, not null.
+		op, _, err := c.KubernetesAPI.KubernetesClustersResourcePoolsNodesDestroy(cmd.Context(), clusterId, args[2], poolId).
+			NodeOperationDeleteRequest(pidginhost.NodeOperationDeleteRequest{}).Execute()
 		if err != nil {
 			return cmdutil.APIError("deleting node", err)
 		}
