@@ -108,7 +108,13 @@ func TestHelperProcess(t *testing.T) {
 	outPath := os.Getenv("PHCTL_TEST_HELPER_OUTPUT")
 	lines := append([]string{}, os.Args[1:]...)
 	lines = append(lines, "PHCTL_NO_UPDATE_CHECK="+os.Getenv("PHCTL_NO_UPDATE_CHECK"))
-	if err := os.WriteFile(outPath, []byte(strings.Join(lines, "\n")), 0600); err != nil {
+	// The test polls for outPath, so publish it complete with a rename: a
+	// write in place lets the poll read the file before it is filled.
+	tmpPath := outPath + ".tmp"
+	if err := os.WriteFile(tmpPath, []byte(strings.Join(lines, "\n")), 0600); err != nil {
+		os.Exit(1)
+	}
+	if err := os.Rename(tmpPath, outPath); err != nil {
 		os.Exit(1)
 	}
 	os.Exit(0)
