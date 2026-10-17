@@ -141,6 +141,7 @@ func TestDomainCheckReportsAnswer(t *testing.T) {
 		{`{"available":true,"supported":true}`, "example.ro is available"},
 		{`{"available":false,"supported":true}`, "example.ro is not available"},
 		{`{"available":false,"supported":false}`, "example.ro is not supported"},
+		{`{"available":true,"supported":false}`, "example.ro is not supported"},
 	} {
 		out, path, err := runDomain(t, domainCheckCmd, []string{"example.ro"}, "table", tc.payload)
 		if err != nil {
@@ -156,16 +157,32 @@ func TestDomainCheckReportsAnswer(t *testing.T) {
 }
 
 func TestDomainCheckJSONKeepsTheAnswer(t *testing.T) {
-	out, _, err := runDomain(t, domainCheckCmd, []string{"example.ro"}, "json",
-		`{"available":true,"supported":true}`)
-	if err != nil {
-		t.Fatalf("RunE: %v", err)
-	}
-	var got map[string]bool
-	if err := json.Unmarshal([]byte(out), &got); err != nil {
-		t.Fatalf("output is not JSON: %v: %s", err, out)
-	}
-	if !got["available"] || !got["supported"] {
-		t.Errorf("JSON = %v, want available and supported", got)
+	for _, payload := range []string{
+		`{"available":true,"supported":true}`,
+		`{"available":false,"supported":true}`,
+		`{"available":false,"supported":false}`,
+		`{"available":true,"supported":false}`,
+	} {
+		t.Run(payload, func(t *testing.T) {
+			out, _, err := runDomain(t, domainCheckCmd, []string{"example.ro"}, "json", payload)
+			if err != nil {
+				t.Fatalf("RunE: %v", err)
+			}
+			var got, want map[string]bool
+			if err := json.Unmarshal([]byte(out), &got); err != nil {
+				t.Fatalf("output is not JSON: %v: %s", err, out)
+			}
+			if err := json.Unmarshal([]byte(payload), &want); err != nil {
+				t.Fatal(err)
+			}
+			if len(got) != len(want) {
+				t.Fatalf("JSON = %v, want %v", got, want)
+			}
+			for key, expected := range want {
+				if value, ok := got[key]; !ok || value != expected {
+					t.Errorf("JSON = %v, want %v", got, want)
+				}
+			}
+		})
 	}
 }
