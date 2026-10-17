@@ -1,13 +1,12 @@
 # Changelog
 
-## [Unreleased]
+## Unreleased
 
 ### Fixed
 
 - `domain check` reports whether the domain is available, taken or not supported, instead of failing on every call.
 - `storage bucket list` and `storage bucket get` no longer fail for large buckets.
-- FreeDNS record listings show readable IPv4 and IPv6 addresses.
-- Empty Kubernetes pools can be deleted again, and node deletion reports the required confirmations.
+- `freedns record list` no longer fails on zones with records that have no address, such as TXT records.
 
 ### Added
 
