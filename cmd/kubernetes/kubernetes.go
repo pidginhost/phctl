@@ -506,6 +506,8 @@ var poolCreateCmd = &cobra.Command{
 	},
 }
 
+var poolDeleteAcceptDataLoss bool
+
 var poolDeleteCmd = &cobra.Command{
 	Use:     "delete <cluster-id> <pool-id>",
 	Aliases: []string{"rm"},
@@ -529,7 +531,9 @@ var poolDeleteCmd = &cobra.Command{
 		// An omitted request model makes the SDK send JSON null. Send an
 		// object so the API can read its options and apply its default guards.
 		_, err = c.KubernetesAPI.KubernetesClustersResourcePoolsDestroy(cmd.Context(), clusterId, args[1]).
-			ResourcePoolDeleteRequest(pidginhost.ResourcePoolDeleteRequest{}).Execute()
+			ResourcePoolDeleteRequest(pidginhost.ResourcePoolDeleteRequest{
+				LocalDataLossAccepted: &poolDeleteAcceptDataLoss,
+			}).Execute()
 		if err != nil {
 			return cmdutil.APIError("deleting pool", err)
 		}
@@ -588,6 +592,11 @@ var nodeListCmd = &cobra.Command{
 	},
 }
 
+var (
+	nodeDeleteHostname       string
+	nodeDeleteAcceptDataLoss bool
+)
+
 var nodeDeleteCmd = &cobra.Command{
 	Use:     "delete <cluster-id> <pool-id> <node-id>",
 	Aliases: []string{"rm"},
@@ -614,9 +623,13 @@ var nodeDeleteCmd = &cobra.Command{
 		}
 		// The route admits the removal as an operation (cordon, drain, detach)
 		// and answers 202 with it; the node is still there when it returns.
-		// Keep default validation intact; the API requires an object, not null.
+		// The API requires an object, not null, and refuses the removal unless
+		// the hostname is typed back and local data loss is accepted.
 		op, _, err := c.KubernetesAPI.KubernetesClustersResourcePoolsNodesDestroy(cmd.Context(), clusterId, args[2], poolId).
-			NodeOperationDeleteRequest(pidginhost.NodeOperationDeleteRequest{}).Execute()
+			NodeOperationDeleteRequest(pidginhost.NodeOperationDeleteRequest{
+				ConfirmHostname:       &nodeDeleteHostname,
+				LocalDataLossAccepted: &nodeDeleteAcceptDataLoss,
+			}).Execute()
 		if err != nil {
 			return cmdutil.APIError("deleting node", err)
 		}
@@ -660,6 +673,12 @@ func init() {
 	poolCreateCmd.Flags().DurationVar(&poolCreateTimeout, "wait-timeout", defaultWaitTimeout, "Timeout for --wait")
 	poolCreateCmd.MarkFlagRequired("package")
 	poolCreateCmd.MarkFlagRequired("size")
+
+	poolDeleteCmd.Flags().BoolVar(&poolDeleteAcceptDataLoss, "accept-local-data-loss", false, "Accept that data stored on the pool's nodes is destroyed")
+
+	nodeDeleteCmd.Flags().StringVar(&nodeDeleteHostname, "confirm-hostname", "", "The node's name, typed exactly as node list shows it (required)")
+	nodeDeleteCmd.Flags().BoolVar(&nodeDeleteAcceptDataLoss, "accept-local-data-loss", false, "Accept that data stored on the node is destroyed")
+	nodeDeleteCmd.MarkFlagRequired("confirm-hostname")
 
 	nodeCmd.AddCommand(nodeListCmd)
 	nodeCmd.AddCommand(nodeDeleteCmd)

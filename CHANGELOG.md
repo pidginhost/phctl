@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- `kubernetes node delete` no longer fails on every call. Give the node's name with `--confirm-hostname` and add `--accept-local-data-loss`.
+- `kubernetes pool delete` can remove a pool that still has nodes. Add `--accept-local-data-loss`.
+
 ## v0.20.0
 
 ### Fixed

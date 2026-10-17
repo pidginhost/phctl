@@ -85,3 +85,43 @@ func TestDeleteRequestsDoNotSendNull(t *testing.T) {
 		})
 	}
 }
+
+func TestPoolDeleteSendsDataLossAcknowledgement(t *testing.T) {
+	setFlags(t, poolDeleteCmd, map[string]string{"accept-local-data-loss": "true"})
+	rec, _, _, err := runCmd(t, poolDeleteCmd, []string{"42", "3"},
+		reply(http.StatusNoContent, ""), "table", "", true)
+	if err != nil {
+		t.Fatalf("RunE: %v", err)
+	}
+	if got := rec.last().body["local_data_loss_accepted"]; got != true {
+		t.Errorf("local_data_loss_accepted = %v, want true", got)
+	}
+}
+
+func TestNodeDeleteSendsHostnameAndAcknowledgement(t *testing.T) {
+	setFlags(t, nodeDeleteCmd, map[string]string{
+		"confirm-hostname":       "node-a",
+		"accept-local-data-loss": "true",
+	})
+	rec, _, _, err := runCmd(t, nodeDeleteCmd, []string{"42", "3", "11"},
+		reply(http.StatusAccepted, nodeOperationJSON), "table", "", true)
+	if err != nil {
+		t.Fatalf("RunE: %v", err)
+	}
+	body := rec.last().body
+	if body["confirm_hostname"] != "node-a" {
+		t.Errorf("confirm_hostname = %v, want node-a", body["confirm_hostname"])
+	}
+	if body["local_data_loss_accepted"] != true {
+		t.Errorf("local_data_loss_accepted = %v, want true", body["local_data_loss_accepted"])
+	}
+}
+
+// The API refuses every node delete without the typed-back hostname, so the
+// CLI asks for it before the confirmation prompt rather than after.
+func TestNodeDeleteRequiresHostname(t *testing.T) {
+	err := nodeDeleteCmd.ValidateRequiredFlags()
+	if err == nil || !strings.Contains(err.Error(), "confirm-hostname") {
+		t.Errorf("error = %v, want --confirm-hostname required", err)
+	}
+}

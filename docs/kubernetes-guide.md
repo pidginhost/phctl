@@ -202,8 +202,8 @@ phctl k8s cluster upgrade-talos $CLUSTER_ID --wait
 # Remove routes
 phctl k8s http-route delete $CLUSTER_ID <route-id> -f
 
-# Remove extra pools
-phctl k8s pool delete $CLUSTER_ID <pool-id> -f
+# Remove extra pools; data stored on their nodes is destroyed
+phctl k8s pool delete $CLUSTER_ID <pool-id> --accept-local-data-loss -f
 
 # Destroy the cluster
 phctl k8s cluster delete $CLUSTER_ID -f
@@ -286,6 +286,7 @@ phctl k8s cluster kubeconfig $CLUSTER_ID -o json
 | List pools | `phctl k8s pool list CLUSTER_ID` |
 | Add pool | `phctl k8s pool create CLUSTER_ID --package P --size N [--wait]` |
 | List nodes | `phctl k8s node list CLUSTER_ID POOL_ID` |
+| Delete node | `phctl k8s node delete CLUSTER_ID POOL_ID NODE_ID --confirm-hostname NAME --accept-local-data-loss` |
 | HTTP route | `phctl k8s http-route create ID --name N --hostname H --backend B --port P [--tls]` |
 | TCP route | `phctl k8s tcp-route create ID --name N --port P --backend B --backend-port BP` |
 | UDP route | `phctl k8s udp-route create ID --name N --port P --backend B --backend-port BP` |
