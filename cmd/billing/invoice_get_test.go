@@ -14,7 +14,8 @@ import (
 func TestInvoiceGetPreservesDetailsAndDecimals(t *testing.T) {
 	const invoice = `{
 		"id":42,"number_proforma":"PRO-42","number_fiscal":"INV-42",
-		"status":"paid","subtotal":"125.00","vat_value":"26.25",
+		"status":"paid","invoice_type":"standard","can_pay_with_funds":false,
+		"local_amounts":null,"subtotal":"125.00","vat_value":"26.25",
 		"vat_percentage":21,"total":"151.25","invoice_date":"2026-10-02",
 		"due_date":null,"payment_date":"2026-10-02","product_info":[],
 		"usage_detail":{},"client_info":{},"invoice_info":{},"payment_method":"funds",

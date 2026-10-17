@@ -140,7 +140,7 @@ var recordListCmd = &cobra.Command{
 			tw := output.NewTabWriter(w)
 			output.PrintRow(tw, "LINE", "TYPE", "NAME", "TTL", "ADDRESS")
 			for _, r := range records {
-				output.PrintRow(tw, r.Line, r.Type, r.Name, r.Ttl, r.Address)
+				output.PrintRow(tw, r.Line, r.Type, r.Name, r.Ttl, output.Pstr(r.Address))
 			}
 			tw.Flush()
 		})

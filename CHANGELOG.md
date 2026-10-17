@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- `domain check` reports whether the domain is available, taken or not supported, instead of failing on every call.
+- `storage bucket list` and `storage bucket get` no longer fail for large buckets.
+- `freedns record list` no longer fails on zones with records that have no address, such as TXT records.
+
+### Added
+
+- Server, volume, bucket and private network listings and details include pricing and billing cycles in JSON output when available.
+- Dedicated server listings and details include billing information and hardware in JSON output when available.
+- `billing invoice get -o json` includes the invoice type and, where it applies, its amounts in your local currency.
+
 ## v0.19.0
 
 ### Fixed

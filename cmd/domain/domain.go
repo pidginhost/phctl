@@ -124,7 +124,14 @@ var domainCheckCmd = &cobra.Command{
 		}
 		format := cmdutil.OutputFormat(cmd)
 		return output.Print(cmd.OutOrStdout(), format, resp, func(w io.Writer) {
-			fmt.Fprintf(w, "Domain: %s\n", resp.Domain)
+			switch {
+			case !resp.Supported:
+				fmt.Fprintf(w, "%s is not supported.\n", args[0])
+			case resp.Available:
+				fmt.Fprintf(w, "%s is available.\n", args[0])
+			default:
+				fmt.Fprintf(w, "%s is not available.\n", args[0])
+			}
 		})
 	},
 }
