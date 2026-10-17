@@ -805,6 +805,7 @@ func TestSnapshotSubcommands(t *testing.T) {
 
 func newTestServerDetail(floatingIPs []pidginhost.FloatingIPSummary) *pidginhost.ServerDetail {
 	return pidginhost.NewServerDetail(
+		*pidginhost.NewNullableResourceBilling(nil),
 		42,
 		"vm.example.com",
 		"ubuntu-24.04",
@@ -1210,7 +1211,7 @@ func TestNetworkCreateSendsOnlyAddress(t *testing.T) {
 	networkCreateAddress = "10.10.0.0/24"
 
 	st, out, err := runOp(t, networkCreateCmd, nil,
-		okOp(`{"id":4,"slug":"10-10-0-0-24","address":"10.10.0.0/24","provisioned":false,"servers":[]}`),
+		okOp(`{"billing":null,"id":4,"slug":"10-10-0-0-24","address":"10.10.0.0/24","provisioned":false,"servers":[]}`),
 		"table", "", false)
 	if err != nil {
 		t.Fatalf("RunE: %v", err)

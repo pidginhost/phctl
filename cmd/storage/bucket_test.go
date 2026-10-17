@@ -20,7 +20,7 @@ const (
 	testSecretKey = "example-secret-key-not-a-credential"
 )
 
-const bucketJSON = `{"id":7,"name":"assets","full_name":"c1-assets","quota_gb":50,` +
+const bucketJSON = `{"billing":null,"id":7,"name":"assets","full_name":"c1-assets","quota_gb":50,` +
 	`"used_bytes":1048576,"object_count":12,"public_read":false,"status":"active",` +
 	`"endpoint":"https://s3.example","region":"eu-1","created":"2026-08-18T10:00:00Z"}`
 
@@ -148,6 +148,21 @@ func TestBucketListRendersTable(t *testing.T) {
 	}
 }
 
+// A bucket holds more than 2 GiB and more than 2^31 objects.
+func TestBucketListShowsCountsBeyondInt32(t *testing.T) {
+	big := strings.Replace(strings.Replace(bucketJSON, `"used_bytes":1048576`, `"used_bytes":3221225472`, 1),
+		`"object_count":12`, `"object_count":2147483648`, 1)
+	_, out, _, err := run(t, bucketListCmd, nil, ok("["+big+"]"), "table", "", false)
+	if err != nil {
+		t.Fatalf("RunE: %v", err)
+	}
+	for _, want := range []string{"3221225472", "2147483648"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output missing %q: %s", want, out)
+		}
+	}
+}
+
 func TestBucketListRejectsNullResponse(t *testing.T) {
 	_, _, _, err := run(t, bucketListCmd, nil, ok(`null`), "table", "", false)
 	if err == nil {
@@ -166,6 +181,28 @@ func TestBucketGetRendersJSON(t *testing.T) {
 	}
 	if got["full_name"] != "c1-assets" {
 		t.Errorf("full_name = %v", got["full_name"])
+	}
+}
+
+func TestBucketGetJSONKeepsBilling(t *testing.T) {
+	billed := strings.Replace(bucketJSON, `"billing":null`, `"billing":{"amount":"5.00","currency":"EUR",`+
+		`"tax_included":false,"cycle_months":1,"cycle_label":"Monthly","next_invoice":"2026-11-01",`+
+		`"profile":{"id":3,"name":"Default"},"metered":false,"included":false}`, 1)
+	_, out, _, err := run(t, bucketGetCmd, []string{"7"}, ok(billed), "json", "", false)
+	if err != nil {
+		t.Fatalf("RunE: %v", err)
+	}
+	var got struct {
+		Billing struct {
+			Amount   string `json:"amount"`
+			Currency string `json:"currency"`
+		} `json:"billing"`
+	}
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("unmarshal %q: %v", out, err)
+	}
+	if got.Billing.Amount != "5.00" || got.Billing.Currency != "EUR" {
+		t.Errorf("billing = %+v, want 5.00 EUR", got.Billing)
 	}
 }
 

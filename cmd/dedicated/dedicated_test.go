@@ -99,7 +99,7 @@ func runDedicated(t *testing.T, cmd *cobra.Command, args []string, format, paylo
 
 // The API sends ips as a list of objects and server_status as an object (or
 // null). A model declaring both as strings fails to decode every server.
-const dedicatedServerJSON = `{"id":7,"hostname":"metal-1","status":"active","price":"99.00",` +
+const dedicatedServerJSON = `{"billing":null,"hardware":null,"id":7,"hostname":"metal-1","status":"active","price":"99.00",` +
 	`"next_invoice":"2026-11-01","created":"2026-01-01T00:00:00Z","billing_cycle":"monthly",` +
 	`"server_status":{"status":"on","statusText":"Powered on"},` +
 	`"ips":[{"id":1,"ip":"192.0.2.10","reverse_dns":"metal-1.example.com"},` +
