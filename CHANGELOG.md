@@ -4,7 +4,6 @@
 
 ### Fixed
 
-- Node deletion rejects blank hostname confirmations and missing or false data loss acceptance before prompting, including with `--force`.
 - `kubernetes node delete` no longer fails on every call. Give the node's name with `--confirm-hostname` and add `--accept-local-data-loss`.
 - `kubernetes pool delete` can remove a pool that still has nodes. Add `--accept-local-data-loss`.
 
