@@ -198,6 +198,15 @@ phctl k8s cluster upgrade-talos $CLUSTER_ID --wait
 
 ## Teardown
 
+To remove one node, read its `NAME` from `phctl k8s node list CLUSTER_ID POOL_ID`
+and type it exactly with `--confirm-hostname NAME`. Also pass
+`--accept-local-data-loss` to acknowledge that data on the node is destroyed.
+An empty name or a missing or false acknowledgement is rejected before prompting.
+`--force` skips the yes/no prompt only; it does not replace either confirmation.
+
+Pool deletion needs `--accept-local-data-loss` when the pool still has nodes.
+An empty pool can be deleted without it.
+
 ```bash
 # Remove routes
 phctl k8s http-route delete $CLUSTER_ID <route-id> -f

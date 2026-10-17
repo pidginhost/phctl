@@ -614,6 +614,12 @@ var nodeDeleteCmd = &cobra.Command{
 		if _, err := cmdutil.ParseInt32(args[2]); err != nil {
 			return err
 		}
+		if strings.TrimSpace(nodeDeleteHostname) == "" {
+			return fmt.Errorf("--confirm-hostname must contain the node's exact name from node list")
+		}
+		if !nodeDeleteAcceptDataLoss {
+			return fmt.Errorf("--accept-local-data-loss must be true to delete a node")
+		}
 		if !cmdutil.Force(cmd) && !confirm.Action(cmd.InOrStdin(), cmd.ErrOrStderr(), fmt.Sprintf("Delete node %s from pool %d?", args[2], poolId)) {
 			return nil
 		}
@@ -677,8 +683,9 @@ func init() {
 	poolDeleteCmd.Flags().BoolVar(&poolDeleteAcceptDataLoss, "accept-local-data-loss", false, "Accept that data stored on the pool's nodes is destroyed")
 
 	nodeDeleteCmd.Flags().StringVar(&nodeDeleteHostname, "confirm-hostname", "", "The node's name, typed exactly as node list shows it (required)")
-	nodeDeleteCmd.Flags().BoolVar(&nodeDeleteAcceptDataLoss, "accept-local-data-loss", false, "Accept that data stored on the node is destroyed")
+	nodeDeleteCmd.Flags().BoolVar(&nodeDeleteAcceptDataLoss, "accept-local-data-loss", false, "Accept that data stored on the node is destroyed (required; must be true)")
 	nodeDeleteCmd.MarkFlagRequired("confirm-hostname")
+	nodeDeleteCmd.MarkFlagRequired("accept-local-data-loss")
 
 	nodeCmd.AddCommand(nodeListCmd)
 	nodeCmd.AddCommand(nodeDeleteCmd)

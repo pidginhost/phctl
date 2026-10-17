@@ -881,6 +881,10 @@ const nodeOperationJSON = `{"id":77,"kind":"delete","source":"api","target_hostn
 	`"finished_at":null,"allowed_actions":["cancel"]}`
 
 func TestNodeDeleteReportsTheOperation(t *testing.T) {
+	setFlags(t, nodeDeleteCmd, map[string]string{
+		"confirm-hostname":       "node-a",
+		"accept-local-data-loss": "true",
+	})
 	rec, out, errOut, err := runCmd(t, nodeDeleteCmd, []string{"42", "3", "11"},
 		reply(http.StatusAccepted, nodeOperationJSON), "table", "y\n", false)
 	if err != nil {
@@ -905,6 +909,10 @@ func TestNodeDeleteReportsTheOperation(t *testing.T) {
 }
 
 func TestNodeDeleteJSONIsTheOperation(t *testing.T) {
+	setFlags(t, nodeDeleteCmd, map[string]string{
+		"confirm-hostname":       "node-a",
+		"accept-local-data-loss": "true",
+	})
 	_, out, _, err := runCmd(t, nodeDeleteCmd, []string{"42", "3", "11"},
 		reply(http.StatusAccepted, nodeOperationJSON), "json", "", true)
 	if err != nil {
@@ -920,14 +928,21 @@ func TestNodeDeleteJSONIsTheOperation(t *testing.T) {
 }
 
 func TestNodeDeleteRejectsEmptyBodyWithoutPanicking(t *testing.T) {
+	setFlags(t, nodeDeleteCmd, map[string]string{
+		"confirm-hostname":       "node-a",
+		"accept-local-data-loss": "true",
+	})
 	defer func() {
 		if r := recover(); r != nil {
 			t.Fatalf("empty 202 body caused a panic: %v", r)
 		}
 	}()
-	_, _, _, err := runCmd(t, nodeDeleteCmd, []string{"42", "3", "11"}, reply(http.StatusAccepted, ""), "table", "", true)
-	if err == nil {
-		t.Fatal("expected an error when the server returns no operation")
+	rec, out, _, err := runCmd(t, nodeDeleteCmd, []string{"42", "3", "11"}, reply(http.StatusAccepted, ""), "table", "", true)
+	if err == nil || !strings.Contains(err.Error(), "server returned no operation") {
+		t.Fatalf("error = %v, want missing operation error", err)
+	}
+	if rec.count() != 1 || out != "" {
+		t.Errorf("API calls = %d, stdout = %q; want one call and no success output", rec.count(), out)
 	}
 }
 
