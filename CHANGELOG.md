@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Security
+
+- Release binaries include Go's latest TLS, HTTP and certificate security fixes.
+
 ## v0.20.1
 
 ### Fixed
