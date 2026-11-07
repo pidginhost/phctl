@@ -204,8 +204,10 @@ deploy:github:
         --name-callback 'return b"PidginHost"' \
         --email-callback 'return b"opensource@pidginhost.com"' \
         --message-callback 'import re; return re.sub(rb"\n*Co-Authored-By:.*", b"", message)'
-    - git remote add github "https://${GITHUB_TOKEN}@github.com/pidginhost/phctl.git"
-    - git push github --mirror --force
+    # Hand the token over through a credential helper: libcurl 8.23 drops a
+    # token embedded in the remote URL and the push fails.
+    - git config credential.https://github.com.helper '!f() { echo username=x-access-token; echo "password=${GITHUB_TOKEN}"; }; f'
+    - git push https://github.com/pidginhost/phctl.git --mirror --force
 
 # --- Release stage: GitLab + GitHub releases ---
 
