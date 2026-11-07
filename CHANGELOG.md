@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.20.3
+
+### Security
+
+- The TLS, HTTP and certificate security fixes from v0.20.2 now reach `phctl update` and the install script.
+
 ## v0.20.2
 
 ### Security
