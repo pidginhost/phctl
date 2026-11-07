@@ -18,6 +18,11 @@ variables:
   GOLANGCI_LINT_VERSION: v2.12.2
   ALPINE_VERSION: "3.24.4"
 
+# Runner1 is the only runner taking untagged jobs today; pin it so a new
+# untagged runner cannot pick these up.
+default:
+  tags: [runner1]
+
 fmt:
   stage: check
   image: golang:1.26.10
@@ -68,6 +73,15 @@ test:
       junit: report.xml
     paths:
       - coverage.out
+
+# The linux-arm64 release binary is cross-compiled on runner1. This runs the
+# suite on real arm64 hardware (mac1's Colima VM). Coverage is gated in `test`.
+test:linux-arm64:
+  stage: check
+  image: golang:1.26.10
+  tags: [arm64]
+  script:
+    - go test -race $(go list ./... | grep -v /e2e)
 
 # Talks to the live API with a real account, and the lifecycle test provisions a
 # billable VM. The account has a per-type resource quota, so two of these running
