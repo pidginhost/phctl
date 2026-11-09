@@ -112,6 +112,12 @@ phctl compute server detach-ipv6 123
 # Change a server's package (restarts the server; asks first unless -f)
 phctl compute server resize 123 --package cloudv-2
 
+# List volume products and choose a slug for PRODUCT_SLUG below
+phctl compute volume products
+
+# Create paid storage (asks first; use --force in scripts)
+phctl compute volume create --server 123 --size 20 --product PRODUCT_SLUG --alias data
+
 # Get server details as JSON
 phctl compute server get 123 -o json
 
