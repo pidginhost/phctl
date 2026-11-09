@@ -1,14 +1,10 @@
 # Changelog
 
-## [Unreleased]
+## Unreleased
 
 ### Added
 
-- `compute volume create` adds a volume to a server, and `compute volume products` lists the volume types you can pick.
-
-### Fixed
-
-- Volume creation asks before billing and reports an error if the returned volume does not match the requested settings.
+- `compute volume create` adds a volume to a server after you confirm the charge, and `compute volume products` lists the volume types you can pick.
 
 ## v0.20.3
 
