@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"strings"
 
 	pidginhost "github.com/pidginhost/sdk-go"
 	"github.com/spf13/cobra"
@@ -105,6 +106,10 @@ var volumeCreateCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		if !cmdutil.Force(cmd) && !confirm.Action(cmd.InOrStdin(), cmd.ErrOrStderr(),
+			fmt.Sprintf("Create a %d GB volume of product %q on server %d? This is a paid resource.", size, product, server)) {
+			return nil
+		}
 		c, err := client.New()
 		if err != nil {
 			return err
@@ -123,6 +128,19 @@ var volumeCreateCmd = &cobra.Command{
 		}
 		if vol == nil {
 			return fmt.Errorf("creating volume: server returned no response")
+		}
+		if !vol.Attached {
+			return fmt.Errorf("creating volume: volume %d was not attached to server %d", vol.Id, server)
+		}
+		if vol.Size != size {
+			return fmt.Errorf("creating volume: requested %d GB, volume %d has %d GB", size, vol.Id, vol.Size)
+		}
+		// The API trims names and inherits the server's project when blank.
+		if alias != "" && vol.GetAlias() != strings.TrimSpace(alias) {
+			return fmt.Errorf("creating volume: requested alias %q, volume %d has alias %q", alias, vol.Id, vol.GetAlias())
+		}
+		if project = strings.TrimSpace(project); project != "" && vol.GetProject() != project {
+			return fmt.Errorf("creating volume: requested project %q, volume %d has project %q", project, vol.Id, vol.GetProject())
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), vol,
 			"Volume %d created on server %d (%d GB).\n", vol.Id, server, vol.Size)
