@@ -3,6 +3,7 @@ package compute
 import (
 	"fmt"
 	"io"
+	"strconv"
 
 	pidginhost "github.com/pidginhost/sdk-go"
 	"github.com/spf13/cobra"
@@ -73,6 +74,89 @@ var volumeGetCmd = &cobra.Command{
 			output.PrintRow(tw, "Product:", vol.Product)
 			output.PrintRow(tw, "Attached:", vol.Attached)
 			output.PrintRow(tw, "Server:", vol.Server)
+			tw.Flush()
+		})
+	},
+}
+
+var volumeCreateCmd = &cobra.Command{
+	Use:   "create",
+	Short: "Create a volume and attach it to a server",
+	Args:  cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		flags := cmd.Flags()
+		server, err := flags.GetInt32("server")
+		if err != nil {
+			return err
+		}
+		size, err := flags.GetInt32("size")
+		if err != nil {
+			return err
+		}
+		product, err := flags.GetString("product")
+		if err != nil {
+			return err
+		}
+		alias, err := flags.GetString("alias")
+		if err != nil {
+			return err
+		}
+		project, err := flags.GetString("project")
+		if err != nil {
+			return err
+		}
+		c, err := client.New()
+		if err != nil {
+			return err
+		}
+		body := pidginhost.NewVolumeRequest(size, product)
+		if alias != "" {
+			body.SetAlias(alias)
+		}
+		if project != "" {
+			body.SetProject(project)
+		}
+		vol, _, err := c.CloudAPI.CloudServersVolumesCreate(cmd.Context(), strconv.Itoa(int(server))).
+			VolumeRequest(*body).Execute()
+		if err != nil {
+			return cmdutil.APIError("creating volume", err)
+		}
+		if vol == nil {
+			return fmt.Errorf("creating volume: server returned no response")
+		}
+		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), vol,
+			"Volume %d created on server %d (%d GB).\n", vol.Id, server, vol.Size)
+	},
+}
+
+var volumeProductsCmd = &cobra.Command{
+	Use:   "products",
+	Short: "List the volume types you can create",
+	Args:  cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		c, err := client.New()
+		if err != nil {
+			return err
+		}
+		products, err := cmdutil.FetchAll(func(page int32) ([]pidginhost.StorageProduct, bool, error) {
+			resp, _, err := c.CloudAPI.CloudStorageProductsList(cmd.Context()).Page(page).Execute()
+			if err != nil {
+				return nil, false, err
+			}
+			if resp == nil {
+				return nil, false, fmt.Errorf("server returned no response page")
+			}
+			return resp.Results, resp.Next.Get() != nil, nil
+		})
+		if err != nil {
+			return cmdutil.APIError("listing volume products", err)
+		}
+		return output.Print(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), products, func(w io.Writer) {
+			tw := output.NewTabWriter(w)
+			output.PrintRow(tw, "ID", "NAME", "SLUG", "PRICE", "UNIT", "MIN_SIZE", "MAX_SIZE")
+			for _, p := range products {
+				output.PrintRow(tw, p.Id, p.Name, p.Slug, p.Price, p.Unit, p.MinSize, p.MaxSize)
+			}
 			tw.Flush()
 		})
 	},
@@ -167,8 +251,19 @@ func init() {
 	volumeAttachCmd.Flags().Int32Var(&volumeAttachVM, "server", 0, "Server ID to attach to (required)")
 	volumeAttachCmd.MarkFlagRequired("server")
 
+	volumeCreateCmd.Flags().Int32("server", 0, "Server ID to attach the new volume to (required)")
+	volumeCreateCmd.Flags().Int32("size", 0, "Size in GB (required)")
+	volumeCreateCmd.Flags().String("product", "", "Volume product ID or slug, see 'volume products' (required)")
+	volumeCreateCmd.Flags().String("alias", "", "Volume name")
+	volumeCreateCmd.Flags().String("project", "", "Project name")
+	for _, name := range []string{"server", "size", "product"} {
+		volumeCreateCmd.MarkFlagRequired(name)
+	}
+
 	volumeCmd.AddCommand(volumeListCmd)
 	volumeCmd.AddCommand(volumeGetCmd)
+	volumeCmd.AddCommand(volumeCreateCmd)
+	volumeCmd.AddCommand(volumeProductsCmd)
 	volumeCmd.AddCommand(volumeDeleteCmd)
 	volumeCmd.AddCommand(volumeAttachCmd)
 	volumeCmd.AddCommand(volumeDetachCmd)

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `compute volume create` adds a volume to a server, and `compute volume products` lists the volume types you can pick.
+
 ## v0.20.3
 
 ### Security
