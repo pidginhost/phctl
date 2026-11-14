@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+
+- `compute gateway` creates, renames, deletes and re-enrolls gateways, shows their status and operations, and attaches private networks, asking before a change that cuts servers off.
+
 ### Changed
 
 - `freedns domain activate` no longer needs `--ip`. Leave it out to start with an empty zone.
