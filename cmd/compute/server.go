@@ -58,7 +58,7 @@ var serverListCmd = &cobra.Command{
 func printServerDetailsTable(w io.Writer, s *pidginhost.ServerDetail) {
 	tw := output.NewTabWriter(w)
 	output.PrintRow(tw, "ID:", s.Id)
-	output.PrintRow(tw, "Hostname:", s.Hostname)
+	output.PrintRow(tw, "Hostname:", output.Pstr(s.Hostname))
 	output.PrintRow(tw, "Image:", s.Image)
 	output.PrintRow(tw, "Package:", s.Package)
 	output.PrintRow(tw, "CPUs:", s.Cpus)

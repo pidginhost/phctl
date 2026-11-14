@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- `freedns domain activate` no longer needs `--ip`. Leave it out to start with an empty zone.
+
 ## v0.21.0
 
 ### Added
