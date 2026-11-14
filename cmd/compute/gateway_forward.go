@@ -139,18 +139,9 @@ func gatewayPortForwardBody(cmd *cobra.Command) (body pidginhost.PatchedGatewayF
 		}
 		body.Target = pidginhost.NewGatewayForwardTargetRequest(network, address, port)
 	}
-	if flags.Changed("allowed-sources") {
-		sources, _ := flags.GetStringSlice("allowed-sources")
-		body.AllowedSources = append([]string{}, sources...) // non-nil, so an empty list is sent
-	}
-	if flags.Changed("enabled") {
-		enabled, _ := flags.GetBool("enabled")
-		body.Enabled = &enabled
-	}
-	if flags.Changed("comment") {
-		comment, _ := flags.GetString("comment")
-		body.Comment = &comment
-	}
+	body.AllowedSources = givenList(flags, "allowed-sources")
+	body.Enabled = givenBool(flags, "enabled")
+	body.Comment = givenString(flags, "comment")
 	return body, nil
 }
 

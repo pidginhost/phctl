@@ -279,18 +279,10 @@ var gatewayUpdateCmd = &cobra.Command{
 		}
 		// A literal, not NewPatched...(): constructors seed defaults, and a PATCH
 		// must carry only what the operator asked to change.
-		var body pidginhost.PatchedGatewayUpdateRequest
-		if cmd.Flags().Changed("name") {
-			name, _ := cmd.Flags().GetString("name")
-			body.Name = &name
-		}
-		if cmd.Flags().Changed("maintenance-weekday") {
-			weekday, _ := cmd.Flags().GetInt32("maintenance-weekday")
-			body.MaintenanceWeekday = &weekday
-		}
-		if cmd.Flags().Changed("maintenance-hour") {
-			hour, _ := cmd.Flags().GetInt32("maintenance-hour")
-			body.MaintenanceHour = &hour
+		body := pidginhost.PatchedGatewayUpdateRequest{
+			Name:               givenString(cmd.Flags(), "name"),
+			MaintenanceWeekday: givenInt32(cmd.Flags(), "maintenance-weekday"),
+			MaintenanceHour:    givenInt32(cmd.Flags(), "maintenance-hour"),
 		}
 		if err := requireChange(body); err != nil {
 			return err

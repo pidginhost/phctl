@@ -5,9 +5,9 @@
 ### Added
 
 - `compute gateway` creates, renames, deletes and re-enrolls gateways, shows their status and operations, and attaches private networks, asking before a change that cuts servers off.
-
 - `compute gateway firewall-rule` lists, adds, changes, reorders and deletes a gateway's firewall rules.
 - `compute gateway port-forward` lists, adds, changes and deletes the public ports a gateway forwards to a host on a private network.
+- `compute gateway listener`, `route`, `pool` and `backend` set up a gateway's load balancer: public ports, host and path routes, and the servers behind them with their health.
 
 ### Changed
 

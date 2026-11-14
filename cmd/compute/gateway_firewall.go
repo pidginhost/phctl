@@ -262,14 +262,8 @@ func gatewayFirewallRuleBody(cmd *cobra.Command) (body pidginhost.PatchedGateway
 			return body, err
 		}
 	}
-	if flags.Changed("enabled") {
-		enabled, _ := flags.GetBool("enabled")
-		body.Enabled = &enabled
-	}
-	if flags.Changed("comment") {
-		comment, _ := flags.GetString("comment")
-		body.Comment = &comment
-	}
+	body.Enabled = givenBool(flags, "enabled")
+	body.Comment = givenString(flags, "comment")
 	return body, nil
 }
 
