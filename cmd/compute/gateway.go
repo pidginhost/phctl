@@ -298,7 +298,7 @@ var gatewayUpdateCmd = &cobra.Command{
 		if g == nil {
 			return fmt.Errorf("updating gateway: server returned no response")
 		}
-		if err := checkApplied("updating gateway", body, g); err != nil {
+		if err := checkApplied("updating gateway", body, g, "name"); err != nil {
 			return err
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), g,

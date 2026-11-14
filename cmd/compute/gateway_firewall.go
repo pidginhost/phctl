@@ -36,7 +36,9 @@ func asCreate[T any](patch any) (T, error) {
 // route that answers 200 having applied nothing looks identical to one that
 // worked. Only top-level scalars are compared. The API rewrites lists and
 // nested objects (it merges port ranges, for one), so those cannot be.
-func checkApplied(what string, sent, got any) error {
+// trimmedFields names text fields whose endpoint strips surrounding whitespace.
+// Load balancer endpoints preserve text, unlike the gateway and firewall APIs.
+func checkApplied(what string, sent, got any, trimmedFields ...string) error {
 	want, err := jsonObject(sent)
 	if err != nil {
 		return fmt.Errorf("%s: reading the change back: %w", what, err)
@@ -49,7 +51,9 @@ func checkApplied(what string, sent, got any) error {
 		value := want[key]
 		switch v := value.(type) {
 		case string:
-			value = strings.TrimSpace(v) // the API trims text
+			if slices.Contains(trimmedFields, key) {
+				value = strings.TrimSpace(v)
+			}
 		case bool, float64:
 		default:
 			continue
@@ -327,7 +331,7 @@ var gatewayFirewallRuleUpdateCmd = &cobra.Command{
 		if rule == nil {
 			return fmt.Errorf("updating firewall rule: server returned no response")
 		}
-		if err := checkApplied("updating firewall rule", body, rule); err != nil {
+		if err := checkApplied("updating firewall rule", body, rule, "comment"); err != nil {
 			return err
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), rule,

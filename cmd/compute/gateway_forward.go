@@ -205,7 +205,7 @@ var gatewayPortForwardUpdateCmd = &cobra.Command{
 		if forward == nil {
 			return fmt.Errorf("updating port forward: server returned no response")
 		}
-		if err := checkApplied("updating port forward", body, forward); err != nil {
+		if err := checkApplied("updating port forward", body, forward, "comment"); err != nil {
 			return err
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), forward,
