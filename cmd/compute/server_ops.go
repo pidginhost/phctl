@@ -418,6 +418,47 @@ var serverPublicInterfaceDeleteCmd = &cobra.Command{
 	},
 }
 
+var serverRenameCmd = &cobra.Command{
+	Use:   "rename <id> <hostname>",
+	Short: "Rename a server",
+	Long: `Rename a server. Reverse DNS still on the old name moves with it.
+
+The server takes the new name at its next reboot from the panel or API. That
+reboot also creates new SSH host keys and resets the login password and SSH
+keys to the ones saved for the server.`,
+	Args: cobra.ExactArgs(2),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		id, err := cmdutil.ParseInt32(args[0])
+		if err != nil {
+			return err
+		}
+		// The API drops these too; doing it here keeps the read-back below honest.
+		hostname := strings.Trim(strings.TrimSpace(args[1]), ".")
+		if !cmdutil.Force(cmd) && !confirm.Action(cmd.InOrStdin(), cmd.ErrOrStderr(), fmt.Sprintf(
+			"Rename server %d to %s? Its next reboot applies the name, creates new SSH host keys and resets the login password and SSH keys to the saved ones.",
+			id, hostname)) {
+			return nil
+		}
+		c, err := client.New()
+		if err != nil {
+			return err
+		}
+		body := pidginhost.PatchedServerDetailRequest{Hostname: &hostname}
+		server, _, err := c.CloudAPI.CloudServersPartialUpdate(cmd.Context(), id).PatchedServerDetailRequest(body).Execute()
+		if err != nil {
+			return cmdutil.APIError("renaming server", err)
+		}
+		if server == nil {
+			return fmt.Errorf("renaming server: server returned no response")
+		}
+		if err := checkApplied("renaming server", body, server); err != nil {
+			return err
+		}
+		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), server,
+			"Server %d renamed to %s. It takes the name at its next reboot.\n", server.Id, server.GetHostname())
+	},
+}
+
 func init() {
 	serverRescueEnterCmd.Flags().String("iso", "",
 		"Boot ISO slug from `boot-isos` (omit for the default rescue image)")
@@ -436,6 +477,7 @@ func init() {
 	serverPublicInterfaceCmd.AddCommand(serverPublicInterfaceSetCmd)
 	serverPublicInterfaceCmd.AddCommand(serverPublicInterfaceDeleteCmd)
 
+	serverCmd.AddCommand(serverRenameCmd)
 	serverCmd.AddCommand(serverRescueCmd)
 	serverCmd.AddCommand(serverBootISOsCmd)
 	serverCmd.AddCommand(serverUsageCmd)

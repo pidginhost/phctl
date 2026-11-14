@@ -1,6 +1,10 @@
 package freedns
 
 import (
+	"bytes"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -63,6 +67,41 @@ func TestActivateFlags(t *testing.T) {
 	f := domainActivateCmd.Flags().Lookup("ip")
 	if f == nil {
 		t.Fatal("missing --ip flag on activate command")
+	}
+	if f.Annotations[cobra.BashCompOneRequiredFlag] != nil {
+		t.Error("--ip must be optional: without it the zone starts empty")
+	}
+}
+
+// The API reads a missing ip as "start with an empty zone" and rejects "".
+func TestActivateSendsIPOnlyWhenGiven(t *testing.T) {
+	for _, tc := range []struct {
+		ip      string
+		wantKey bool
+	}{{"", false}, {"192.0.2.10", true}} {
+		t.Run("ip="+tc.ip, func(t *testing.T) {
+			var body map[string]any
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				_ = json.NewDecoder(r.Body).Decode(&body)
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{"domain":"example.test","source":"internal","message":"ok"}`))
+			}))
+			defer server.Close()
+			t.Setenv("HOME", t.TempDir())
+			t.Setenv("PIDGINHOST_API_TOKEN", "test-token")
+			t.Setenv("PIDGINHOST_API_URL", server.URL)
+
+			prev := activateIP
+			activateIP = tc.ip
+			t.Cleanup(func() { activateIP = prev })
+			domainActivateCmd.SetOut(&bytes.Buffer{})
+			if err := domainActivateCmd.RunE(domainActivateCmd, []string{"example.test"}); err != nil {
+				t.Fatalf("RunE: %v", err)
+			}
+			if _, has := body["ip"]; has != tc.wantKey {
+				t.Errorf("request body %v: ip present = %v, want %v", body, has, tc.wantKey)
+			}
+		})
 	}
 }
 

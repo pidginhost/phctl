@@ -41,6 +41,51 @@ func TestCommandsRejectMissingResponses(t *testing.T) {
 		"compute floating-ip reverse-dns 42 --ipv6",
 		"compute floating-ip reverse-dns 42 --hostname example.test",
 		"compute floating-ip reverse-dns 42 --ipv6 --hostname example.test",
+		"compute gateway list",
+		"compute gateway get 42",
+		"compute gateway create --name example",
+		"compute gateway update 42 --name example",
+		"compute gateway delete 42",
+		"compute gateway reenroll 42",
+		"compute gateway status 42",
+		"compute gateway operation list 42",
+		"compute gateway operation get 42 op-1",
+		"compute gateway firewall-rule list 42",
+		"compute gateway firewall-rule get 42 1",
+		"compute gateway firewall-rule create 42 --action ACCEPT --source network:1 --destination internet --protocol tcp",
+		"compute gateway firewall-rule update 42 1 --comment example",
+		"compute gateway firewall-rule delete 42 1",
+		"compute gateway firewall-rule move 42 1 --position 0",
+		"compute gateway port-forward list 42",
+		"compute gateway port-forward get 42 1",
+		"compute gateway port-forward create 42 --protocol tcp --public-ports 80 --target-network 1 --target-address 10.0.0.5 --target-port 80",
+		"compute gateway port-forward update 42 1 --comment example",
+		"compute gateway port-forward delete 42 1",
+		"compute gateway pool list 42",
+		"compute gateway pool get 42 1",
+		"compute gateway pool create 42 --name example",
+		"compute gateway pool update 42 1 --name example",
+		"compute gateway pool delete 42 1",
+		"compute gateway backend list 42 1",
+		"compute gateway backend get 42 1 2",
+		"compute gateway backend create 42 1 --network 1 --address 10.0.0.5 --port 80",
+		"compute gateway backend update 42 1 2 --weight 5",
+		"compute gateway backend delete 42 1 2",
+		"compute gateway listener list 42",
+		"compute gateway listener get 42 1",
+		"compute gateway listener create 42 --protocol tcp --port 80 --mode http",
+		"compute gateway listener update 42 1 --comment example",
+		"compute gateway listener delete 42 1",
+		"compute gateway route list 42 1",
+		"compute gateway route get 42 1 2",
+		"compute gateway route create 42 1 --pool 1",
+		"compute gateway route update 42 1 2 --pool 1",
+		"compute gateway route delete 42 1 2",
+		"compute gateway network list 42",
+		"compute gateway network get 42 1",
+		"compute gateway network attach 42 --network 1",
+		"compute gateway network detach 42 1",
+		"compute gateway network update 42 1 --snat=true",
 		"compute image list",
 		"compute ipv4 list",
 		"compute ipv4 create",
@@ -57,11 +102,14 @@ func TestCommandsRejectMissingResponses(t *testing.T) {
 		"compute network create --address 10.0.0.0/24",
 		"compute network add-server 42 --server example.test",
 		"compute network remove-server 42 --server example.test",
+		"compute network route-status 42",
+		"compute network apply-route 42 --servers 1",
 		"compute package list",
 		"compute server list",
 		"compute server get 42",
 		"compute server create --image debian --package small",
 		"compute server console 42",
+		"compute server rename 42 example.test",
 		"compute volume get 42",
 		"compute volume detach 42",
 		"dedicated server power 42 --action start",
@@ -136,8 +184,14 @@ func runResponseCommand(t *testing.T, invocation, format, body string) (string, 
 				return
 			}
 			value, changed := flag.Value.String(), flag.Changed
+			restore := func() error { return flag.Value.Set(value) }
+			// A slice flag's Set appends, and cannot parse its own String().
+			if slice, ok := flag.Value.(pflag.SliceValue); ok {
+				items := slice.GetSlice()
+				restore = func() error { return slice.Replace(items) }
+			}
 			t.Cleanup(func() {
-				if err := flag.Value.Set(value); err != nil {
+				if err := restore(); err != nil {
 					t.Errorf("restoring --%s: %v", flag.Name, err)
 				}
 				flag.Changed = changed

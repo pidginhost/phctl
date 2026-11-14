@@ -66,7 +66,10 @@ var domainActivateCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		body := *pidginhost.NewActivateFreeDNSRequest(args[0], pidginhost.SourceEnum(activateSource), activateIP)
+		body := *pidginhost.NewActivateFreeDNSRequest(args[0], pidginhost.SourceEnum(activateSource))
+		if activateIP != "" {
+			body.SetIp(activateIP)
+		}
 		resp, _, err := c.FreednsAPI.FreednsDnsActivateCreate(cmd.Context()).ActivateFreeDNSRequest(body).Execute()
 		if err != nil {
 			return cmdutil.APIError("activating FreeDNS", err)
@@ -220,8 +223,7 @@ var recordDeleteCmd = &cobra.Command{
 
 func init() {
 	domainActivateCmd.Flags().StringVar(&activateSource, "source", "internal", "Source type: internal or external (required)")
-	domainActivateCmd.Flags().StringVar(&activateIP, "ip", "", "IP address (required)")
-	domainActivateCmd.MarkFlagRequired("ip")
+	domainActivateCmd.Flags().StringVar(&activateIP, "ip", "", "IP address for the first records (default: start with an empty zone)")
 
 	domainDeactivateCmd.Flags().StringVar(&deactivateSource, "source", "internal", "Source type: internal or external")
 
