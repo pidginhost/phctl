@@ -86,12 +86,6 @@ narration stay human-readable; progress goes to stderr, so stdout under
 | `phctl support` | | Support tickets and departments |
 | `phctl update` | | Self-update to latest version |
 
-### Gateway updates
-
-Gateway updates check returned names, comments and other scalar settings before
-reporting success. Pool names and listener comments preserve surrounding
-whitespace. Gateway names and firewall or port-forward comments are trimmed.
-
 ### Examples
 
 ```bash

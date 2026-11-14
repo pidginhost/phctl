@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## Unreleased
 
 ### Added
 
@@ -14,10 +14,6 @@
 ### Changed
 
 - `freedns domain activate` no longer needs `--ip`. Leave it out to start with an empty zone.
-
-### Fixed
-
-- Gateway updates correctly report whether pool names and listener comments changed, including surrounding whitespace.
 
 ## v0.21.0
 
