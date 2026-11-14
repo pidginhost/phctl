@@ -6,6 +6,9 @@
 
 - `compute gateway` creates, renames, deletes and re-enrolls gateways, shows their status and operations, and attaches private networks, asking before a change that cuts servers off.
 
+- `compute gateway firewall-rule` lists, adds, changes, reorders and deletes a gateway's firewall rules.
+- `compute gateway port-forward` lists, adds, changes and deletes the public ports a gateway forwards to a host on a private network.
+
 ### Changed
 
 - `freedns domain activate` no longer needs `--ip`. Leave it out to start with an empty zone.

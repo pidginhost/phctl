@@ -292,8 +292,8 @@ var gatewayUpdateCmd = &cobra.Command{
 			hour, _ := cmd.Flags().GetInt32("maintenance-hour")
 			body.MaintenanceHour = &hour
 		}
-		if body.Name == nil && body.MaintenanceWeekday == nil && body.MaintenanceHour == nil {
-			return fmt.Errorf("nothing to update: pass --name, --maintenance-weekday or --maintenance-hour")
+		if err := requireChange(body); err != nil {
+			return err
 		}
 		c, err := client.New()
 		if err != nil {
@@ -306,10 +306,8 @@ var gatewayUpdateCmd = &cobra.Command{
 		if g == nil {
 			return fmt.Errorf("updating gateway: server returned no response")
 		}
-		if (body.Name != nil && g.Name != *body.Name) ||
-			(body.MaintenanceWeekday != nil && g.MaintenanceWeekday != *body.MaintenanceWeekday) ||
-			(body.MaintenanceHour != nil && g.MaintenanceHour != *body.MaintenanceHour) {
-			return fmt.Errorf("updating gateway: the change was not applied")
+		if err := checkApplied("updating gateway", body, g); err != nil {
+			return err
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), g,
 			"Gateway %d updated (name: %s, maintenance: weekday %d, hour %d)\n",

@@ -178,8 +178,8 @@ var gatewayNetworkUpdateCmd = &cobra.Command{
 		if n == nil {
 			return fmt.Errorf("updating gateway network: server returned no response")
 		}
-		if n.Snat != snat {
-			return fmt.Errorf("updating gateway network: SNAT was not changed")
+		if err := checkApplied("updating gateway network", body, n); err != nil {
+			return err
 		}
 		return output.Result(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), n,
 			"SNAT for network %d on gateway %d: %v (pending: %v)\n", n.Network, ids[0], n.Snat, n.Pending)
