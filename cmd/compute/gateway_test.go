@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 const (
@@ -41,14 +42,18 @@ func setFlags(t *testing.T, cmd *cobra.Command, flags map[string]string) {
 			t.Fatalf("%s has no --%s flag", cmd.CommandPath(), name)
 		}
 		prev, changed := f.Value.String(), f.Changed
+		restore := func() error { return f.Value.Set(prev) }
+		// A slice flag's Set appends, and cannot parse its own String().
+		if slice, ok := f.Value.(pflag.SliceValue); ok {
+			items := slice.GetSlice()
+			restore = func() error { return slice.Replace(items) }
+		}
 		if err := cmd.Flags().Set(name, value); err != nil {
 			t.Fatalf("--%s=%s: %v", name, value, err)
 		}
 		t.Cleanup(func() {
-			if sv, ok := f.Value.(interface{ Replace([]string) error }); ok {
-				_ = sv.Replace(nil)
-			} else {
-				_ = f.Value.Set(prev)
+			if err := restore(); err != nil {
+				t.Errorf("restoring --%s: %v", name, err)
 			}
 			f.Changed = changed
 		})
@@ -411,6 +416,113 @@ func TestGatewayNetworkUpdateSNAT(t *testing.T) {
 		st, _, err := runOp(t, gatewayNetworkUpdateCmd, []string{"5", "3"}, okOp(gatewayNetworkJSON), "table", "", false)
 		if err == nil || st.calls != 0 {
 			t.Fatalf("err = %v, calls = %d; want a usage error before any call", err, st.calls)
+		}
+	})
+}
+
+const routeStatusJSON = `{"network":3,"gateway":5,"servers":[{"server":42,"hostname":"web1","power":"running",` +
+	`"config":"missing","pending":"ok","routes_here":true,"acknowledged":false}],` +
+	`"operations":[` + gatewayOperationJSON + `]}`
+
+func TestNetworkRouteStatusRenders(t *testing.T) {
+	st, out, err := runOp(t, networkRouteStatusCmd, []string{"3"}, okOp(routeStatusJSON), "table", "", false)
+	if err != nil {
+		t.Fatalf("RunE: %v", err)
+	}
+	if st.path != "/api/cloud/private-networks/3/route-status/" {
+		t.Errorf("path = %q", st.path)
+	}
+	for _, want := range []string{"web1", "running", "missing", "op-1", "Gateway:", "5"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("status %q is missing %q", out, want)
+		}
+	}
+	if strings.Contains(out, "0x") || strings.Contains(out, "{") {
+		t.Errorf("status prints a raw Go value: %q", out)
+	}
+}
+
+func TestNetworkApplyRouteConfirmsTheReboot(t *testing.T) {
+	accepted := func(*opStub) (int, string) { return http.StatusAccepted, gatewayOperationJSON }
+	for _, tc := range []struct {
+		name      string
+		stdin     string
+		force     bool
+		wantCalls int
+	}{
+		{name: "declined", stdin: "n\n"},
+		{name: "confirmed", stdin: "y\n", wantCalls: 1},
+		{name: "forced", force: true, wantCalls: 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			setFlags(t, networkApplyRouteCmd, map[string]string{"servers": "42,43"})
+			st, out, err := runOp(t, networkApplyRouteCmd, []string{"3"}, accepted, "table", tc.stdin, tc.force)
+			if err != nil {
+				t.Fatalf("RunE: %v", err)
+			}
+			if st.calls != tc.wantCalls {
+				t.Fatalf("API calls = %d, want %d", st.calls, tc.wantCalls)
+			}
+			if !tc.force && !strings.Contains(stderrOf(networkApplyRouteCmd), "reboot") {
+				t.Errorf("prompt %q does not say the servers reboot", stderrOf(networkApplyRouteCmd))
+			}
+			if tc.wantCalls == 0 {
+				if out != "" {
+					t.Errorf("cancelled apply wrote %q", out)
+				}
+				return
+			}
+			if st.path != "/api/cloud/private-networks/3/apply-route/" || bodyJSON(t, st) != `{"servers":[42,43]}` {
+				t.Errorf("request = %s %s", st.path, bodyJSON(t, st))
+			}
+			if !strings.Contains(out, "op-1") {
+				t.Errorf("output %q does not name the operation", out)
+			}
+		})
+	}
+}
+
+func TestServerRename(t *testing.T) {
+	renamed := mustJSON(t, newTestServerDetail(nil))
+	renamed = strings.Replace(renamed, "vm.example.com", "web1.example.com", 1)
+
+	t.Run("confirms, then sends only the hostname", func(t *testing.T) {
+		st, out, err := runOp(t, serverRenameCmd, []string{"42", "web1.example.com"}, okOp(renamed), "table", "y\n", false)
+		if err != nil {
+			t.Fatalf("RunE: %v", err)
+		}
+		if st.method != http.MethodPatch || st.path != "/api/cloud/servers/42/" {
+			t.Errorf("request = %s %s", st.method, st.path)
+		}
+		if got, want := bodyJSON(t, st), `{"hostname":"web1.example.com"}`; got != want {
+			t.Errorf("body = %s, want %s", got, want)
+		}
+		if !strings.Contains(stderrOf(serverRenameCmd), "reboot") {
+			t.Errorf("prompt %q does not say when the name takes effect", stderrOf(serverRenameCmd))
+		}
+		if !strings.Contains(out, "web1.example.com") {
+			t.Errorf("output %q does not name the server", out)
+		}
+	})
+
+	t.Run("a trailing dot is not part of the name", func(t *testing.T) {
+		st, _, err := runOp(t, serverRenameCmd, []string{"42", "web1.example.com."}, okOp(renamed), "table", "", true)
+		if err != nil || st.body["hostname"] != "web1.example.com" {
+			t.Fatalf("err = %v, body = %v", err, st.body)
+		}
+	})
+
+	t.Run("declined", func(t *testing.T) {
+		st, out, err := runOp(t, serverRenameCmd, []string{"42", "web1.example.com"}, okOp(renamed), "table", "n\n", false)
+		if err != nil || st.calls != 0 || out != "" {
+			t.Fatalf("err = %v, calls = %d, out = %q", err, st.calls, out)
+		}
+	})
+
+	t.Run("a 200 that kept the old name is an error", func(t *testing.T) {
+		_, out, err := runOp(t, serverRenameCmd, []string{"42", "other.example.com"}, okOp(renamed), "table", "", true)
+		if err == nil || out != "" {
+			t.Fatalf("out = %q, err = %v; want an error", out, err)
 		}
 	})
 }

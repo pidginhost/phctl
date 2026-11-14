@@ -75,7 +75,7 @@ narration stay human-readable; progress goes to stderr, so stdout under
 |---------|-------|-------------|
 | `phctl auth` | | Authentication |
 | `phctl account` | | Profile, SSH keys, companies, API tokens, email history |
-| `phctl compute` | `c` | Servers, volumes, firewalls, IPs, networks, snapshots |
+| `phctl compute` | `c` | Servers, volumes, firewalls, IPs, networks, gateways, snapshots |
 | `phctl domain` | `dns` | Domains, TLDs, registrants, nameservers, transfers |
 | `phctl kubernetes` | `k8s` | Clusters, pools, nodes, LB firewall, port forwards, HTTP/TCP/UDP routes |
 | `phctl storage` | | S3 buckets: quota, visibility, credentials |

@@ -102,11 +102,14 @@ func TestCommandsRejectMissingResponses(t *testing.T) {
 		"compute network create --address 10.0.0.0/24",
 		"compute network add-server 42 --server example.test",
 		"compute network remove-server 42 --server example.test",
+		"compute network route-status 42",
+		"compute network apply-route 42 --servers 1",
 		"compute package list",
 		"compute server list",
 		"compute server get 42",
 		"compute server create --image debian --package small",
 		"compute server console 42",
+		"compute server rename 42 example.test",
 		"compute volume get 42",
 		"compute volume detach 42",
 		"dedicated server power 42 --action start",
@@ -181,8 +184,14 @@ func runResponseCommand(t *testing.T, invocation, format, body string) (string, 
 				return
 			}
 			value, changed := flag.Value.String(), flag.Changed
+			restore := func() error { return flag.Value.Set(value) }
+			// A slice flag's Set appends, and cannot parse its own String().
+			if slice, ok := flag.Value.(pflag.SliceValue); ok {
+				items := slice.GetSlice()
+				restore = func() error { return slice.Replace(items) }
+			}
 			t.Cleanup(func() {
-				if err := flag.Value.Set(value); err != nil {
+				if err := restore(); err != nil {
 					t.Errorf("restoring --%s: %v", flag.Name, err)
 				}
 				flag.Changed = changed
