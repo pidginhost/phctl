@@ -19,4 +19,5 @@ func init() {
 	Cmd.AddCommand(networkCmd)
 	Cmd.AddCommand(packageCmd)
 	Cmd.AddCommand(floatingIPCmd)
+	Cmd.AddCommand(gatewayCmd)
 }

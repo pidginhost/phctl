@@ -211,7 +211,90 @@ var networkRemoveServerCmd = &cobra.Command{
 	},
 }
 
+var networkRouteStatusCmd = &cobra.Command{
+	Use:   "route-status <network-id>",
+	Short: "Show each server's default route on a network",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		id, err := cmdutil.ParseInt32(args[0])
+		if err != nil {
+			return err
+		}
+		c, err := client.New()
+		if err != nil {
+			return err
+		}
+		status, _, err := c.CloudAPI.CloudPrivateNetworksRouteStatusRetrieve(cmd.Context(), id).Execute()
+		if err != nil {
+			return cmdutil.APIError("getting route status", err)
+		}
+		if status == nil {
+			return fmt.Errorf("getting route status: server returned no response")
+		}
+		return output.Print(cmd.OutOrStdout(), cmdutil.OutputFormat(cmd), status, func(w io.Writer) {
+			tw := output.NewTabWriter(w)
+			output.PrintRow(tw, "Network:", status.Network)
+			output.PrintRow(tw, "Gateway:", output.Pstr(status.Gateway.Get()))
+			tw.Flush()
+			if len(status.Servers) > 0 {
+				fmt.Fprintln(w)
+				tw = output.NewTabWriter(w)
+				output.PrintRow(tw, "SERVER", "HOSTNAME", "POWER", "CONFIG", "AFTER REBOOT", "ROUTES HERE", "ACKNOWLEDGED")
+				for _, s := range status.Servers {
+					output.PrintRow(tw, s.Server, s.Hostname, s.Power, s.Config, output.Pstr(s.Pending.Get()), s.RoutesHere, s.Acknowledged)
+				}
+				tw.Flush()
+			}
+			if len(status.Operations) > 0 {
+				fmt.Fprintln(w)
+				tw = output.NewTabWriter(w)
+				output.PrintRow(tw, "OPERATION", "STATUS", "STARTED", "COMPLETED", "REASON")
+				for _, op := range status.Operations {
+					output.PrintRow(tw, op.Id, op.Status, op.StartedAt, output.Pstr(op.CompletedAt.Get()), op.Reason)
+				}
+				tw.Flush()
+			}
+		})
+	},
+}
+
+var networkApplyRouteCmd = &cobra.Command{
+	Use:   "apply-route <network-id>",
+	Short: "Apply the network's route to servers and reboot them",
+	Long: `Apply the network's route to the named servers and reboot them.
+
+'network route-status' shows which servers need it and, afterwards, how the
+apply went.`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		id, err := cmdutil.ParseInt32(args[0])
+		if err != nil {
+			return err
+		}
+		servers, _ := cmd.Flags().GetInt32Slice("servers")
+		if !cmdutil.Force(cmd) && !confirm.Action(cmd.InOrStdin(), cmd.ErrOrStderr(),
+			fmt.Sprintf("Apply the route of network %d to servers %v? They reboot.", id, servers)) {
+			return nil
+		}
+		c, err := client.New()
+		if err != nil {
+			return err
+		}
+		body := *pidginhost.NewApplyRouteRequest(servers)
+		op, _, err := c.CloudAPI.CloudPrivateNetworksApplyRouteCreate(cmd.Context(), id).ApplyRouteRequest(body).Execute()
+		if err != nil {
+			return cmdutil.APIError("applying route", err)
+		}
+		return queued(cmd, fmt.Sprintf("Applying the route of network %d", id), op)
+	},
+}
+
 func init() {
+	networkApplyRouteCmd.Flags().Int32Slice("servers", nil, "IDs of the servers to apply the route to and reboot (required)")
+	networkApplyRouteCmd.MarkFlagRequired("servers")
+	networkCmd.AddCommand(networkRouteStatusCmd)
+	networkCmd.AddCommand(networkApplyRouteCmd)
+
 	// The server assigns the slug, so --slug was never applied. Kept, deprecated,
 	// so scripts that pass it do not break.
 	networkCreateCmd.Flags().String("slug", "", "Ignored: the server assigns the slug")

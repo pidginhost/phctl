@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `compute gateway` creates, renames, deletes and re-enrolls gateways, shows their status and operations, and attaches private networks, asking before a change that cuts servers off.
+- `compute gateway firewall-rule` lists, adds, changes, reorders and deletes a gateway's firewall rules.
+- `compute gateway port-forward` lists, adds, changes and deletes the public ports a gateway forwards to a host on a private network.
+- `compute gateway listener`, `route`, `pool` and `backend` set up a gateway's load balancer: public ports, host and path routes, and the servers behind them with their health.
+- `compute network route-status` shows each server's default route on a private network, and `compute network apply-route` applies the route and reboots the servers you name.
+- `compute server rename` renames a server. The name takes effect at its next reboot.
+
+### Changed
+
+- `freedns domain activate` no longer needs `--ip`. Leave it out to start with an empty zone.
+
 ## v0.21.0
 
 ### Added

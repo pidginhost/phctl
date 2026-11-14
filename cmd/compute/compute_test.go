@@ -804,10 +804,9 @@ func TestSnapshotSubcommands(t *testing.T) {
 }
 
 func newTestServerDetail(floatingIPs []pidginhost.FloatingIPSummary) *pidginhost.ServerDetail {
-	return pidginhost.NewServerDetail(
+	server := pidginhost.NewServerDetail(
 		*pidginhost.NewNullableResourceBilling(nil),
 		42,
-		"vm.example.com",
 		"ubuntu-24.04",
 		"c2g",
 		2,
@@ -827,6 +826,8 @@ func newTestServerDetail(floatingIPs []pidginhost.FloatingIPSummary) *pidginhost
 		*pidginhost.NewNullableString(nil), // bootIso
 		false,                              // rescueSupported
 	)
+	server.SetHostname("vm.example.com")
+	return server
 }
 
 func nonEmptyLines(s string) []string {
