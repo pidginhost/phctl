@@ -85,6 +85,14 @@ reach for `APIError`.
 - Destructive, billable or restarting operations confirm first:
   `if !cmdutil.Force(cmd) && !confirm.Action(...) { return nil }`.
 - Paginated list endpoints go through `cmdutil.FetchAll`.
+- Gateway changes that can cut servers off are confirmed by the API, not by a
+  blind prompt: a request without a revision is never applied and answers `409`
+  with a preview. Route them through `previewed` (`cmd/compute/gateway.go`),
+  which shows the preview, asks, and resends it. A `409` without a preview is a
+  refusal and stays an error.
+- Build a `PATCH` body from a struct literal and the `given*` helpers, never
+  from `NewPatched*()`: the constructors seed defaults, which a `PATCH` would
+  then write.
 - Endpoints whose response carries a decimal still go through `internal/client`'s
   `Raw*` types and `RawFetchAll`. That is now legacy, not a rule for new code —
   see below.
